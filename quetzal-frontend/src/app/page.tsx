@@ -6,7 +6,12 @@ import axios from 'axios';
 
 export default function Home() {
 
-  const [items, setItems] = useState([]);
+  interface Item {
+    _id: string;
+    name: string;
+  }
+
+  const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
