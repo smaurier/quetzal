@@ -18,7 +18,7 @@ export default function Home() {
   useEffect(() => {
     // Utiliser l'URL de votre backend local
     axios
-      .get('http://localhost:3001/items')
+      .get('https://quetzal.onrender.com/items')
       .then((response) => {
         setItems(response.data);
         setLoading(false);
