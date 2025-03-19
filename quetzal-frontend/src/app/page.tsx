@@ -1,6 +1,38 @@
+"use client";
+
+import { useEffect, useState } from 'react';
 import Image from "next/image";
+import axios from 'axios';
 
 export default function Home() {
+
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // Remplace l'URL par l'URL de ton back-end (ex. https://quetzal.onrender.com/items)
+    axios
+      .get('https://quetzal.onrender.com/items')
+      .then((response) => {
+        setItems(response.data); // On met les données dans l'état
+        setLoading(false); // L'état de chargement est terminé
+      })
+      .catch((err) => {
+        setError('Error fetching data'); // En cas d'erreur
+        setLoading(false);
+      });
+  }, []); // Le tableau vide [] signifie que cet effet s'exécute une seule fois lors du montage du composant
+
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>{error}</div>;
+  }
+
   return (
     <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
@@ -23,6 +55,11 @@ export default function Home() {
           <li className="tracking-[-.01em]">
             Save and see your changes instantly.
           </li>
+          {items.map((item) => (
+            <li className="tracking-[-.01em]" key={item._id}>
+              Axios : {item.name}
+            </li>
+          ))}
         </ol>
 
         <div className="flex gap-4 items-center flex-col sm:flex-row">
