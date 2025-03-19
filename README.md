@@ -3,7 +3,7 @@
 ## 🚀 Présentation
 
 Quetzal est une plateforme éducative interactive inspirée de Kahoot!, permettant de créer et d'animer des **quiz et mini-jeux pédagogiques** en temps réel.
-Elle est pensée pour être utilisée par des enseignants et formateurs, avec la possibilité de la commercialiser à terme.
+Elle est pensée pour être utilisée par des enseignants et formateurs.
 
 ## 🏗️ Stack technique
 
