@@ -11,18 +11,18 @@ export default function Home() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Remplace l'URL par l'URL de ton back-end (ex. https://quetzal.onrender.com/items)
+    // Utiliser l'URL de votre backend local
     axios
-      .get('https://quetzal.onrender.com/items')
+      .get('http://localhost:3001/items')
       .then((response) => {
-        setItems(response.data); // On met les données dans l'état
-        setLoading(false); // L'état de chargement est terminé
+        setItems(response.data);
+        setLoading(false);
       })
       .catch((err) => {
-        setError(err); // En cas d'erreur
+        setError(err.message || "Une erreur s'est produite");
         setLoading(false);
       });
-  }, []); // Le tableau vide [] signifie que cet effet s'exécute une seule fois lors du montage du composant
+  }, []);
 
 
   if (loading) {
