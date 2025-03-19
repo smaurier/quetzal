@@ -19,7 +19,7 @@ export default function Home() {
         setLoading(false); // L'état de chargement est terminé
       })
       .catch((err) => {
-        setError('Error fetching data'); // En cas d'erreur
+        setError(err); // En cas d'erreur
         setLoading(false);
       });
   }, []); // Le tableau vide [] signifie que cet effet s'exécute une seule fois lors du montage du composant
