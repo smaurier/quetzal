@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter quetzal-frontend run dev\" \"pnpm --filter quetzal-backend run start:dev\"",
+    "dev:frontend": "pnpm --filter quetzal-frontend run dev",
+    "dev:backend": "pnpm --filter quetzal-backend run start:dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

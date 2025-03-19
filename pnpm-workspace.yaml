@@ -1,0 +1,3 @@
+packages:
+  - "quetzal-frontend"
+  - "quetzal-backend"
