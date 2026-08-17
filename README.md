@@ -1,5 +1,9 @@
 # Quetzal 🦜
 
+![NestJS](https://img.shields.io/badge/-NestJS-E0234E?style=flat-square&logo=nestjs&logoColor=white)
+![Next.js](https://img.shields.io/badge/-Next.js-000000?style=flat-square&logo=next.js&logoColor=white)
+![Socket.io](https://img.shields.io/badge/-Socket.io-010101?style=flat-square&logo=socket.io&logoColor=white)
+
 ## 🚀 Présentation
 
 Quetzal est une plateforme éducative interactive inspirée de Kahoot!, permettant de créer et d'animer des **quiz et mini-jeux pédagogiques** en temps réel.
