@@ -1,4 +1,38 @@
-node_modules
-dist
-.next
-.env"node_modules/" 
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+*.tsbuildinfo
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Testing
+coverage/
+playwright-report/
+test-results/
+
+# Prisma generated
+packages/db/prisma/schema.prisma
+packages/auth/prisma/auth.prisma
+packages/db/src/model-tenant-registry.ts
+
+# Generated Next module routes
+apps/host/app/modules/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

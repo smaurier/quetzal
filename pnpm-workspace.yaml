@@ -1,6 +1,4 @@
 packages:
-  - quetzal-frontend
-  - quetzal-backend
-ignoredBuiltDependencies:
-  - '@nestjs/core'
-  - sharp
+  - 'apps/*'
+  - 'packages/*'
+  - 'packages/module-*'
