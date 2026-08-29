@@ -423,12 +423,21 @@ export const auth = betterAuth({
       jwks: { keyPairConfig: { alg: 'RS256' } },
       jwt: {
         expirationTime: '1h',
-        definePayload: async ({ session, user }) => ({
-          userId: user.id,
-          tenantId: session.activeOrganizationId,
-          role: session.activeMemberRole,
-          locale: user.locale,
-        }),
+        definePayload: async ({ session, user }) => {
+          // Better-Auth session porte activeOrganizationId (plugin organization).
+          // Le rôle du user dans cette org est stocké dans Member, PAS sur session.
+          // On le lit via l'API Better-Auth qui gère le cache.
+          const activeOrgId = session.activeOrganizationId;
+          const member = activeOrgId
+            ? await auth.api.getActiveMember({ headers: { userId: user.id, organizationId: activeOrgId } })
+            : null;
+          return {
+            userId: user.id,
+            tenantId: activeOrgId,
+            role: member?.role ?? null,
+            locale: user.locale,
+          };
+        },
       },
     }),
   ],
@@ -838,8 +847,22 @@ Règle : métier + realtime → Nest/Render. Auth + Next-native → host.
 
 **Headers HTTP** (helmet Nest + next.config.ts headers) :
 - HSTS, X-Content-Type-Options, X-Frame-Options DENY (SAMEORIGIN pour pages guest QR si intégration prévue), Referrer-Policy, Permissions-Policy
-- CSP env-aware : `script-src 'self' 'nonce-<nonce>'; style-src 'self' 'unsafe-inline' (Radix/shadcn); connect-src 'self' ${API_URL} https://o<id>.ingest.sentry.io`
-- Nonce dynamique par requête (Next 15 App Router support natif)
+- CSP env-aware, template :
+  ```
+  default-src 'self';
+  script-src  'self' 'nonce-<nonce>';
+  style-src   'self' 'unsafe-inline';       // Radix/shadcn injectent inline
+  img-src     'self' data: blob:;
+  font-src    'self';
+  connect-src 'self' ${HTTPS_API_URL} ${WSS_API_URL} https://o<id>.ingest.sentry.io;
+  frame-ancestors 'none';
+  base-uri    'self';
+  form-action 'self';
+  ```
+  - `${HTTPS_API_URL}` = `https://quetzal-api.onrender.com` prod, `http://localhost:3001` dev
+  - `${WSS_API_URL}` = `wss://quetzal-api.onrender.com` prod, `ws://localhost:3001` dev
+  - Généré dynamiquement selon `process.env.NEXT_PUBLIC_API_URL` (parsing protocole)
+- Nonce dynamique par requête (Next 15 App Router support natif via middleware headers)
 
 **Rate limiting** :
 - Global (`@nestjs/throttler`) : 300 req/min per IP sur `/api/*` public
@@ -982,7 +1005,7 @@ Cache Turborepo agressif (rerun packages impactés seulement).
 | Hot-reload modules runtime | Modules chargés au boot via `MODULES=` env. |
 | Rôles admin + super-admin | Vocabulaire posé, impl `owner + creator + learner + guest` seulement. |
 | Motion/animations | shadcn transitions par défaut. `framer-motion` dette dès sous-projet 3 (quiz). |
-| PWA/offline | Aucun service worker. Dette différenciante pour module-neuro futur. |
+| PWA/offline | Aucun service worker plateforme MVP. PWA globale = dette v2, particulièrement pertinente quand module-neuro arrivera (learner reviews hors-ligne = valeur différenciante forte). |
 | A11y RGAA compliance | Radix/shadcn a11y par défaut, audit formel non requis MVP. Skills transférables post-23/10. |
 | i18n content | Framework 3 langues, contenu FR + EN + ES tous remplis MVP. |
 | Doc utilisateur | Doc dev + didactique privée. Pas de manuel utilisateur Elda. |
