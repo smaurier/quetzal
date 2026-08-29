@@ -1,0 +1,46 @@
+// Ce fichier est mergé avec auth.prisma + tous les modules dans schema.prisma final.
+// Ne PAS lancer prisma migrate directement sur ce fichier.
+
+model Module {
+  slug             String   @id @db.VarChar(64)
+  version          String   @db.VarChar(32)
+  contractVersion  String   @db.VarChar(32)
+  enabledByDefault Boolean  @default(false)
+  metadata         Json
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  activations      TenantModule[]
+}
+
+model TenantModule {
+  tenantId    String   @db.Uuid
+  moduleSlug  String
+  enabled     Boolean  @default(true)
+  installedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  config      Json?
+
+  module      Module       @relation(fields: [moduleSlug], references: [slug], onDelete: Cascade)
+  tenant      Organization @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, moduleSlug])
+  @@index([tenantId, enabled])
+}
+
+model AuditLog {
+  id          String   @id @db.Uuid
+  tenantId    String?  @db.Uuid
+  userId      String?  @db.Uuid
+  action      String   @db.VarChar(64)
+  target      String?  @db.VarChar(255)
+  metadata    Json?
+  ipAddress   String?  @db.VarChar(64)
+  createdAt   DateTime @default(now())
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action])
+}
