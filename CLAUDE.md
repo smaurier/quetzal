@@ -216,7 +216,7 @@ Infrastructure→ Prisma repos, Better-Auth adapters, Socket.io, Sentry
 - **IDs** : UUID v7 généré app-side via helper `newId()` (`packages/db/src/id.ts`), jamais `@default(uuid())`
 - **Timestamps** : `createdAt` + `updatedAt` sur toute table (auto `@updatedAt`)
 - **Timezones** : tout UTC en base, conversion locale UI seulement
-- **Tenant scope** : toute table métier a `tenantId String @db.Uuid`, clé primaire composite `@@id([id, tenantId])`, index `@@index([tenantId, ...])`, FK vers autres tables tenant-scoped = composite `references: [id, tenantId]`
+- **Tenant scope** : toute table métier a une colonne `tenantId String` (typée `@db.Uuid` **quand possible** ; typée plain `String` si elle référence une entité Better-Auth qui utilise plain `String` pour ses IDs, ex : Organization/User de Better-Auth). Les valeurs stockées restent UUID v7 générés par `newId()` dans tous les cas. Clé primaire composite `@@id([id, tenantId])`, index `@@index([tenantId, ...])`, FK vers autres tables tenant-scoped = composite `references: [id, tenantId]`. Modèles noyau `TenantModule`, `AuditLog` = `tenantId String` (pas Uuid) car FK vers `Organization`. Modèles module = `@db.Uuid` par défaut sauf FK cross-package Better-Auth.
 - **Enums** : String + CHECK constraint SQL + Zod app (jamais `enum` Prisma/Postgres)
 - **Nested includes** : autorisés mais couverts par test middleware tenant-scoped
 - **Raw SQL** : `$queryRaw` INTERDIT dans modules. Helper `ctx.tenantRawQuery(sql, params)` seul autorisé (refuse sans clause `WHERE tenantId`)
