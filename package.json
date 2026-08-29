@@ -10,13 +10,13 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
-    "test:e2e": "playwright test",
-    "clean": "turbo run clean && rm -rf node_modules"
+    "clean": "turbo run clean && rimraf node_modules"
   },
   "devDependencies": {
     "turbo": "^2.3.0",
     "typescript": "^5.7.2",
-    "@types/node": "^22.10.0"
+    "@types/node": "^22.10.0",
+    "rimraf": "^6.0.1"
   },
   "engines": {
     "node": ">=22.0.0",

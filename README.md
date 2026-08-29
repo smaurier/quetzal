@@ -1,77 +1,20 @@
 # Quetzal 🦜
 
-## 🚀 Présentation
+> Refonte en cours sur la branche `v2`. Ce README sera finalisé au merge (Task 36).
 
-Quetzal est une plateforme éducative interactive inspirée de Kahoot!, permettant de créer et d'animer des **quiz et mini-jeux pédagogiques** en temps réel.
-Elle est pensée pour être utilisée par des enseignants et formateurs.
+## Design de référence
 
-## 🏗️ Stack technique
+- **Spec** : [`docs/superpowers/specs/2026-08-29-quetzal-noyau-design.md`](docs/superpowers/specs/2026-08-29-quetzal-noyau-design.md)
+- **Plan d'implémentation** : [`docs/superpowers/plans/2026-08-29-quetzal-noyau-plan.md`](docs/superpowers/plans/2026-08-29-quetzal-noyau-plan.md)
+- **Conventions** : [`CLAUDE.md`](CLAUDE.md)
 
-- **Frontend** : Next.js (React)
-- **Backend** : NestJS (Node.js) + Socket.io pour le temps réel
-- **Monorepo** : Gestion avec pnpm
+## Vision
 
-## 📂 Structure du projet
+Plateforme éducative modulaire (Next 15 + NestJS 11 + Postgres/Prisma + Better-Auth + Socket.io).
+Sous-projet 1 = noyau + module stub `hello-world`.
 
-```
-quetzal/
-│── quetzal-frontend/   # Frontend en Next.js
-│── quetzal-backend/    # Backend en NestJS
-│── .gitignore          # Fichiers ignorés par Git
-│── package.json        # Configuration des dépendances globales
-│── pnpm-workspace.yaml # Configuration du monorepo
-│── README.md           # Documentation du projet
-```
+Sous-projets suivants prévus : Loto, Quiz Kahoot-like, Neurosciences (SRS), Multi-tenant + billing.
 
-## 🚀 Installation & démarrage
+## Statut
 
-### 1️⃣ Prérequis
-
-- **Node.js** (>= 18)
-- **pnpm** installé globalement :
-  ```bash
-  npm install -g pnpm
-  ```
-
-### 2️⃣ Installation des dépendances
-
-```bash
-pnpm install
-```
-
-### 3️⃣ Lancer le projet en local
-
-Démarrer à la fois le **frontend** et le **backend** avec une seule commande :
-
-```bash
-pnpm dev
-```
-
-Ou les exécuter séparément :
-
-```bash
-pnpm dev:frontend  # Démarrer Next.js
-pnpm dev:backend   # Démarrer NestJS
-```
-
-## 📌 Commandes utiles
-
-| Commande            | Description                       |
-| ------------------- | --------------------------------- |
-| `pnpm install`      | Installe les dépendances          |
-| `pnpm dev`          | Démarre le frontend et le backend |
-| `pnpm dev:frontend` | Lance uniquement le frontend      |
-| `pnpm dev:backend`  | Lance uniquement le backend       |
-| `pnpm build`        | Build du projet complet           |
-| `pnpm lint`         | Vérifie le code                   |
-
-## 🎯 Roadmap
-
-✅ **MVP** : Développer un premier prototype avec une interface simple.  
-🛠 **V2** : Ajouter des types de jeux interactifs en plus des quiz.  
-🌍 **V3** : Internationalisation et amélioration UX.
-
----
-
-**⚡ Contact & Contributeurs**  
-Développé par [@smaurier](https://github.com/smaurier) 💡
+En développement actif sur `v2`. Legacy code supprimé, refonte from scratch en cours.
