@@ -10,4 +10,10 @@ export function createRootPrismaClient(): RootPrismaClient {
   return _rootClient;
 }
 
-export const rootPrisma = createRootPrismaClient();
+export const rootPrisma = new Proxy({} as RootPrismaClient, {
+  get(_target, prop) {
+    const client = createRootPrismaClient();
+    const value = (client as unknown as Record<string | symbol, unknown>)[prop];
+    return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(client) : value;
+  },
+});

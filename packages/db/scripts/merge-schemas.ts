@@ -31,6 +31,26 @@ async function readIfExists(path: string): Promise<string> {
   }
 }
 
+/**
+ * Inject back-relation fields into Better-Auth generated models.
+ * core.prisma declares FKs from AuditLog → User and TenantModule → Organization;
+ * Prisma requires the inverse side to also declare the relation field.
+ */
+function injectBackRelations(authSchema: string): string {
+  let out = authSchema;
+  // Inject into User model: auditLogs AuditLog[]
+  out = out.replace(
+    /(model\s+User\s*\{[^}]*?)(\n\s*@@[^}]*\})/s,
+    (_m, body: string, tail: string) => `${body}\n  auditLogs     AuditLog[]${tail}`,
+  );
+  // Inject into Organization model: tenantModules TenantModule[]
+  out = out.replace(
+    /(model\s+Organization\s*\{[^}]*?)(\n\s*@@[^}]*\})/s,
+    (_m, body: string, tail: string) => `${body}\n  tenantModules TenantModule[]${tail}`,
+  );
+  return out;
+}
+
 async function discoverModulePrismas(): Promise<string[]> {
   const packagesDir = resolve(ROOT, 'packages');
   const entries = await readdir(packagesDir, { withFileTypes: true });
@@ -48,8 +68,8 @@ async function discoverModulePrismas(): Promise<string[]> {
 
 async function main() {
   const parts = [HEADER];
-  parts.push(`// --- @quetzal/auth (Better-Auth generated) ---\n`);
-  parts.push(await readIfExists(AUTH));
+  parts.push(`// --- @quetzal/auth (Better-Auth generated + injected back-relations) ---\n`);
+  parts.push(injectBackRelations(await readIfExists(AUTH)));
   parts.push(`\n\n// --- @quetzal/db core ---\n`);
   parts.push(await readIfExists(CORE));
 
