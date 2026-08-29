@@ -1,0 +1,32 @@
+{
+  "name": "@quetzal/auth",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./config": "./dist/config.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run",
+    "generate": "tsx scripts/generate.ts"
+  },
+  "dependencies": {
+    "better-auth": "^1.1.7",
+    "nanostores": "^1.5.2",
+    "@quetzal/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@quetzal/config": "workspace:*",
+    "@better-auth/cli": "^1.1.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
