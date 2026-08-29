@@ -575,8 +575,7 @@ Repositories importent `getTenantScopedPrisma()` qui lit `tenantStore` et retour
 - `auth.api.signUpEmail({ email: SEED_OWNER_EMAIL, password: SEED_OWNER_PASSWORD, name: 'Elda' })`
 - Création tenant `default` : le seed écrit directement dans la table `Organization` via `RootPrismaClient` (le flag `allowUserToCreateOrganization: false` ne s'applique qu'à l'API user-facing Better-Auth, pas à un accès DB privilégié serveur). Le seed est le seul endroit autorisé à faire ça.
 - `auth.api.addMember({ userId, organizationId, role: 'owner' })`
-- `auth.api.addMember({ role: 'owner', ... })`
-- Enregistre module `hello-world` dans catalogue + active pour tenant `default`
+- Enregistre module `hello-world` dans catalogue `Module` + row `TenantModule` active pour tenant `default`
 
 ### Migrations strategy
 
@@ -586,10 +585,12 @@ Repositories importent `getTenantScopedPrisma()` qui lit `tenantStore` et retour
 - Prod : `prisma migrate deploy` en pre-deploy hook Render (`render.yaml`), **pas au boot** (évite race concurrente)
 - Rollback : "no down migrations", création d'une migration corrective si besoin
 
-### Extensions Postgres requises
+### Extensions Postgres
 
-- `uuid-ossp` (pgcrypto anticipé mais pas MVP)
-- Aucune extension custom (UUID v7 app-side)
+- MVP : aucune extension custom nécessaire (UUID v7 généré app-side, pas de fonction SQL custom).
+- `uuid-ossp` : PAS requis pour MVP (colonne `@db.Uuid` = type Postgres natif, pas besoin de générateur SQL). À activer uniquement si un futur module en a besoin (ex : `uuid_generate_v4()` côté SQL).
+- `pgcrypto` : anticipé pour chiffrement colonne futur, non installé MVP.
+- Neon supporte `uuid-ossp` et `pgcrypto` dans sa liste blanche standard.
 
 ## 5. Data flow
 
@@ -811,10 +812,12 @@ Règle : métier + realtime → Nest/Render. Auth + Next-native → host.
 
 ### 6.3 CI/CD
 
-**GitHub Actions** — 3 workflows :
+**GitHub Actions** — 1 workflow `ci.yml`, 5 jobs orchestrés :
 
-- **CI** : `quality` (lint + typecheck), `test-unit`, `test-integration` (service postgres:17), `test-e2e` (docker compose stack + Playwright), `security-audit` (`pnpm audit` bloque si high/critical)
+- Jobs : `quality` (lint + typecheck), `test-unit`, `test-integration` (service postgres:17), `test-e2e` (docker compose stack + Playwright), `security-audit` (`pnpm audit` bloque si high/critical)
+- Dépendances : `test-unit` et `test-integration` needs `quality` ; `test-e2e` needs `test-unit` + `test-integration`
 - Bloquant PR : `quality` + `test-unit` + `test-integration` + `security-audit`. E2E promu bloquant après 10 runs verts consécutifs.
+- Workflows séparés (fichiers distincts) réservés à des besoins asynchrones futurs (nightly perf tests, release, dependabot auto-merge).
 
 **Vercel** :
 - Preview auto sur toute PR (host)
@@ -849,7 +852,11 @@ Règle : métier + realtime → Nest/Render. Auth + Next-native → host.
 - Zéro secret en git. `.env` gitignoré (déjà là).
 - Vercel `vercel env pull .env.local` (documenté README)
 - Render dashboard settings
-- Requis : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GUEST_TOKEN_SECRET`, `SENTRY_DSN` (×2), `HOST_URL`, `API_URL`, `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD`, `MODULES`
+- Requis :
+  - Communs : `DATABASE_URL`, `BETTER_AUTH_SECRET`, `GUEST_TOKEN_SECRET`, `HOST_URL`, `API_URL`, `MODULES`
+  - Host (Vercel) : `SENTRY_DSN_HOST`, `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_MODULES`
+  - Api (Render) : `SENTRY_DSN_API`, `ALLOW_E2E_RESET` (dev/staging only)
+  - Seed (dev/staging only, jamais prod) : `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD`
 - Rotation : JWKS auto Better-Auth, autres manuel documenté
 
 **CSRF** :
