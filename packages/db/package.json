@@ -32,6 +32,7 @@
   "devDependencies": {
     "@quetzal/auth": "workspace:*",
     "@quetzal/config": "workspace:*",
+    "@quetzal/core": "workspace:*",
     "@types/uuid": "^10.0.0",
     "prisma": "^6.1.0",
     "tsx": "^4.19.2",
