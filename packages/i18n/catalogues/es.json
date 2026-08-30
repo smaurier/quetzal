@@ -1,0 +1,38 @@
+{
+  "common": {
+    "button": {
+      "save": "Guardar",
+      "cancel": "Cancelar",
+      "join": "Unirse",
+      "close": "Cerrar",
+      "submit": "Enviar",
+      "greet": "Saludar",
+      "ping": "Ping"
+    },
+    "error": {
+      "required": "Campo obligatorio",
+      "too_long": "Máximo {max} caracteres",
+      "network": "Error de red, reintentar"
+    }
+  },
+  "nav": {
+    "dashboard": "Panel",
+    "settings": "Ajustes",
+    "logout": "Cerrar sesión"
+  },
+  "auth": {
+    "login": {
+      "title": "Iniciar sesión",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "submit": "Iniciar sesión"
+    }
+  },
+  "guest": {
+    "join": {
+      "title": "Unirse a la sesión",
+      "display_name": "Tu apodo",
+      "connecting": "Conectando..."
+    }
+  }
+}

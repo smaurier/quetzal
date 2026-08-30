@@ -1,0 +1,25 @@
+{
+  "name": "@quetzal/i18n",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./catalogues/*": "./catalogues/*"
+  },
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').cpSync('catalogues', 'dist/catalogues', { recursive: true })\"",
+    "typecheck": "tsc --noEmit",
+    "merge": "tsx src/merge.ts"
+  },
+  "dependencies": {
+    "next-intl": "^3.26.3"
+  },
+  "devDependencies": {
+    "@quetzal/config": "workspace:*",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

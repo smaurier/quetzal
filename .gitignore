@@ -28,6 +28,9 @@ packages/db/src/model-tenant-registry.ts
 # Generated Next module routes
 apps/host/app/modules/
 
+# Generated merged i18n catalogues
+packages/i18n/catalogues/merged.*.json
+
 # IDE
 .vscode/*
 !.vscode/extensions.json
