@@ -1,0 +1,38 @@
+{
+  "common": {
+    "button": {
+      "save": "Save",
+      "cancel": "Cancel",
+      "join": "Join",
+      "close": "Close",
+      "submit": "Submit",
+      "greet": "Greet",
+      "ping": "Ping"
+    },
+    "error": {
+      "required": "Required field",
+      "too_long": "Maximum {max} characters",
+      "network": "Network error, retry"
+    }
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in"
+    }
+  },
+  "guest": {
+    "join": {
+      "title": "Join session",
+      "display_name": "Your nickname",
+      "connecting": "Connecting..."
+    }
+  }
+}

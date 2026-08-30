@@ -1,0 +1,11 @@
+{
+  "extends": "@quetzal/config/typescript/nextjs.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false,
+    "jsx": "react-jsx",
+    "declaration": true
+  },
+  "include": ["src/**/*"]
+}

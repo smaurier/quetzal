@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "v2": true
+    }
+  },
+  "rewrites": [
+    { "source": "/api/modules/:path*", "destination": "https://quetzal-api.onrender.com/api/modules/:path*" },
+    { "source": "/api/guest-token", "destination": "https://quetzal-api.onrender.com/api/guest-token" },
+    { "source": "/api/audit/:path*", "destination": "https://quetzal-api.onrender.com/api/audit/:path*" },
+    { "source": "/api/health", "destination": "https://quetzal-api.onrender.com/api/health" },
+    { "source": "/ws/:path*", "destination": "https://quetzal-api.onrender.com/ws/:path*" }
+  ]
+}

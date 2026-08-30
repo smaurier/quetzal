@@ -1,81 +1,60 @@
-# Quetzal 🦜
+# Quetzal
 
-![NestJS](https://img.shields.io/badge/-NestJS-E0234E?style=flat-square&logo=nestjs&logoColor=white)
-![Next.js](https://img.shields.io/badge/-Next.js-000000?style=flat-square&logo=next.js&logoColor=white)
-![Socket.io](https://img.shields.io/badge/-Socket.io-010101?style=flat-square&logo=socket.io&logoColor=white)
+Plateforme éducative interactive multi-modulaire (loto, quiz, spaced repetition et plus).
 
-## 🚀 Présentation
+## Stack
 
-Quetzal est une plateforme éducative interactive inspirée de Kahoot!, permettant de créer et d'animer des **quiz et mini-jeux pédagogiques** en temps réel.
-Elle est pensée pour être utilisée par des enseignants et formateurs.
+- Next 15 (host, Vercel) + NestJS 11 (api, Render) + Postgres/Prisma (Neon)
+- Better-Auth (JWT + organization plugin) + Socket.io + next-intl (FR/EN/ES) + shadcn/ui
+- pnpm workspaces + Turborepo
 
-## 🏗️ Stack technique
-
-- **Frontend** : Next.js (React)
-- **Backend** : NestJS (Node.js) + Socket.io pour le temps réel
-- **Monorepo** : Gestion avec pnpm
-
-## 📂 Structure du projet
-
-```
-quetzal/
-│── quetzal-frontend/   # Frontend en Next.js
-│── quetzal-backend/    # Backend en NestJS
-│── .gitignore          # Fichiers ignorés par Git
-│── package.json        # Configuration des dépendances globales
-│── pnpm-workspace.yaml # Configuration du monorepo
-│── README.md           # Documentation du projet
-```
-
-## 🚀 Installation & démarrage
-
-### 1️⃣ Prérequis
-
-- **Node.js** (>= 18)
-- **pnpm** installé globalement :
-  ```bash
-  npm install -g pnpm
-  ```
-
-### 2️⃣ Installation des dépendances
+## Setup
 
 ```bash
 pnpm install
-```
-
-### 3️⃣ Lancer le projet en local
-
-Démarrer à la fois le **frontend** et le **backend** avec une seule commande :
-
-```bash
+cp .env.example .env.local  # remplir DATABASE_URL, BETTER_AUTH_SECRET, GUEST_TOKEN_SECRET, ...
+pnpm --filter @quetzal/auth generate
+pnpm --filter @quetzal/db schema:merge
+pnpm --filter @quetzal/db generate:tenant-registry
+pnpm --filter @quetzal/db exec prisma migrate deploy --schema=prisma/schema.prisma
+pnpm --filter @quetzal/db exec prisma generate
+pnpm --filter @quetzal/db seed
 pnpm dev
 ```
 
-Ou les exécuter séparément :
+## Structure
 
-```bash
-pnpm dev:frontend  # Démarrer Next.js
-pnpm dev:backend   # Démarrer NestJS
+```
+apps/
+  host/          Next 15 App Router (Vercel)
+  api/           NestJS 11 (Render)
+packages/
+  core/          Contrat module + tenant ALS + logger + event bus + guest
+  db/            Prisma + newId (UUID v7) + tenant-scoped extension
+  auth/          Better-Auth (org + JWT)
+  ui/            shadcn/ui components
+  i18n/          next-intl + FR/EN/ES catalogues
+  config/        ESLint, tsconfig, Tailwind preset
+  module-hello/  Module stub prouvant le contrat
 ```
 
-## 📌 Commandes utiles
+## Docs
 
-| Commande            | Description                       |
-| ------------------- | --------------------------------- |
-| `pnpm install`      | Installe les dépendances          |
-| `pnpm dev`          | Démarre le frontend et le backend |
-| `pnpm dev:frontend` | Lance uniquement le frontend      |
-| `pnpm dev:backend`  | Lance uniquement le backend       |
-| `pnpm build`        | Build du projet complet           |
-| `pnpm lint`         | Vérifie le code                   |
+- [Architecture](docs/architecture.md)
+- [Module Contract](docs/module-contract.md)
+- [Spec Design (référence)](docs/superpowers/specs/2026-08-29-quetzal-noyau-design.md)
+- [Conventions CLAUDE.md](CLAUDE.md)
 
-## 🎯 Roadmap
+## Deployment
 
-✅ **MVP** : Développer un premier prototype avec une interface simple.  
-🛠 **V2** : Ajouter des types de jeux interactifs en plus des quiz.  
-🌍 **V3** : Internationalisation et amélioration UX.
+- Host (Vercel) : preview auto sur PR, prod sur push `main`
+- Api (Render Frankfurt) : autoDeploy `main`, `prisma migrate deploy` en preDeploy
+- DB (Neon Frankfurt) : provisionné via Vercel Marketplace
 
----
+## Tests
 
-**⚡ Contact & Contributeurs**  
-Développé par [@smaurier](https://github.com/smaurier) 💡
+```bash
+pnpm turbo run test             # unit
+pnpm turbo run test:integration # testcontainers Postgres
+pnpm exec playwright test       # E2E (Chromium via pnpm exec playwright install)
+```

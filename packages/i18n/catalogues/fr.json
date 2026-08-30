@@ -1,0 +1,38 @@
+{
+  "common": {
+    "button": {
+      "save": "Enregistrer",
+      "cancel": "Annuler",
+      "join": "Rejoindre",
+      "close": "Fermer",
+      "submit": "Valider",
+      "greet": "Saluer",
+      "ping": "Ping"
+    },
+    "error": {
+      "required": "Champ obligatoire",
+      "too_long": "Maximum {max} caractères",
+      "network": "Erreur réseau, réessayer"
+    }
+  },
+  "nav": {
+    "dashboard": "Tableau de bord",
+    "settings": "Paramètres",
+    "logout": "Déconnexion"
+  },
+  "auth": {
+    "login": {
+      "title": "Connexion",
+      "email": "E-mail",
+      "password": "Mot de passe",
+      "submit": "Se connecter"
+    }
+  },
+  "guest": {
+    "join": {
+      "title": "Rejoindre la session",
+      "display_name": "Ton pseudo",
+      "connecting": "Connexion..."
+    }
+  }
+}

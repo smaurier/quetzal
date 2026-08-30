@@ -1,0 +1,45 @@
+{
+  "name": "quetzal-host",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "prebuild": "pnpm --filter @quetzal/core generate:routes",
+    "build": "next build",
+    "predev": "pnpm --filter @quetzal/core generate:routes",
+    "dev": "next dev --turbopack -p 3000",
+    "start": "next start -p 3000",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quetzal/auth": "workspace:*",
+    "@quetzal/core": "workspace:*",
+    "@quetzal/db": "workspace:*",
+    "@quetzal/i18n": "workspace:*",
+    "@quetzal/ui": "workspace:*",
+    "@sentry/nextjs": "^8.42.0",
+    "better-auth": "^1.1.7",
+    "next": "^15.1.3",
+    "next-intl": "^3.26.3",
+    "qrcode": "^1.5.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "socket.io-client": "^4.8.1",
+    "web-vitals": "^4.2.4",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@quetzal/config": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.1.3",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.7.2"
+  }
+}

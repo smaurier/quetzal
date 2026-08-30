@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: quetzal-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    buildCommand: |
+      corepack enable && corepack prepare pnpm@9.15.0 --activate
+      pnpm install --frozen-lockfile
+      pnpm --filter @quetzal/auth generate
+      pnpm --filter @quetzal/db schema:merge
+      pnpm --filter @quetzal/db generate:tenant-registry
+      pnpm --filter @quetzal/db prisma:generate
+      pnpm --filter quetzal-api build
+    preDeployCommand: pnpm --filter @quetzal/db prisma:migrate:deploy
+    startCommand: node apps/api/dist/main.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false
+      - key: BETTER_AUTH_SECRET
+        sync: false
+      - key: GUEST_TOKEN_SECRET
+        sync: false
+      - key: HOST_URL
+        sync: false
+      - key: API_URL
+        sync: false
+      - key: SENTRY_DSN_API
+        sync: false
+      - key: MODULES
+        value: hello

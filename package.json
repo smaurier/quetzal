@@ -1,10 +1,26 @@
 {
+  "name": "quetzal",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
   "scripts": {
-    "dev": "concurrently \"pnpm --filter quetzal-frontend run dev\" \"pnpm --filter quetzal-backend run start:dev\"",
-    "dev:frontend": "pnpm --filter quetzal-frontend run dev",
-    "dev:backend": "pnpm --filter quetzal-backend run start:dev"
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "clean": "turbo run clean && rimraf node_modules"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.10.0",
+    "rimraf": "^6.0.1",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.15.0"
   }
 }
