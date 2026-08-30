@@ -51,6 +51,18 @@ function injectBackRelations(authSchema: string): string {
   return out;
 }
 
+/**
+ * Inject @@unique([userId, organizationId]) into Better-Auth Member model.
+ * Better-Auth CLI omits it, but our seed and any admin flow need it to safely upsert.
+ * Injected before @@map("member") to preserve Prisma's decorator ordering convention.
+ */
+function injectMemberUnique(authSchema: string): string {
+  return authSchema.replace(
+    /(model\s+Member\s*\{[^}]*?)(\n\s*@@map\("member"\)\s*\})/s,
+    (_m, body: string, tail: string) => `${body}\n  @@unique([userId, organizationId])${tail}`,
+  );
+}
+
 async function discoverModulePrismas(): Promise<string[]> {
   const packagesDir = resolve(ROOT, 'packages');
   const entries = await readdir(packagesDir, { withFileTypes: true });
@@ -69,7 +81,7 @@ async function discoverModulePrismas(): Promise<string[]> {
 async function main() {
   const parts = [HEADER];
   parts.push(`// --- @quetzal/auth (Better-Auth generated + injected back-relations) ---\n`);
-  parts.push(injectBackRelations(await readIfExists(AUTH)));
+  parts.push(injectMemberUnique(injectBackRelations(await readIfExists(AUTH))));
   parts.push(`\n\n// --- @quetzal/db core ---\n`);
   parts.push(await readIfExists(CORE));
 

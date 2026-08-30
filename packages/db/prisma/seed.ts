@@ -45,27 +45,17 @@ async function main() {
   });
 
   console.log(`[seed] Ensuring membership owner...`);
-  const existingMember = await rootPrisma.member.findFirst({
-    where: { userId: user.id, organizationId: org.id },
+  await rootPrisma.member.upsert({
+    where: { userId_organizationId: { userId: user.id, organizationId: org.id } },
+    create: {
+      id: newId(),
+      userId: user.id,
+      organizationId: org.id,
+      role: 'owner',
+      createdAt: new Date(),
+    },
+    update: { role: 'owner' },
   });
-  if (existingMember) {
-    if (existingMember.role !== 'owner') {
-      await rootPrisma.member.update({
-        where: { id: existingMember.id },
-        data: { role: 'owner' },
-      });
-    }
-  } else {
-    await rootPrisma.member.create({
-      data: {
-        id: newId(),
-        userId: user.id,
-        organizationId: org.id,
-        role: 'owner',
-        createdAt: new Date(),
-      },
-    });
-  }
 
   console.log(`[seed] Registering module hello in catalogue...`);
   await rootPrisma.module.upsert({
