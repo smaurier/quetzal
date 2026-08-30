@@ -28,7 +28,7 @@ const cache = new Map<string, { client: PrismaClient; lastUsed: number }>();
 const MAX_CACHE = 1000;
 const TTL_MS = 5 * 60_000;
 
-export function createTenantScopedClient(root: PrismaClient, tenantId: string): PrismaClient {
+export function createTenantScopedClient(root: RootPrismaClient, tenantId: string): PrismaClient {
   const now = Date.now();
   const cached = cache.get(tenantId);
   if (cached && now - cached.lastUsed < TTL_MS) {
