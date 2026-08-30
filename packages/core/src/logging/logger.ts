@@ -16,7 +16,7 @@ export const logger: Logger = pino({
     };
   },
   redact: {
-    paths: ['*.password', '*.token', 'req.headers.authorization', 'req.headers.cookie'],
+    paths: ['*.password', '*.token', '*.email', '*.ip', 'req.headers.authorization', 'req.headers.cookie'],
     censor: '[REDACTED]',
   },
 });
