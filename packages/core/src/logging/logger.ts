@@ -1,5 +1,5 @@
 import pino, { type Logger } from 'pino';
-import { tryGetCurrentTenant } from '../tenant/tenant-context';
+import { tryGetCurrentTenant } from '../tenant/tenant-context.js';
 
 const isDev = process.env['NODE_ENV'] !== 'production';
 

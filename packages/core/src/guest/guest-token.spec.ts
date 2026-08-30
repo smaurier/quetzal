@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { signGuestToken, verifyGuestToken, GuestTokenInvalidError } from './guest-token';
+import { signGuestToken, verifyGuestToken, GuestTokenInvalidError } from './guest-token.js';
 
 beforeAll(() => {
   process.env.GUEST_TOKEN_SECRET = 'x'.repeat(64);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { runContractSuite } from './contract-suite';
-import type { QuetzalModuleManifest } from '../module-contract';
+import { runContractSuite } from './contract-suite.js';
+import type { QuetzalModuleManifest } from '../module-contract.js';
 
 class NoopModule {}
 

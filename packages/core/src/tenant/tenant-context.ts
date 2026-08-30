@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import type { QuetzalRole, Locale } from '../module-contract';
+import type { QuetzalRole, Locale } from '../module-contract.js';
 
 export interface TenantExecutionContext {
   tenantId: string;

@@ -1,5 +1,5 @@
 import { newId } from '@quetzal/db';
-import type { QuetzalRole, Locale } from '../../module-contract';
+import type { QuetzalRole, Locale } from '../../module-contract.js';
 
 export function aUser(overrides: Partial<{ id: string; email: string; name: string; locale: Locale }> = {}) {
   return {

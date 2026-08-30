@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { manifestSchema } from './manifest.schema';
+import { manifestSchema } from './manifest.schema.js';
 
 const baseValidManifest = {
   slug: 'hello',

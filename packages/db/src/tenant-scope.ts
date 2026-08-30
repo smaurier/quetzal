@@ -1,4 +1,4 @@
-import { TenantScopeViolationError } from './errors';
+import { TenantScopeViolationError } from './errors.js';
 
 // Prisma operation args are heterogeneous per model+operation; typing Args precisely
 // would require Prisma.Args<Model, Op> per call site, which is impractical at this

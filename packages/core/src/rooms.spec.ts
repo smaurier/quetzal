@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rooms } from './rooms';
+import { rooms } from './rooms.js';
 
 describe('rooms', () => {
   it('formats session room canonically', () => {

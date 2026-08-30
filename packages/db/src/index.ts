@@ -1,5 +1,5 @@
-export { newId } from './id';
-export { rootPrisma, createRootPrismaClient, createTenantScopedClient } from './clients';
-export type { RootPrismaClient, TenantScopedPrismaClient } from './clients';
-export { TenantScopeViolationError } from './errors';
-export { modelHasTenantId } from './model-tenant-registry';
+export { newId } from './id.js';
+export { rootPrisma, createRootPrismaClient, createTenantScopedClient } from './clients.js';
+export type { RootPrismaClient, TenantScopedPrismaClient } from './clients.js';
+export { TenantScopeViolationError } from './errors.js';
+export { modelHasTenantId } from './model-tenant-registry.js';

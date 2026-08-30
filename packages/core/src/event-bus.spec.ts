@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { InProcessEventBus } from './event-bus';
+import { InProcessEventBus } from './event-bus.js';
 
 describe('InProcessEventBus', () => {
   it('emits and receives an event synchronously', async () => {

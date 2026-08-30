@@ -1,6 +1,6 @@
 import EventEmitter2 from 'eventemitter2';
-import { logger } from './logging/logger';
-import type { EventBus, EventName } from './module-contract';
+import { logger } from './logging/logger.js';
+import type { EventBus, EventName } from './module-contract.js';
 
 export class InProcessEventBus implements EventBus {
   private readonly emitter = new EventEmitter2({

@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { manifestSchema } from '../schemas/manifest.schema';
-import { CONTRACT_VERSION, type QuetzalModuleManifest } from '../module-contract';
+import { manifestSchema } from '../schemas/manifest.schema.js';
+import { CONTRACT_VERSION, type QuetzalModuleManifest } from '../module-contract.js';
 
 function flattenKeys(obj: unknown, prefix = ''): string[] {
   const keys: string[] = [];

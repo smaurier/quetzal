@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
-import { rootPrisma, createTenantScopedClient, TenantScopeViolationError, newId } from './index';
+import { rootPrisma, createTenantScopedClient, TenantScopeViolationError, newId } from './index.js';
 
 describe('TenantScopedPrismaClient (integration)', () => {
   beforeAll(async () => {

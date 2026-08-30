@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { InMemoryGuestRegistry } from './guest-registry';
+import { InMemoryGuestRegistry } from './guest-registry.js';
 
 describe('InMemoryGuestRegistry', () => {
   let registry: InMemoryGuestRegistry;

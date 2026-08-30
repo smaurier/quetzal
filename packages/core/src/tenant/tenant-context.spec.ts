@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tenantStore, getCurrentTenant, tryGetCurrentTenant } from './tenant-context';
+import { tenantStore, getCurrentTenant, tryGetCurrentTenant } from './tenant-context.js';
 
 describe('tenantStore', () => {
   it('exposes tenant context inside run scope', async () => {

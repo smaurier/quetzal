@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newId } from './id';
+import { newId } from './id.js';
 
 describe('newId', () => {
   it('returns a UUID v7 string (36 chars, hyphenated)', () => {

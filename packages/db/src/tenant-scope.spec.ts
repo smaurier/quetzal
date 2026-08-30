@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { applyTenantConstraint } from './tenant-scope';
-import { TenantScopeViolationError } from './errors';
+import { applyTenantConstraint } from './tenant-scope.js';
+import { TenantScopeViolationError } from './errors.js';
 
 describe('applyTenantConstraint', () => {
   describe('reads (findMany, findFirst, count, aggregate, groupBy)', () => {
