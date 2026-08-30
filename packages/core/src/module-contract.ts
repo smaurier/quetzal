@@ -81,7 +81,7 @@ export interface GuestJoinProps {
 
 export interface EventBus {
   emit<T = unknown>(name: EventName, payload: T): Promise<void>;
-  on<T = unknown>(name: EventName | EventName[] | '*.*', handler: (payload: T) => Promise<void> | void): void;
+  on<T = unknown>(name: EventName | EventName[] | '*.*', handler: (payload: T, meta: { name: EventName }) => Promise<void> | void): void;
 }
 
 export interface RootContext {
