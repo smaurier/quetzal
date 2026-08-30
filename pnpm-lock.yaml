@@ -381,10 +381,16 @@ importers:
       '@quetzal/ui':
         specifier: workspace:*
         version: link:../ui
+      next-intl:
+        specifier: ^3.26.3
+        version: 3.26.5(next@15.5.24(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(react@19.2.8)
       react:
         specifier: ^19.0.0
         version: 19.2.8
       socket.io:
+        specifier: ^4.8.1
+        version: 4.8.3
+      socket.io-client:
         specifier: ^4.8.1
         version: 4.8.3
       zod:

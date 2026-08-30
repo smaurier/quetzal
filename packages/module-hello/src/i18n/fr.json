@@ -1,0 +1,8 @@
+{
+  "module": {
+    "hello": {
+      "nav": { "title": "Hello" },
+      "page": { "welcome": "Bienvenue sur le module Hello" }
+    }
+  }
+}
