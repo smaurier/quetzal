@@ -20,7 +20,7 @@ export const manifestSchema = z.object({
   // Type<INestModule> — class reference; runtime introspection impossible, kept as any at the schema boundary.
   apiModule: z.any(),
   eventsPublished: z.array(z.object({
-    name: z.string().regex(/^[a-z]+(\.[a-z]+){1,2}$/),
+    name: z.string().regex(/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*){1,2}$/),
     typeRef: z.string(),
   })),
   eventsSubscribed: z.array(z.any()).optional(),
