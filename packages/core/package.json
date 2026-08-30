@@ -17,6 +17,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
     "test": "vitest run",
+    "generate:routes": "tsx scripts/generate-module-routes.ts",
     "watch:manifests": "tsx scripts/watch-manifests.ts"
   },
   "dependencies": {
