@@ -27,4 +27,12 @@ describe('InProcessEventBus', () => {
     await bus.emit('test.crash', {});
     expect(good).toHaveBeenCalled();
   });
+
+  it('does not double-invoke wildcard subscribers for a specific event', async () => {
+    const bus = new InProcessEventBus();
+    const handler = vi.fn();
+    bus.on('*.*', handler);
+    await bus.emit('specific.event', { x: 1 });
+    expect(handler).toHaveBeenCalledTimes(1);
+  });
 });
