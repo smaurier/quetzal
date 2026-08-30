@@ -30,7 +30,9 @@
     "@quetzal/db": "workspace:*"
   },
   "devDependencies": {
+    "@prisma/client": "^6.1.0",
     "@quetzal/config": "workspace:*",
+    "@testcontainers/postgresql": "^10.16.0",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "chokidar": "^4.0.1",
