@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { QuetzalRole, Locale } from '../module-contract.js';
+import { TenantContextMissingError } from '../errors.js';
 
 export interface TenantExecutionContext {
   tenantId: string;
@@ -13,7 +14,7 @@ export const tenantStore = new AsyncLocalStorage<TenantExecutionContext>();
 
 export function getCurrentTenant(): TenantExecutionContext {
   const ctx = tenantStore.getStore();
-  if (!ctx) throw new Error('No tenant context — code appelé hors requête ?');
+  if (!ctx) throw new TenantContextMissingError();
   return ctx;
 }
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { tenantStore, getCurrentTenant, tryGetCurrentTenant } from './tenant-context.js';
+import { TenantContextMissingError } from '../errors.js';
 
 describe('tenantStore', () => {
   it('exposes tenant context inside run scope', async () => {
@@ -23,8 +24,8 @@ describe('tenantStore', () => {
     expect(result.tenantId).toBe('t-B');
   });
 
-  it('getCurrentTenant throws outside scope', () => {
-    expect(() => getCurrentTenant()).toThrow(/No tenant context/);
+  it('getCurrentTenant throws TenantContextMissingError outside scope', () => {
+    expect(() => getCurrentTenant()).toThrow(TenantContextMissingError);
   });
 
   it('tryGetCurrentTenant returns undefined outside scope', () => {
