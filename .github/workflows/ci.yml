@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main, v2]
+  pull_request:
+
+env:
+  NODE_VERSION: 22.11.0
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @quetzal/auth generate
+      - run: pnpm --filter @quetzal/db schema:merge
+      - run: pnpm --filter @quetzal/db generate:tenant-registry
+      - run: pnpm --filter @quetzal/db prisma:generate
+      - run: pnpm turbo run lint typecheck
+
+  test-unit:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @quetzal/auth generate
+      - run: pnpm --filter @quetzal/db schema:merge
+      - run: pnpm --filter @quetzal/db generate:tenant-registry
+      - run: pnpm --filter @quetzal/db prisma:generate
+      - run: pnpm turbo run test
+
+  test-integration:
+    needs: quality
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: quetzal_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/quetzal_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @quetzal/auth generate
+      - run: pnpm --filter @quetzal/db schema:merge
+      - run: pnpm --filter @quetzal/db generate:tenant-registry
+      - run: pnpm --filter @quetzal/db prisma:migrate:deploy
+      - run: pnpm --filter @quetzal/db prisma:generate
+      - run: pnpm turbo run test:integration
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
+
+  test-e2e:
+    needs: [test-unit, test-integration]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: quetzal_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://test:test@localhost:5432/quetzal_test
+      BETTER_AUTH_SECRET: ${{ secrets.BETTER_AUTH_SECRET_TEST }}
+      GUEST_TOKEN_SECRET: ${{ secrets.GUEST_TOKEN_SECRET_TEST }}
+      SEED_OWNER_EMAIL: elda@test.dev
+      SEED_OWNER_PASSWORD: TestPassword123!
+      HOST_URL: http://localhost:3000
+      API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_MODULES: hello
+      MODULES: hello
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9.15.0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @quetzal/auth generate
+      - run: pnpm --filter @quetzal/db schema:merge
+      - run: pnpm --filter @quetzal/db generate:tenant-registry
+      - run: pnpm --filter @quetzal/db prisma:migrate:deploy
+      - run: pnpm --filter @quetzal/db prisma:generate
+      - run: pnpm --filter @quetzal/db seed
+      - run: pnpm build
+      - run: pnpm --filter quetzal-api start &
+      - run: pnpm --filter quetzal-host start &
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: playwright-report, path: playwright-report/ }
