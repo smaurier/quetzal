@@ -1,4 +1,4 @@
-import type { Type, INestModule } from '@nestjs/common';
+import type { Type } from '@nestjs/common';
 import type { ComponentType } from 'react';
 import type { z } from 'zod';
 import type { RootPrismaClient, TenantScopedPrismaClient } from '@quetzal/db';
@@ -16,7 +16,7 @@ export interface QuetzalModuleManifest {
   version: string;
   contractVersion: `${number}.${number}.${number}`;
   enabledByDefault: boolean;
-  apiModule: Type<INestModule>;
+  apiModule: Type<unknown>;
   eventsPublished: readonly EventDefinition[];
   eventsSubscribed?: readonly EventSubscription[];
   uiRoutes: readonly QuetzalRoute[];
