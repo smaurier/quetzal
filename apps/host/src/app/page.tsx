@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation';
-import type { Route } from 'next';
 
 export default function HomePage() {
-  redirect('/login' as Route);
+  redirect('/login');
 }
