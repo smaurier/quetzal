@@ -10,3 +10,6 @@ export interface HelloPingedEvent {
   tenantId: string;
   latencyMs: number;
 }
+
+export const HelloGreetedEvent = 'HelloGreetedEvent' as const;
+export const HelloPingedEvent = 'HelloPingedEvent' as const;
