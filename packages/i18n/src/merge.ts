@@ -6,7 +6,15 @@ const ROOT = resolve(import.meta.dirname, '../../..');
 const CATALOGUES_DIR = resolve(import.meta.dirname, '../catalogues');
 const LOCALES = ['fr', 'en', 'es'] as const;
 
-type Catalogue = Record<string, unknown>;
+export type Catalogue = Record<string, unknown>;
+
+export function mergeCatalogues(core: Catalogue, moduleCats: readonly Catalogue[]): Catalogue {
+  const merged: Catalogue = { ...core };
+  for (const cat of moduleCats) {
+    Object.assign(merged, cat);
+  }
+  return merged;
+}
 
 async function loadCoreCatalogue(locale: string): Promise<Catalogue> {
   const path = join(CATALOGUES_DIR, `${locale}.json`);
@@ -31,18 +39,21 @@ async function main() {
 
   for (const locale of LOCALES) {
     const core = await loadCoreCatalogue(locale);
-    const merged: Catalogue = { ...core };
+    const moduleCats: Catalogue[] = [];
     for (const slug of moduleSlugs) {
       const modCat = await loadModuleCatalogue(slug, locale);
-      if (modCat) Object.assign(merged, modCat);
+      if (modCat) moduleCats.push(modCat);
     }
+    const merged = mergeCatalogues(core, moduleCats);
     const out = join(CATALOGUES_DIR, `merged.${locale}.json`);
     await writeFile(out, JSON.stringify(merged, null, 2), 'utf8');
     console.log(`[i18n:merge] wrote ${out}`);
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+  main().catch((e) => {
+    console.error(e);
+    process.exit(1);
+  });
+}
