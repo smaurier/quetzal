@@ -5,3 +5,6 @@ export { getTenantScopedPrisma } from './tenant/scoped-prisma';
 export { logger, redactUser } from './logging/logger';
 export type { Logger } from './logging/logger';
 export { InProcessEventBus, eventBus } from './event-bus';
+export { rooms } from './rooms';
+export { signGuestToken, verifyGuestToken, GuestTokenInvalidError, type GuestTokenPayload, type VerifiedGuestToken } from './guest/guest-token';
+export { InMemoryGuestRegistry, guestRegistry, type GuestEntry, type GuestRegistry } from './guest/guest-registry';
