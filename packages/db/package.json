@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc && cp -r prisma dist/prisma",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts",
+    "lint": "eslint src",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "schema:merge": "tsx scripts/merge-schemas.ts",
