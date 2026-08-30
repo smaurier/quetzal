@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify, errors as joseErrors } from 'jose';
+import { z } from 'zod';
 
 export interface GuestTokenPayload {
   tenantId: string;
@@ -20,6 +21,16 @@ export class GuestTokenInvalidError extends Error {
   }
 }
 
+const verifiedPayloadSchema = z.object({
+  tenantId: z.string().min(1),
+  sessionId: z.string().min(1),
+  guestId: z.string().min(1),
+  displayName: z.string().min(1),
+  moduleSlug: z.string().min(1),
+  iat: z.number(),
+  exp: z.number(),
+});
+
 function getSecret(): Uint8Array {
   const secret = process.env['GUEST_TOKEN_SECRET'];
   if (!secret || secret.length < 32) throw new Error('GUEST_TOKEN_SECRET missing or too short (min 32 chars)');
@@ -39,8 +50,11 @@ export async function signGuestToken(payload: GuestTokenPayload, ttlSeconds: num
 export async function verifyGuestToken(token: string): Promise<VerifiedGuestToken> {
   try {
     const { payload } = await jwtVerify(token, getSecret(), { algorithms: ['HS256'] });
-    return payload as unknown as VerifiedGuestToken;
+    const parsed = verifiedPayloadSchema.safeParse(payload);
+    if (!parsed.success) throw new GuestTokenInvalidError('shape');
+    return parsed.data;
   } catch (err) {
+    if (err instanceof GuestTokenInvalidError) throw err;
     if (err instanceof joseErrors.JWTExpired) throw new GuestTokenInvalidError('expired');
     if (err instanceof joseErrors.JWSSignatureVerificationFailed) throw new GuestTokenInvalidError('bad signature');
     throw new GuestTokenInvalidError((err as Error).message);

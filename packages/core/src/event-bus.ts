@@ -10,15 +10,15 @@ export class InProcessEventBus implements EventBus {
   });
 
   async emit<T = unknown>(name: EventName, payload: T): Promise<void> {
-    const seen = new Set<Function>();
+    const seen = new Set<(...args: unknown[]) => unknown>();
     // eventemitter2 wildcard '**' matches everything but isn't part of typed EventName
     const listeners = [
       ...this.emitter.listeners(name),
       ...this.emitter.listeners('**' as unknown as string),
     ];
     for (const listener of listeners) {
-      if (seen.has(listener as Function)) continue;
-      seen.add(listener as Function);
+      if (seen.has(listener as (...args: unknown[]) => unknown)) continue;
+      seen.add(listener as (...args: unknown[]) => unknown);
       try {
         // eventemitter2 listeners are untyped variadic — cast at boundary only
         await Promise.resolve((listener as (p: T) => unknown)(payload));

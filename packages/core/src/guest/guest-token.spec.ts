@@ -31,4 +31,15 @@ describe('guest-token', () => {
     const token = await signGuestToken(payload, -1);
     await expect(verifyGuestToken(token)).rejects.toThrow(GuestTokenInvalidError);
   });
+
+  it('rejects shape-invalid payload (missing fields)', async () => {
+    const { SignJWT } = await import('jose');
+    const secret = new TextEncoder().encode('x'.repeat(64));
+    const partial = await new SignJWT({ tenantId: 't-A' })
+      .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
+      .setIssuedAt()
+      .setExpirationTime('1h')
+      .sign(secret);
+    await expect(verifyGuestToken(partial)).rejects.toThrow(/shape/);
+  });
 });
