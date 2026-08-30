@@ -8,3 +8,4 @@ export { InProcessEventBus, eventBus } from './event-bus.js';
 export { rooms } from './rooms.js';
 export { signGuestToken, verifyGuestToken, GuestTokenInvalidError, type GuestTokenPayload, type VerifiedGuestToken } from './guest/guest-token.js';
 export { InMemoryGuestRegistry, guestRegistry, type GuestEntry, type GuestRegistry } from './guest/guest-registry.js';
+export { TenantScopeViolationError } from '@quetzal/db';

@@ -3,11 +3,15 @@ import { NestFactory } from '@nestjs/core';
 import { Module } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { loadManifests, upsertModuleCatalogue, composeAppModules } from './module-registry';
+import { initSentry } from './observability/sentry';
+import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import helmet from 'helmet';
 import { logger, eventBus } from '@quetzal/core';
 import { rootPrisma } from '@quetzal/db';
 
 async function bootstrap() {
+  initSentry();
+
   const slugs = (process.env['MODULES'] ?? '').split(',').map(s => s.trim()).filter(Boolean);
   if (slugs.length === 0) {
     logger.warn('No MODULES env variable — starting with core only');
@@ -22,6 +26,8 @@ async function bootstrap() {
   class RootModule {}
 
   const app = await NestFactory.create(RootModule, { bufferLogs: true });
+
+  app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.use(helmet({ contentSecurityPolicy: false }));
 
