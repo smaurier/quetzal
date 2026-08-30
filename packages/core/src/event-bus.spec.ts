@@ -7,7 +7,16 @@ describe('InProcessEventBus', () => {
     const handler = vi.fn();
     bus.on('test.event', handler);
     await bus.emit('test.event', { foo: 'bar' });
-    expect(handler).toHaveBeenCalledWith({ foo: 'bar' });
+    expect(handler).toHaveBeenCalledWith({ foo: 'bar' }, { name: 'test.event' });
+  });
+
+  it('passes event name to wildcard subscribers so they can filter', async () => {
+    const bus = new InProcessEventBus();
+    const seen: string[] = [];
+    bus.on('*.*', (_p, meta) => { seen.push(meta.name); });
+    await bus.emit('audit.security.leak', { attempted: 't-B' });
+    await bus.emit('user.login', { userId: 'u1' });
+    expect(seen).toEqual(['audit.security.leak', 'user.login']);
   });
 
   it('wildcard subscribers receive all events', async () => {

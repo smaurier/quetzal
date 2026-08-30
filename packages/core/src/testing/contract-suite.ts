@@ -32,7 +32,7 @@ export function runContractSuite(manifest: QuetzalModuleManifest, options: { mod
 
     it('all published events have canonical naming', () => {
       for (const ev of manifest.eventsPublished) {
-        expect(ev.name).toMatch(/^[a-z]+(\.[a-z]+){1,2}$/);
+        expect(ev.name).toMatch(/^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*){1,2}$/);
       }
     });
 

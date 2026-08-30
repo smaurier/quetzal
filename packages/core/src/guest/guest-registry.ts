@@ -5,7 +5,7 @@ export interface GuestEntry {
 }
 
 export interface GuestRegistry {
-  add(moduleSlug: string, sessionId: string, entry: GuestEntry): boolean;
+  add(moduleSlug: string, sessionId: string, entry: GuestEntry): void;
   remove(moduleSlug: string, sessionId: string, guestId: string): void;
   list(moduleSlug: string, sessionId: string): GuestEntry[];
   count(moduleSlug: string, sessionId: string): number;
@@ -18,7 +18,7 @@ export class InMemoryGuestRegistry implements GuestRegistry {
     return `${moduleSlug}:${sessionId}`;
   }
 
-  add(moduleSlug: string, sessionId: string, entry: GuestEntry): boolean {
+  add(moduleSlug: string, sessionId: string, entry: GuestEntry): void {
     const key = this.key(moduleSlug, sessionId);
     let entries = this.bySession.get(key);
     if (!entries) {
@@ -26,7 +26,6 @@ export class InMemoryGuestRegistry implements GuestRegistry {
       this.bySession.set(key, entries);
     }
     entries.set(entry.guestId, entry);
-    return true;
   }
 
   remove(moduleSlug: string, sessionId: string, guestId: string): void {

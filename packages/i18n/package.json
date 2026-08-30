@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').cpSync('catalogues', 'dist/catalogues', { recursive: true })\"",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "merge": "tsx src/merge.ts"
   },
   "dependencies": {
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@quetzal/config": "workspace:*",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }

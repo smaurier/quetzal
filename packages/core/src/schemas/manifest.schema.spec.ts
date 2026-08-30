@@ -43,4 +43,22 @@ describe('manifestSchema', () => {
   it('rejects invalid version format', () => {
     expect(() => manifestSchema.parse({ ...baseValidManifest, version: 'v1' })).toThrow();
   });
+
+  it('accepts kebab-slug event name (hello-world.greeted)', () => {
+    expect(() =>
+      manifestSchema.parse({
+        ...baseValidManifest,
+        eventsPublished: [{ name: 'hello-world.greeted', typeRef: 'HelloWorldGreetedEvent' }],
+      })
+    ).not.toThrow();
+  });
+
+  it('rejects event name with uppercase', () => {
+    expect(() =>
+      manifestSchema.parse({
+        ...baseValidManifest,
+        eventsPublished: [{ name: 'Hello.greeted', typeRef: 'HelloGreetedEvent' }],
+      })
+    ).toThrow();
+  });
 });

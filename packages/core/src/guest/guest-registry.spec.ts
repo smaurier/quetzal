@@ -15,8 +15,9 @@ describe('InMemoryGuestRegistry', () => {
   });
 
   describe('add', () => {
-    it('returns true when adding a new guest', () => {
-      expect(registry.add('hello', 's-1', guest('g-1'))).toBe(true);
+    it('registers a new guest without throwing', () => {
+      expect(() => registry.add('hello', 's-1', guest('g-1'))).not.toThrow();
+      expect(registry.count('hello', 's-1')).toBe(1);
     });
 
     it('overwrites entry when same guestId is added twice', () => {
