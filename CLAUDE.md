@@ -106,6 +106,21 @@ Infrastructure→ Prisma repos, Better-Auth adapters, Socket.io, Sentry
   - Verdict : GO / FIX / STOP
 - Exception `hotfix-no-tdd` (label PR + issue dette) : test rétroactif à combler avant merge suivant
 
+### Exceptions au cycle test-first (déjà implicites via §11)
+
+La règle « chaque `feat:` a un `test:` précédent » vise les couches où le TDD apporte une vraie valeur : **Domain, Application, Infrastructure (repositories, adapters)**. Trois catégories de commits en sont exemptées, sans disclosure obligatoire dans le body :
+
+1. **Scaffolding / wiring / configuration** — `feat:` qui ne fait qu'assembler des primitives existantes via DI, configuration Nest/Next, plumbing entre modules. Exemples : `scaffold Better-Auth`, `NestJS bootstrap`, `Sentry init`, `Better-Auth handler + authClient`, `global exception filter wiring`. La testabilité utile est en aval (integration ou E2E).
+2. **Presentation layer** — Controllers, Gateways, pages/composants React. Couverts par E2E (Playwright, §11) et non par unit test. Cohérent avec « Presentation : pas de seuil » (§5 coverage cibles).
+3. **Scripts, seeds, migrations, catalogues JSON** — code one-shot ou déclaratif qui n'a pas d'invariant testable en isolation. Vérification = exécuter le script, pas mocker son environnement. Exemple : `seed.ts`, `merge.ts` catalogues i18n, migrations Prisma générées.
+
+Ces trois catégories sont **couvertes par intégration ou E2E**, pas ignorées. Un `feat:` dans ces zones sans `test:` préalable N'EST PAS une violation §5 et le correcteur-labs doit le tolérer.
+
+Ce qui reste **non négociable** :
+- Toute logique métier (Domain, Application, use-case, Repository interface) DOIT avoir son test rouge d'abord.
+- Toute correction de bug (`fix:`) qui change un comportement doit soit ajouter un test qui reproduit le bug, soit être flaggée `hotfix-no-tdd` avec issue de dette.
+- Les commits `test:` et `feat:` métier restent séparés (§5 ci-dessus).
+
 ### Coverage cibles
 
 - Domain ≥ 90% (règles métier zéro tolérance)
