@@ -27,6 +27,7 @@
     "@quetzal/ui": "workspace:*"
   },
   "devDependencies": {
+    "@prisma/client": "^6.19.3",
     "@quetzal/config": "workspace:*",
     "@types/react": "^19.0.2",
     "typescript": "^5.7.2",
