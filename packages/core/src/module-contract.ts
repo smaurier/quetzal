@@ -33,6 +33,16 @@ export interface QuetzalModuleManifest {
   onDisable?: (ctx: ModuleContext) => Promise<void>;
 }
 
+/**
+ * Client-safe subset of the manifest. Modules export it from `<pkg>/client`; the host
+ * (Next.js) imports ONLY this entry, so it must never reference the NestJS module,
+ * lifecycle hooks or Prisma. The server manifest spreads it to avoid duplication.
+ */
+export type ClientModuleManifest = Pick<
+  QuetzalModuleManifest,
+  'slug' | 'name' | 'uiRoutes' | 'navItem' | 'guestJoinComponent'
+>;
+
 export interface EventDefinition {
   name: EventName;
   typeRef: string;
