@@ -1,13 +1,14 @@
 import { Injectable, NestMiddleware, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response, NextFunction } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { jwksUrl } from '../auth/jwks-url';
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 function getJwks(): ReturnType<typeof createRemoteJWKSet> {
   if (!jwks) {
     const hostUrl = process.env['HOST_URL'] ?? 'http://localhost:3000';
-    const url = new URL(`${hostUrl}/api/auth/jwt/jwks`);
+    const url = jwksUrl(hostUrl);
     jwks = createRemoteJWKSet(url, {
       cooldownDuration: 30_000,
       cacheMaxAge: 24 * 3600_000,
