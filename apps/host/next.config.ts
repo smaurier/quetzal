@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 import createNextIntlPlugin from 'next-intl/plugin';
 
@@ -5,6 +6,9 @@ const API = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:3001';
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // Monorepo: pin the tracing root to the workspace, otherwise Next walks up to
+  // the first lockfile it finds (e.g. a stray one in $HOME) and traces far too much.
+  outputFileTracingRoot: path.join(__dirname, '../..'),
   async rewrites() {
     return [
       { source: '/api/modules/:path*', destination: `${API}/api/modules/:path*` },

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm --filter @quetzal/auth generate && pnpm turbo run build --filter=quetzal-host...",
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "v2": false
+    }
+  }
+}
