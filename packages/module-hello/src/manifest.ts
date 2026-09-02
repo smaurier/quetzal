@@ -1,9 +1,9 @@
 import type { QuetzalModuleManifest } from '@quetzal/core';
 import { HelloModule } from './hello.module.js';
+import { clientManifest } from './client.js';
 
 export const manifest: QuetzalModuleManifest = {
-  slug: 'hello',
-  name: { fr: 'Hello', en: 'Hello', es: 'Hola' },
+  ...clientManifest,
   description: {
     fr: 'Module stub pour valider le contrat',
     en: 'Stub module to validate the contract',
@@ -17,21 +17,6 @@ export const manifest: QuetzalModuleManifest = {
     { name: 'hello.greeted', typeRef: 'HelloGreetedEvent' },
     { name: 'hello.pinged', typeRef: 'HelloPingedEvent' },
   ],
-  uiRoutes: [
-    {
-      path: '',
-      component: () => import('./presentation/ui/hello-page.js'),
-      requiredRoles: ['owner', 'creator', 'learner'],
-      layout: 'shell',
-    },
-  ],
-  navItem: {
-    icon: 'sparkles',
-    labelKey: 'module.hello.nav.title',
-    visibleTo: ['owner', 'creator', 'learner'],
-    order: 10,
-  },
-  guestJoinComponent: () => import('./presentation/ui/guest-join.js'),
   permissions: {
     'http:GET /api/modules/hello/greet': ['owner', 'creator', 'learner'],
     'ws:ping': ['owner', 'creator', 'learner', 'guest'],

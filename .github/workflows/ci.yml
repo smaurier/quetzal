@@ -6,7 +6,7 @@ on:
   pull_request:
 
 env:
-  NODE_VERSION: 22.11.0
+  NODE_VERSION: 22.12.0
 
 jobs:
   quality:
@@ -14,15 +14,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.0 }
+        with:
+          version: 9.15.0
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:generate
       - run: pnpm turbo run lint typecheck
+      # auth.prisma is a tracked snapshot of the Better-Auth CLI output: regenerate and fail on drift
+      - run: pnpm --filter @quetzal/auth generate
+      - run: git diff --exit-code -- packages/auth/prisma/auth.prisma
 
   test-unit:
     needs: quality
@@ -30,11 +35,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.0 }
+        with:
+          version: 9.15.0
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:generate
@@ -58,11 +65,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.0 }
+        with:
+          version: 9.15.0
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:migrate:deploy
@@ -74,9 +83,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.0 }
+        with:
+          version: 9.15.0
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm audit --prod --audit-level high
 
@@ -108,21 +120,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
-        with: { version: 9.15.0 }
+        with:
+          version: 9.15.0
       - uses: actions/setup-node@v4
-        with: { node-version: ${{ env.NODE_VERSION }}, cache: pnpm }
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:migrate:deploy
       - run: pnpm --filter @quetzal/db prisma:generate
-      - run: pnpm --filter @quetzal/db seed
       - run: pnpm build
+      - run: pnpm --filter @quetzal/auth seed
       - run: pnpm --filter quetzal-api start &
       - run: pnpm --filter quetzal-host start &
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test
       - uses: actions/upload-artifact@v4
         if: always()
-        with: { name: playwright-report, path: playwright-report/ }
+        with:
+          name: playwright-report
+          path: playwright-report/

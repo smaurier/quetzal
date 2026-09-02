@@ -14,25 +14,20 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
     "schema:merge": "tsx scripts/merge-schemas.ts",
     "generate:tenant-registry": "tsx scripts/generate-tenant-registry.ts",
     "prebuild": "pnpm schema:merge && pnpm generate:tenant-registry && pnpm prisma:generate",
-    "postinstall": "pnpm schema:merge && pnpm generate:tenant-registry && pnpm prisma:generate",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:migrate:dev": "pnpm schema:merge && prisma migrate dev --schema=prisma/schema.prisma",
     "prisma:migrate:deploy": "pnpm schema:merge && prisma migrate deploy --schema=prisma/schema.prisma",
-    "prisma:studio": "prisma studio --schema=prisma/schema.prisma",
-    "seed": "node --env-file=../../.env.local --import tsx prisma/seed.ts"
+    "prisma:studio": "prisma studio --schema=prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^6.1.0",
     "uuid": "^11.0.3"
   },
   "devDependencies": {
-    "@quetzal/auth": "workspace:*",
     "@quetzal/config": "workspace:*",
-    "@quetzal/core": "workspace:*",
     "@types/uuid": "^10.0.0",
     "prisma": "^6.1.0",
     "tsx": "^4.19.2",

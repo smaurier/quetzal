@@ -30,8 +30,8 @@ quetzal/
 │   ├── core/                    # Contrat module + types partagés + events + testing helpers
 │   ├── ui/                      # @quetzal/ui — shadcn/ui surchargé
 │   ├── config/                  # ESLint, tsconfig, Tailwind, Prisma helpers
-│   ├── auth/                    # Better-Auth config (source de vérité)
-│   ├── db/                      # Prisma client + schema mergé + migrations + seed
+│   ├── auth/                    # Better-Auth config (source de vérité) + seed
+│   ├── db/                      # Prisma client + schema mergé + migrations
 │   ├── i18n/                    # next-intl setup + catalogues FR/EN/ES
 │   └── module-hello/            # Module stub prouvant le contrat
 ├── docs/
@@ -59,6 +59,8 @@ Un module = `packages/module-<slug>/` (jamais dans `apps/`).
   - Import de `RootPrismaClient` dans un module (réservé au noyau : onBoot, migrations, jobs admin)
   - Monkey-patch d'un service noyau
   - Fork d'un composant `@quetzal/ui` dans le module (créer un composant local dérivé, ou proposer un ajout upstream)
+
+- **Deux entrées par module** : `./manifest` (serveur, consommé par `apps/api`) et `./client` (`clientManifest: ClientModuleManifest`, consommé par `apps/host`). Le host n'importe JAMAIS l'entrée racine d'un module (elle tire NestJS dans le bundle Next). Chargement host = map statique générée par `generate:routes`, jamais un `import()` à template string sur `@quetzal/module-*` (context module webpack = build OOM). Détail : `docs/module-contract.md`.
 
 Communication cross-module = **événements domain publiés** (event bus) uniquement. Types d'events dans `@quetzal/core/events/<slug>` (contrat public, aucun import du module).
 

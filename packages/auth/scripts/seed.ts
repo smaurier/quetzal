@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
-import { auth } from '@quetzal/auth';
-import { rootPrisma, newId } from '../src';
+import { auth } from '../src/index.js';
+import { rootPrisma, newId } from '@quetzal/db';
 
 const OWNER_EMAIL = process.env['SEED_OWNER_EMAIL'];
 const OWNER_PASSWORD = process.env['SEED_OWNER_PASSWORD'];
