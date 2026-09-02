@@ -13,7 +13,7 @@ services:
       pnpm --filter @quetzal/db generate:tenant-registry
       pnpm --filter @quetzal/db prisma:generate
       pnpm --filter quetzal-api build
-    preDeployCommand: pnpm --filter @quetzal/db prisma:migrate:deploy
+      pnpm --filter @quetzal/db prisma:migrate:deploy
     startCommand: node apps/api/dist/main.js
     healthCheckPath: /api/health
     envVars:
