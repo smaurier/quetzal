@@ -13,7 +13,6 @@ Plateforme éducative interactive multi-modulaire (loto, quiz, spaced repetition
 ```bash
 pnpm install
 cp .env.example .env.local  # remplir DATABASE_URL, BETTER_AUTH_SECRET, GUEST_TOKEN_SECRET, ...
-pnpm --filter @quetzal/auth generate
 pnpm --filter @quetzal/db schema:merge
 pnpm --filter @quetzal/db generate:tenant-registry
 pnpm --filter @quetzal/db exec prisma migrate deploy --schema=prisma/schema.prisma
@@ -21,6 +20,8 @@ pnpm --filter @quetzal/db exec prisma generate
 pnpm --filter @quetzal/auth seed
 pnpm dev
 ```
+
+`packages/auth/prisma/auth.prisma` est un snapshot versionné de la sortie du CLI Better-Auth. Après toute modification de `packages/auth/src/config.ts` : `pnpm --filter @quetzal/auth generate` puis commit du fichier (la CI échoue sur dérive).
 
 ## Structure
 

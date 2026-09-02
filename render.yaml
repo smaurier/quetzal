@@ -9,7 +9,6 @@ services:
     buildCommand: |
       corepack enable && corepack prepare pnpm@9.15.0 --activate
       pnpm install --frozen-lockfile
-      pnpm --filter @quetzal/auth generate
       pnpm --filter @quetzal/db schema:merge
       pnpm --filter @quetzal/db generate:tenant-registry
       pnpm --filter @quetzal/db prisma:generate

@@ -22,7 +22,6 @@ test-results/
 
 # Prisma generated
 packages/db/prisma/schema.prisma
-packages/auth/prisma/auth.prisma
 packages/db/src/model-tenant-registry.ts
 
 # Generated Next module routes

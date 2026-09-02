@@ -21,11 +21,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:generate
       - run: pnpm turbo run lint typecheck
+      # auth.prisma is a tracked snapshot of the Better-Auth CLI output: regenerate and fail on drift
+      - run: pnpm --filter @quetzal/auth generate
+      - run: git diff --exit-code -- packages/auth/prisma/auth.prisma
 
   test-unit:
     needs: quality
@@ -40,7 +42,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:generate
@@ -71,7 +72,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:migrate:deploy
@@ -127,7 +127,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @quetzal/auth generate
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
       - run: pnpm --filter @quetzal/db prisma:migrate:deploy
