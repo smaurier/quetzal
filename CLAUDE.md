@@ -30,8 +30,8 @@ quetzal/
 │   ├── core/                    # Contrat module + types partagés + events + testing helpers
 │   ├── ui/                      # @quetzal/ui — shadcn/ui surchargé
 │   ├── config/                  # ESLint, tsconfig, Tailwind, Prisma helpers
-│   ├── auth/                    # Better-Auth config (source de vérité)
-│   ├── db/                      # Prisma client + schema mergé + migrations + seed
+│   ├── auth/                    # Better-Auth config (source de vérité) + seed
+│   ├── db/                      # Prisma client + schema mergé + migrations
 │   ├── i18n/                    # next-intl setup + catalogues FR/EN/ES
 │   └── module-hello/            # Module stub prouvant le contrat
 ├── docs/

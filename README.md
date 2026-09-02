@@ -18,7 +18,7 @@ pnpm --filter @quetzal/db schema:merge
 pnpm --filter @quetzal/db generate:tenant-registry
 pnpm --filter @quetzal/db exec prisma migrate deploy --schema=prisma/schema.prisma
 pnpm --filter @quetzal/db exec prisma generate
-pnpm --filter @quetzal/db seed
+pnpm --filter @quetzal/auth seed
 pnpm dev
 ```
 

@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { rootPrisma } from '@quetzal/db';
 import { ensureTestPostgres, resetTestDatabase } from '@quetzal/core/testing/index';
 
-const SEED_PATH = resolve(import.meta.dirname, '../prisma/seed.ts');
+const SEED_PATH = resolve(import.meta.dirname, '../scripts/seed.ts');
 
 function runSeed(databaseUrl: string) {
   const result = spawnSync(
@@ -39,7 +39,8 @@ describe('seed idempotence (integration)', () => {
     const first = runSeed(databaseUrl);
     expect(first.status, first.stderr).toBe(0);
 
-    const root = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+    // rootPrisma reads DATABASE_URL, which ensureTestPostgres() points at the test container.
+    const root = rootPrisma;
     try {
       const [users1, orgs1, members1, mods1, tms1] = await Promise.all([
         root.user.count(),
