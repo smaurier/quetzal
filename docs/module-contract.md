@@ -2,6 +2,23 @@
 
 Every Quetzal module is a workspace package `packages/module-<slug>/` that exports a `manifest` satisfying `QuetzalModuleManifest` (from `@quetzal/core`). The registry at boot loads it, validates it against `manifestSchema` (Zod), and composes it into the running app.
 
+## Two entries: server manifest and client manifest
+
+A module package exposes two entry points (`package.json` `exports`):
+
+| Entry | Export | Consumed by | May import |
+|---|---|---|---|
+| `.` / `./manifest` | `manifest: QuetzalModuleManifest` | `apps/api` (NestJS registry) | anything (NestJS, Prisma, domain) |
+| `./client` | `clientManifest: ClientModuleManifest` | `apps/host` (Next.js bundle) | React, `@quetzal/ui`, next-intl, socket.io-client only |
+
+`ClientModuleManifest` = `Pick<QuetzalModuleManifest, 'slug' | 'name' | 'uiRoutes' | 'navItem' | 'guestJoinComponent'>`.
+The server manifest spreads the client one (`{ ...clientManifest, apiModule, ... }`) so the UI surface is declared once.
+The host never imports the root entry: it would drag `@nestjs/*` into the browser bundle and break `next build`.
+Host-side loaders are generated per slug by `packages/core/scripts/generate-module-routes.ts` as static
+`import('@quetzal/module-<slug>/client')` calls. A template-string dynamic import is forbidden: webpack turns it into a
+context module over the whole `@quetzal/` tree (node_modules included) and the build runs out of memory.
+Each module shipped by the host is declared in `apps/host/package.json` dependencies (needed for resolution and typecheck).
+
 ## Minimum manifest
 
 ```ts

@@ -60,6 +60,8 @@ Un module = `packages/module-<slug>/` (jamais dans `apps/`).
   - Monkey-patch d'un service noyau
   - Fork d'un composant `@quetzal/ui` dans le module (créer un composant local dérivé, ou proposer un ajout upstream)
 
+- **Deux entrées par module** : `./manifest` (serveur, consommé par `apps/api`) et `./client` (`clientManifest: ClientModuleManifest`, consommé par `apps/host`). Le host n'importe JAMAIS l'entrée racine d'un module (elle tire NestJS dans le bundle Next). Chargement host = map statique générée par `generate:routes`, jamais un `import()` à template string sur `@quetzal/module-*` (context module webpack = build OOM). Détail : `docs/module-contract.md`.
+
 Communication cross-module = **événements domain publiés** (event bus) uniquement. Types d'events dans `@quetzal/core/events/<slug>` (contrat public, aucun import du module).
 
 Enforcement : ESLint `no-restricted-imports` + boundaries + custom rules dans `packages/config/eslint/`.
