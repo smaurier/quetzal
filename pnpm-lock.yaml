@@ -141,6 +141,9 @@ importers:
       '@quetzal/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@quetzal/module-hello':
+        specifier: workspace:*
+        version: link:../../packages/module-hello
       '@quetzal/ui':
         specifier: workspace:*
         version: link:../../packages/ui

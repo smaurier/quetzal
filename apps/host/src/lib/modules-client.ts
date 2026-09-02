@@ -1,3 +1,5 @@
+import { moduleLoaders } from './module-loaders.generated';
+
 export interface ClientNavItem {
   icon: string;
   labelKey: string;
@@ -19,8 +21,10 @@ export async function loadClientModuleRegistry(): Promise<ClientModuleEntry[]> {
   const entries: ClientModuleEntry[] = [];
   for (const slug of SLUGS) {
     try {
-      const mod = await import(`@quetzal/module-${slug}`);
-      const manifest = mod.manifest as { navItem: ClientNavItem | null };
+      const load = moduleLoaders[slug];
+      if (!load) throw new Error(`No loader generated for module ${slug}`);
+      const mod = await load();
+      const manifest = mod.clientManifest as { navItem: ClientNavItem | null };
       entries.push({ slug, navItem: manifest.navItem });
     } catch (e) {
       console.error(`Failed to load module ${slug}`, e);

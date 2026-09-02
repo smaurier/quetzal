@@ -26,7 +26,8 @@ packages/auth/prisma/auth.prisma
 packages/db/src/model-tenant-registry.ts
 
 # Generated Next module routes
-apps/host/app/modules/
+apps/host/src/app/modules/
+apps/host/src/lib/module-loaders.generated.ts
 
 # Generated merged i18n catalogues
 packages/i18n/catalogues/merged.*.json
