@@ -68,6 +68,9 @@ importers:
       '@quetzal/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@quetzal/module-hello':
+        specifier: workspace:*
+        version: link:../../packages/module-hello
       '@sentry/node':
         specifier: ^8.42.0
         version: 8.55.2
