@@ -10,7 +10,9 @@ export async function ensureTestPostgres(): Promise<string> {
       .withDatabase('quetzal_test')
       .withUsername('test')
       .withPassword('test')
-      .withReuse()
+      // No .withReuse(): every package's integration suite gets its own container.
+      // A reused container is shared by core/auth/module-hello when turbo runs them in
+      // parallel, and one suite's TRUNCATE lands in the middle of another's inserts (P2003).
       .start();
     process.env['DATABASE_URL'] = container.getConnectionUri();
     execSync('pnpm --filter @quetzal/db exec prisma migrate deploy --schema=prisma/schema.prisma', { stdio: 'inherit' });
