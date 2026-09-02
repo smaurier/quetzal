@@ -1,12 +1,13 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
+import { jwksUrl } from '../auth/jwks-url';
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
 function getJwks() {
   if (!jwks) {
     const hostUrl = process.env['HOST_URL'] ?? 'http://localhost:3000';
-    jwks = createRemoteJWKSet(new URL(`${hostUrl}/api/auth/jwt/jwks`));
+    jwks = createRemoteJWKSet(jwksUrl(hostUrl));
   }
   return jwks;
 }
