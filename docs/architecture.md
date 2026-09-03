@@ -94,6 +94,8 @@ Registry of tenant-scoped models is auto-generated at build (`generate-tenant-re
 - Subscribers register via `eventBus.on(name, handler)` at boot
 - `AuditSubscriber` (apps/api) subscribes to a whitelist and writes `AuditLog` rows
 
+> Wiring note (commit 2585f96, Issue #4): the global exception filter, the audit subscriber and the Sentry init are scaffolding in the sense of CLAUDE.md §5 — assembled without a prior red test. Their behaviour is covered by `apps/api/src/filters/global-exception.filter.spec.ts`, the Hello controller integration test and the e2e smoke, not by unit tests of the wiring itself.
+
 ## Deployment
 
 | Service | Where | How |
