@@ -28,6 +28,32 @@ Module UI components use `@quetzal/core/client` (browser-only entry):
 
 Never call `fetch('/api/modules/...')` or `io('/ws/...')` directly: the first has no JWT, the second never reaches the API in production.
 
+## WebSocket identity and permissions
+
+A module gateway lives at `/ws/<slug>` and declares **nothing** about authentication: the platform adapter authenticates every namespace once, at handshake time.
+
+- A signed-in user connects with `auth.token` (Better-Auth JWT). The platform verifies it against the host JWKS and reads the member role from the database, since the JWT carries none.
+- A guest connects with `auth.guestToken`, accepted only when the manifest sets `guestAccess.enabled`, and only on the namespace of the module the token was minted for.
+- A handshake with no valid token is refused before `handleConnection`.
+
+The identity lands on `socket.data` and the gateway can trust it:
+
+| Party | `socket.data` |
+|---|---|
+| user | `{ role, userId, tenantId, locale }` |
+| guest | `{ role: 'guest', guestId, displayName, tenantId, sessionId, moduleSlug }` |
+
+Each message is then authorized against `permissions['ws:<event>']` of the manifest, **fail closed**: an event the manifest does not declare is refused for everyone. Declare every gateway message there, next to the HTTP entries:
+
+```ts
+permissions: {
+  'http:GET /api/modules/hello/greet': ['owner', 'creator', 'learner'],
+  'ws:ping': ['owner', 'creator', 'learner', 'guest'],
+},
+```
+
+CORS is owned by the platform adapter: do not set `cors` on `@WebSocketGateway`.
+
 ## Minimum manifest
 
 ```ts

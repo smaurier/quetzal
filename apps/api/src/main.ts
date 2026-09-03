@@ -5,6 +5,10 @@ import { AppModule } from './app.module';
 import { loadManifests, upsertModuleCatalogue, composeAppModules } from './module-registry';
 import { initSentry } from './observability/sentry';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
+import { QuetzalIoAdapter } from './ws/quetzal-io.adapter';
+import { buildWsRegistry } from './ws/ws-policies';
+import { handshakeVerifiers } from './ws/handshake-verifiers';
+import { WsPermissionsGuard } from './ws/ws-permissions.guard';
 import helmet from 'helmet';
 import { logger, eventBus } from '@quetzal/core';
 import { rootPrisma } from '@quetzal/db';
@@ -28,6 +32,11 @@ async function bootstrap() {
   const app = await NestFactory.create(RootModule, { bufferLogs: true });
 
   app.useGlobalFilters(new GlobalExceptionFilter());
+
+  // WebSockets: identity resolved once at handshake,every message checked against the manifest.
+  const wsRegistry = buildWsRegistry(manifests);
+  app.useWebSocketAdapter(new QuetzalIoAdapter(app, { registry: wsRegistry, verifiers: handshakeVerifiers }));
+  app.useGlobalGuards(new WsPermissionsGuard(wsRegistry));
 
   app.use(helmet({ contentSecurityPolicy: false }));
 
