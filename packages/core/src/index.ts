@@ -10,3 +10,4 @@ export { signGuestToken, verifyGuestToken, GuestTokenInvalidError, type GuestTok
 export { InMemoryGuestRegistry, guestRegistry, type GuestEntry, type GuestRegistry } from './guest/guest-registry.js';
 export { TenantScopeViolationError } from '@quetzal/db';
 export { DomainError, TenantContextMissingError } from './errors.js';
+export { resolveSocketIdentity, canEmitWsEvent, WsUnauthenticatedError, type HandshakeAuth, type NamespacePolicy, type HandshakeVerifiers, type SocketIdentity, type UserTokenClaims } from './ws/handshake.js';
