@@ -1,7 +1,8 @@
 import { betterAuth, type BetterAuthPlugin } from 'better-auth';
 import { organization, jwt } from 'better-auth/plugins';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { createAccessControl, defaultStatements } from 'better-auth/plugins/access';
+import { createAccessControl } from 'better-auth/plugins/access';
+import { defaultStatements } from 'better-auth/plugins/organization/access';
 import { rootPrisma } from '@quetzal/db';
 
 const statements = {
