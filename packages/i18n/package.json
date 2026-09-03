@@ -13,7 +13,8 @@
     "build": "tsc && node -e \"require('fs').cpSync('catalogues', 'dist/catalogues', { recursive: true })\"",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "merge": "tsx src/merge.ts"
+    "merge": "tsx src/merge.ts",
+    "prebuild": "pnpm merge"
   },
   "dependencies": {
     "next-intl": "^3.26.3"
