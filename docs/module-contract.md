@@ -19,6 +19,15 @@ Host-side loaders are generated per slug by `packages/core/scripts/generate-modu
 context module over the whole `@quetzal/` tree (node_modules included) and the build runs out of memory.
 Each module shipped by the host is declared in `apps/host/package.json` dependencies (needed for resolution and typecheck).
 
+## Talking to the API from a module UI
+
+Module UI components use `@quetzal/core/client` (browser-only entry):
+
+- `apiClient().apiFetch(path)` — same-origin HTTP through the host rewrite, with the Better-Auth JWT as `Authorization: Bearer` (token fetched from `/api/auth/token`, cached).
+- `connectSocket('ws/<slug>', { guestToken? })` — socket.io straight to `NEXT_PUBLIC_API_URL` (Vercel rewrites do not proxy WebSocket upgrades), `auth.token` for users or `auth.guestToken` for guests.
+
+Never call `fetch('/api/modules/...')` or `io('/ws/...')` directly: the first has no JWT, the second never reaches the API in production.
+
 ## Minimum manifest
 
 ```ts
