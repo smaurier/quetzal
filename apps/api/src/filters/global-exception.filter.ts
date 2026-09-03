@@ -1,6 +1,6 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import * as Sentry from '@sentry/node';
-import { logger, TenantScopeViolationError } from '@quetzal/core';
+import { logger, TenantScopeViolationError, TenantContextMissingError } from '@quetzal/core';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -15,6 +15,14 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return response.status(HttpStatus.FORBIDDEN).json({
         error: 'tenant_scope_violation',
         message: 'Cross-tenant access denied',
+      });
+    }
+
+    if (exception instanceof TenantContextMissingError) {
+      logger.warn({ path: request.url }, 'request without tenant context');
+      return response.status(HttpStatus.UNAUTHORIZED).json({
+        error: 'tenant_context_missing',
+        message: 'No active organization on this session',
       });
     }
 

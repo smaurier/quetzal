@@ -3,6 +3,7 @@ import { organization, jwt } from 'better-auth/plugins';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { createAccessControl, defaultStatements } from 'better-auth/plugins/access';
 import { rootPrisma } from '@quetzal/db';
+import { createSessionCreateHook } from './session-hooks.js';
 
 const statements = {
   ...defaultStatements,
@@ -41,6 +42,15 @@ const learner = ac.newRole({
   content: ['consume'],
 });
 
+async function findFirstOrganizationId(userId: string): Promise<string | null> {
+  const member = await rootPrisma.member.findFirst({
+    where: { userId },
+    orderBy: { createdAt: 'asc' },
+    select: { organizationId: true },
+  });
+  return member?.organizationId ?? null;
+}
+
 export const auth = betterAuth({
   database: prismaAdapter(rootPrisma, { provider: 'postgresql' }),
   baseURL: process.env['HOST_URL'] ?? 'http://localhost:3000',
@@ -48,6 +58,11 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       locale: { type: 'string', defaultValue: 'fr' },
+    },
+  },
+  databaseHooks: {
+    session: {
+      create: { before: createSessionCreateHook(findFirstOrganizationId) },
     },
   },
   emailAndPassword: {
