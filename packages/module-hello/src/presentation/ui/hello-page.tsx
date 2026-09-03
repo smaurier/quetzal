@@ -19,11 +19,13 @@ export default function HelloPage() {
   }
 
   async function onPing() {
+    // Nest answers a @SubscribeMessage returning { event, data } as an event, not as an ack.
     const socket = await connectSocket('ws/hello');
-    socket.emit('ping', { at: Date.now() }, (response: { latencyMs: number }) => {
+    socket.on('pong', (response: { latencyMs: number }) => {
       setLatency(response.latencyMs);
       socket.disconnect();
     });
+    socket.emit('ping', { at: Date.now() });
   }
 
   return (
