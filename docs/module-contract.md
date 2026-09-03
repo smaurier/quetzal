@@ -103,7 +103,7 @@ The suite verifies:
 
 ## Tenant scope
 
-Any Prisma model with a `tenantId` column is auto-scoped by the tenant-scope extension (see [architecture.md](./architecture.md)). Modules define models with `tenantId String @db.Uuid` and composite `@@id([id, tenantId])`.
+Any Prisma model with a `tenantId` column is auto-scoped by the tenant-scope extension (see [architecture.md](./architecture.md)). Modules define models with `tenantId String` (plain string: it references the Better-Auth `Organization`, whose ids are not UUIDs) and composite `@@id([id, tenantId])`. Same rule for any `userId` column: Better-Auth `User` ids are plain strings. Keep `@db.Uuid` only for ids the module generates itself with `newId()`.
 
 Reads/writes go through:
 
