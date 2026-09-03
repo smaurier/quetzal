@@ -8,12 +8,21 @@ const LOCALES = ['fr', 'en', 'es'] as const;
 
 export type Catalogue = Record<string, unknown>;
 
-export function mergeCatalogues(core: Catalogue, moduleCats: readonly Catalogue[]): Catalogue {
-  const merged: Catalogue = { ...core };
-  for (const cat of moduleCats) {
-    Object.assign(merged, cat);
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(base: Record<string, unknown>, overlay: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(overlay)) {
+    const existing = out[key];
+    out[key] = isPlainObject(existing) && isPlainObject(value) ? deepMerge(existing, value) : value;
   }
-  return merged;
+  return out;
+}
+
+export function mergeCatalogues(core: Catalogue, moduleCats: readonly Catalogue[]): Catalogue {
+  return moduleCats.reduce<Catalogue>((acc, cat) => deepMerge(acc, cat), deepMerge({}, core));
 }
 
 async function loadCoreCatalogue(locale: string): Promise<Catalogue> {
