@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { io, type Socket } from 'socket.io-client';
+import { apiClient, connectSocket } from '@quetzal/core/client';
 import { Button, Card } from '@quetzal/ui';
 
 interface GreetResponse { msg: string }
@@ -12,18 +12,20 @@ export default function HelloPage() {
   const [latency, setLatency] = useState<number | null>(null);
 
   async function onGreet() {
-    const res = await fetch('/api/modules/hello/greet', { credentials: 'include' });
+    const res = await apiClient().apiFetch('/api/modules/hello/greet');
     if (!res.ok) return;
     const data = (await res.json()) as GreetResponse;
     setGreetMsg(data.msg);
   }
 
-  function onPing() {
-    const socket: Socket = io('/ws/hello', { transports: ['websocket'] });
-    socket.emit('ping', { at: Date.now() }, (response: { latencyMs: number }) => {
+  async function onPing() {
+    // Nest answers a @SubscribeMessage returning { event, data } as an event, not as an ack.
+    const socket = await connectSocket('ws/hello');
+    socket.on('pong', (response: { latencyMs: number }) => {
       setLatency(response.latencyMs);
       socket.disconnect();
     });
+    socket.emit('ping', { at: Date.now() });
   }
 
   return (

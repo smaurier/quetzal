@@ -1,7 +1,7 @@
 'use client';
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { io, type Socket } from 'socket.io-client';
+import { connectSocket } from '@quetzal/core/client';
 import { Button, Card, Input, Label } from '@quetzal/ui';
 
 interface Props {
@@ -28,7 +28,7 @@ export default function GuestJoin({ tenantId, moduleSlug, sessionId }: Props) {
     });
     if (!res.ok) { setError(`Join failed (${res.status})`); return; }
     const { token } = (await res.json()) as TokenResponse;
-    const socket: Socket = io('/ws/hello', { auth: { guestToken: token }, transports: ['websocket'] });
+    const socket = await connectSocket('ws/hello', { guestToken: token });
     socket.on('connect', () => setConnected(true));
   }
 
