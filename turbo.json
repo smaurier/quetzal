@@ -1,29 +1,144 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["**/.env.*local", "tsconfig.base.json"],
+  "globalDependencies": [
+    "**/.env.*local",
+    "tsconfig.base.json"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**"
+      ],
+      "env": [
+        "MODULES",
+        "NEXT_PUBLIC_MODULES",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_HOST_URL",
+        "HOST_URL",
+        "API_URL",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "GUEST_TOKEN_SECRET",
+        "SENTRY_DSN_API",
+        "SENTRY_DSN_HOST",
+        "NEXT_PUBLIC_SENTRY_DSN_HOST",
+        "NODE_ENV",
+        "LOG_LEVEL"
+      ]
     },
     "dev": {
       "cache": false,
-      "persistent": true
+      "persistent": true,
+      "env": [
+        "MODULES",
+        "NEXT_PUBLIC_MODULES",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_HOST_URL",
+        "HOST_URL",
+        "API_URL",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "GUEST_TOKEN_SECRET",
+        "SENTRY_DSN_API",
+        "SENTRY_DSN_HOST",
+        "NEXT_PUBLIC_SENTRY_DSN_HOST",
+        "NODE_ENV",
+        "LOG_LEVEL"
+      ]
     },
     "lint": {
-      "outputs": []
+      "outputs": [],
+      "env": [
+        "MODULES",
+        "NEXT_PUBLIC_MODULES",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_HOST_URL",
+        "HOST_URL",
+        "API_URL",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "GUEST_TOKEN_SECRET",
+        "SENTRY_DSN_API",
+        "SENTRY_DSN_HOST",
+        "NEXT_PUBLIC_SENTRY_DSN_HOST",
+        "NODE_ENV",
+        "LOG_LEVEL"
+      ]
     },
     "typecheck": {
-      "dependsOn": ["^build"],
-      "outputs": []
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [],
+      "env": [
+        "MODULES",
+        "NEXT_PUBLIC_MODULES",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_HOST_URL",
+        "HOST_URL",
+        "API_URL",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "GUEST_TOKEN_SECRET",
+        "SENTRY_DSN_API",
+        "SENTRY_DSN_HOST",
+        "NEXT_PUBLIC_SENTRY_DSN_HOST",
+        "NODE_ENV",
+        "LOG_LEVEL"
+      ]
     },
     "test": {
-      "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ],
+      "env": [
+        "MODULES",
+        "NEXT_PUBLIC_MODULES",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_HOST_URL",
+        "HOST_URL",
+        "API_URL",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "GUEST_TOKEN_SECRET",
+        "SENTRY_DSN_API",
+        "SENTRY_DSN_HOST",
+        "NEXT_PUBLIC_SENTRY_DSN_HOST",
+        "NODE_ENV",
+        "LOG_LEVEL"
+      ]
     },
     "test:integration": {
-      "dependsOn": ["^build"],
-      "outputs": ["coverage/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "coverage/**"
+      ],
+      "env": [
+        "MODULES",
+        "NEXT_PUBLIC_MODULES",
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_HOST_URL",
+        "HOST_URL",
+        "API_URL",
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "GUEST_TOKEN_SECRET",
+        "SENTRY_DSN_API",
+        "SENTRY_DSN_HOST",
+        "NEXT_PUBLIC_SENTRY_DSN_HOST",
+        "NODE_ENV",
+        "LOG_LEVEL"
+      ]
     },
     "clean": {
       "cache": false
