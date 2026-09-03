@@ -9,7 +9,8 @@ interface SocketData {
   tenantId?: string;
 }
 
-@WebSocketGateway({ namespace: 'ws/hello', cors: { origin: '*', credentials: true } })
+// CORS and handshake authentication are owned by the platform adapter, not by the module.
+@WebSocketGateway({ namespace: 'ws/hello' })
 export class HelloGateway implements OnGatewayConnection {
   @WebSocketServer() server!: Server;
 
