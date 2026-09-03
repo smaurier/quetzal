@@ -178,7 +178,8 @@ model Loto_Card {
   imageId   String?                      // null = rendu typographique
 
   deck      Loto_Deck  @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: Cascade)
-  image     Loto_CardImage? @relation(fields: [imageId, tenantId], references: [id, tenantId])
+  // imageId est une référence simple, sans relation Prisma : même traitement que
+  // Loto_GameCard, et pas de clé étrangère composite partiellement facultative.
 
   @@id([id, tenantId])
   @@unique([deckId, rank, tenantId])
@@ -192,8 +193,6 @@ model Loto_CardImage {
   mimeType    String   @db.VarChar(40)
   bytes       Bytes
   createdAt   DateTime @default(now())
-
-  cards       Loto_Card[]
 
   @@id([id, tenantId])
   @@unique([contentHash, tenantId])
@@ -258,6 +257,7 @@ model Loto_Team {
 model Loto_Member {
   id          String
   tenantId    String
+  gameId      String                       // dénormalisé : porte l'unicité de l'invité
   teamId      String
   guestId     String   @db.VarChar(64)
   displayName String   @db.VarChar(32)
@@ -266,6 +266,7 @@ model Loto_Member {
   team  Loto_Team @relation(fields: [teamId, tenantId], references: [id, tenantId], onDelete: Cascade)
 
   @@id([id, tenantId])
+  @@unique([gameId, guestId, tenantId])    // une reconnexion retrouve son équipe
   @@index([tenantId, teamId])
 }
 
@@ -305,6 +306,16 @@ Valeurs contraintes par `CHECK` SQL et par Zod côté application, jamais par un
 - `Loto_Game.status` ∈ `draft`, `open`, `running`, `finished`
 - `Loto_Game.pattern` ∈ `linea`, `esquinas`, `centro`, `llena`
 
+### 6.1 Points de sémantique à ne pas laisser au hasard
+
+**Nom d'équipe.** Une équipe d'un porte le nom d'affichage de son membre. Dès qu'elle en compte plusieurs, elle porte un nom numéroté traduit, `Equipo 1` et suivants. Le renommage par l'animatrice n'est pas dans le périmètre.
+
+**Blocage après fausse réclamation.** `blockedUntilDraw` contient le rang de tirage à partir duquel l'équipe peut réclamer de nouveau. Une réclamation est refusée tant que le rang du dernier tirage est **strictement inférieur** à cette valeur. Une fausse réclamation au douzième tirage avec une pénalité de trois tours donne quinze. La valeur zéro signifie qu'aucune pénalité ne court.
+
+**Deux tirages simultanés.** Un double appui sur le bouton ne peut pas produire deux cartes au même rang ni sortir deux fois la même carte : les deux contraintes d'unicité de `Loto_Draw` l'interdisent en base. Le cas d'usage traite l'échec d'insertion comme une absence d'effet et renvoie l'état courant, ce qui rend le tirage idempotent du point de vue de l'animatrice.
+
+**Cycle de vie des images.** Cette version ne supprime jamais une image. Supprimer un jeu de cartes laisse donc des images orphelines en base. C'est accepté au volume visé et inscrit en dette : le nettoyage viendra avec la remontée du stockage au niveau de la plateforme.
+
 ## 7. Jeu de cartes livré
 
 Le module amorce un jeu `isTemplate = true` nommé « Lotería tradicional », cinquante-quatre cartes, noms espagnols dans l'ordre traditionnel, sans image.
@@ -324,9 +335,18 @@ Points notables du manifeste serveur :
 - `slug: 'loto'`
 - `guestAccess.enabled: true`, nom d'affichage requis, quota par session aligné sur une classe
 - `prismaModels: 'prisma/models.prisma'`
-- `eventsPublished` : `loto.game.started`, `loto.card.drawn`, `loto.claim.rejected`, `loto.game.finished`
+- `eventsPublished` : `loto.game.started`, `loto.card.drawn`, `loto.claim.rejected`, `loto.game.finished`, avec leurs types exportés depuis `@quetzal/core/events/loto`, ce que la suite de contrat vérifie
+- `uiRoutes` : la gestion des jeux de cartes et l'écran animateur, réservés aux rôles qui peuvent créer
+- `navItem` : entrée de barre latérale, libellé traduit
+- `guestJoinComponent` : l'écran joueur
 
-### 8.2 Matrice de permissions
+### 8.2 Catalogues de traduction
+
+Le module livre ses catalogues en français, anglais et espagnol sous `src/i18n/`, avec parité stricte des clés, que la suite de contrat vérifie. Ils sont fusionnés dans les catalogues de l'hôte au build, mécanisme réparé le 03/09.
+
+L'espagnol a ici un statut particulier : c'est la langue du jeu et celle du cours. Les noms des cinquante-quatre cartes ne sont pas des clés de traduction mais des données, portées par le jeu de cartes et modifiables par l'enseignante.
+
+### 8.3 Matrice de permissions
 
 Tout message et toute route y figurent : depuis le sous-projet 1, le noyau refuse par défaut ce qui n'est pas déclaré.
 
@@ -348,7 +368,7 @@ Tout message et toute route y figurent : depuis le sous-projet 1, le noyau refus
 
 Il n'existe pas de message d'entrée. L'affectation à une équipe se fait **à la connexion**, à partir de l'identité que la plateforme a déjà posée sur le socket au handshake, et elle est idempotente par identifiant d'invité. Une reconnexion retrouve donc son équipe au lieu d'en créer une seconde, et l'écran joueur n'a pas de fenêtre pendant laquelle il serait connecté sans tabla.
 
-### 8.3 Événements diffusés
+### 8.4 Événements diffusés
 
 | Événement | Salle | Charge utile |
 |---|---|---|
