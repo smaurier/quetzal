@@ -28,7 +28,7 @@
     "@quetzal/config": "workspace:*",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8",
+    "vitest": "^3.2.7",
     "@quetzal/core": "workspace:*",
     "auth": "^1.7.2"
   }
