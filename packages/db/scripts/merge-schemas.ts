@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { injectBackRelations, injectMemberUnique } from '../src/schema-merge.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const OUT = resolve(import.meta.dirname, '../prisma/schema.prisma');
@@ -29,38 +30,6 @@ async function readIfExists(path: string): Promise<string> {
   } catch {
     return '';
   }
-}
-
-/**
- * Inject back-relation fields into Better-Auth generated models.
- * core.prisma declares FKs from AuditLog → User and TenantModule → Organization;
- * Prisma requires the inverse side to also declare the relation field.
- */
-function injectBackRelations(authSchema: string): string {
-  let out = authSchema;
-  // Inject into User model: auditLogs AuditLog[]
-  out = out.replace(
-    /(model\s+User\s*\{[^}]*?)(\n\s*@@[^}]*\})/s,
-    (_m, body: string, tail: string) => `${body}\n  auditLogs     AuditLog[]${tail}`,
-  );
-  // Inject into Organization model: tenantModules TenantModule[]
-  out = out.replace(
-    /(model\s+Organization\s*\{[^}]*?)(\n\s*@@[^}]*\})/s,
-    (_m, body: string, tail: string) => `${body}\n  tenantModules TenantModule[]${tail}`,
-  );
-  return out;
-}
-
-/**
- * Inject @@unique([userId, organizationId]) into Better-Auth Member model.
- * Better-Auth CLI omits it, but our seed and any admin flow need it to safely upsert.
- * Injected before @@map("member") to preserve Prisma's decorator ordering convention.
- */
-function injectMemberUnique(authSchema: string): string {
-  return authSchema.replace(
-    /(model\s+Member\s*\{[^}]*?)(\n\s*@@map\("member"\)\s*\})/s,
-    (_m, body: string, tail: string) => `${body}\n  @@unique([userId, organizationId])${tail}`,
-  );
 }
 
 async function discoverModulePrismas(): Promise<string[]> {

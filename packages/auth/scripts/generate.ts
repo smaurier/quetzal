@@ -8,7 +8,7 @@ const outputPath = 'prisma/auth.prisma';
 
 console.log(`[auth:generate] Running better-auth CLI (cwd=${cwd})...`);
 execSync(
-  `npx @better-auth/cli generate --config ${configPath} --output ${outputPath} -y`,
+  `npx auth generate --config ${configPath} --output ${outputPath} -y`,
   { stdio: 'inherit', cwd },
 );
 console.log(`[auth:generate] Wrote ${resolve(cwd, outputPath)}`);

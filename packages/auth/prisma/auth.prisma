@@ -40,6 +40,7 @@ model Session {
 
   @@unique([token])
   @@map("session")
+  @@index([userId])
 }
 
 model Account {
@@ -58,7 +59,11 @@ model Account {
   createdAt             DateTime
   updatedAt             DateTime
 
+  issuer String
+
   @@map("account")
+  @@index([userId])
+  @@unique([issuer, accountId], map: "account_issuer_accountId_uidx")
 }
 
 model Verification {
@@ -70,6 +75,7 @@ model Verification {
   updatedAt  DateTime?
 
   @@map("verification")
+  @@index([identifier])
 }
 
 model Organization {
@@ -96,6 +102,8 @@ model Member {
   createdAt      DateTime
 
   @@map("member")
+  @@index([organizationId])
+  @@index([userId])
 }
 
 model Invitation {
@@ -109,7 +117,11 @@ model Invitation {
   inviterId      String
   user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
 
+  createdAt DateTime @default(now())
+
   @@map("invitation")
+  @@index([organizationId])
+  @@index([email])
 }
 
 model Jwks {
@@ -117,6 +129,10 @@ model Jwks {
   publicKey  String
   privateKey String
   createdAt  DateTime
+
+  expiresAt DateTime?
+  alg       String?
+  crv       String?
 
   @@map("jwks")
 }
