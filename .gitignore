@@ -39,3 +39,4 @@ packages/i18n/catalogues/merged.*.json
 # OS
 .DS_Store
 Thumbs.db
+.superpowers/
