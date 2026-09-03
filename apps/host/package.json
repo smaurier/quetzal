@@ -3,14 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "prebuild": "pnpm --filter @quetzal/core generate:routes",
+    "prebuild": "pnpm --filter @quetzal/i18n merge && pnpm --filter @quetzal/core generate:routes",
     "build": "next build",
-    "predev": "pnpm --filter @quetzal/core generate:routes",
+    "predev": "pnpm --filter @quetzal/i18n merge && pnpm --filter @quetzal/core generate:routes",
     "dev": "next dev --turbopack -p 3000",
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "pretypecheck": "pnpm --filter @quetzal/core generate:routes"
+    "pretypecheck": "pnpm --filter @quetzal/i18n merge && pnpm --filter @quetzal/core generate:routes"
   },
   "dependencies": {
     "@quetzal/auth": "workspace:*",

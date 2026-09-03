@@ -34,3 +34,26 @@ describe('mergeCatalogues', () => {
     expect(core).toEqual(snapshot);
   });
 });
+
+// Module catalogues all live under the same top-level "module" key. A shallow overlay
+// keeps only the last module (loto would erase hello) and drops any core key that
+// happens to share a top-level name. Merge must be deep.
+describe('mergeCatalogues (deep)', () => {
+  it('keeps every module under the shared "module" key', () => {
+    const merged = mergeCatalogues({}, [
+      { module: { hello: { nav: { title: 'Hello' } } } },
+      { module: { loto: { nav: { title: 'Loto' } } } },
+    ]);
+    expect(merged).toEqual({
+      module: {
+        hello: { nav: { title: 'Hello' } },
+        loto: { nav: { title: 'Loto' } },
+      },
+    });
+  });
+
+  it('merges nested objects with core instead of replacing the branch', () => {
+    const merged = mergeCatalogues({ common: { save: 'Save', cancel: 'Cancel' } }, [{ common: { save: 'Enregistrer' } }]);
+    expect(merged).toEqual({ common: { save: 'Enregistrer', cancel: 'Cancel' } });
+  });
+});

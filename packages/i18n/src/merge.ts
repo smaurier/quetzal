@@ -1,6 +1,7 @@
 #!/usr/bin/env tsx
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const CATALOGUES_DIR = resolve(import.meta.dirname, '../catalogues');
@@ -8,12 +9,21 @@ const LOCALES = ['fr', 'en', 'es'] as const;
 
 export type Catalogue = Record<string, unknown>;
 
-export function mergeCatalogues(core: Catalogue, moduleCats: readonly Catalogue[]): Catalogue {
-  const merged: Catalogue = { ...core };
-  for (const cat of moduleCats) {
-    Object.assign(merged, cat);
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function deepMerge(base: Record<string, unknown>, overlay: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...base };
+  for (const [key, value] of Object.entries(overlay)) {
+    const existing = out[key];
+    out[key] = isPlainObject(existing) && isPlainObject(value) ? deepMerge(existing, value) : value;
   }
-  return merged;
+  return out;
+}
+
+export function mergeCatalogues(core: Catalogue, moduleCats: readonly Catalogue[]): Catalogue {
+  return moduleCats.reduce<Catalogue>((acc, cat) => deepMerge(acc, cat), deepMerge({}, core));
 }
 
 async function loadCoreCatalogue(locale: string): Promise<Catalogue> {
@@ -51,7 +61,8 @@ async function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]?.replace(/\\/g, '/')}`) {
+// Run main() only when executed directly (tsx src/merge.ts); pathToFileURL handles Windows drive letters.
+if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   main().catch((e) => {
     console.error(e);
     process.exit(1);
