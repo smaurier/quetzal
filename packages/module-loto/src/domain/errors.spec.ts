@@ -12,6 +12,8 @@ import {
   JoinCodeUnavailableError,
   NoCardsLeftError,
   DeckLockedError,
+  CardNotOnTablaError,
+  TeamNotFoundError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -61,5 +63,12 @@ describe('erreurs des cas d usage', () => {
     expect(new JoinCodeUnavailableError(20).message).toContain('20');
     expect(new NoCardsLeftError('g-1').message).toContain('g-1');
     expect(new DeckLockedError('d-1').message).toContain('d-1');
+  });
+
+  it('couvre aussi la carte hors tabla et l équipe inconnue', () => {
+    expect(new CardNotOnTablaError('c-9')).toBeInstanceOf(DomainError);
+    expect(new TeamNotFoundError('t-9')).toBeInstanceOf(DomainError);
+    expect(new CardNotOnTablaError('c-9').message).toContain('c-9');
+    expect(new TeamNotFoundError('t-9').message).toContain('t-9');
   });
 });

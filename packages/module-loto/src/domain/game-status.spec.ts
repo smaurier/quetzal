@@ -7,6 +7,7 @@ import {
   canJoin,
   canDraw,
   canClaim,
+  canMark,
   isGameStatus,
   type GameStatus,
 } from './game-status.js';
@@ -66,6 +67,13 @@ describe('actions permises par état', () => {
     expect(canDraw('running')).toBe(true);
     expect(canDraw('draft')).toBe(false);
     expect(canDraw('finished')).toBe(false);
+  });
+
+  it('on marque dans une partie ouverte ou en cours, jamais avant ni après', () => {
+    expect(canMark('open')).toBe(true);
+    expect(canMark('running')).toBe(true);
+    expect(canMark('draft')).toBe(false);
+    expect(canMark('finished')).toBe(false);
   });
 
   it('on ne réclame que dans une partie en cours', () => {
