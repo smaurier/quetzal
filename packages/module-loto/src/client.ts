@@ -17,6 +17,12 @@ export const clientManifest: ClientModuleManifest = {
       requiredRoles: ['owner', 'creator'],
       layout: 'shell',
     },
+    {
+      path: 'decks/:deckId',
+      component: () => import('./presentation/ui/deck-editor.js'),
+      requiredRoles: ['owner', 'creator'],
+      layout: 'shell',
+    },
   ],
   navItem: {
     icon: 'grid-3x3',
