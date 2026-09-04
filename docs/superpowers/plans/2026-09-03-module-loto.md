@@ -2419,7 +2419,7 @@ interface PrismaWithLoto {
   loto_Game: {
     create(args: { data: Record<string, unknown> }): Promise<GameRow>;
     findFirst(args: { where: Record<string, unknown> }): Promise<GameRow | null>;
-    update(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<GameRow>;
+    updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
   };
   loto_GameCard: {
     createMany(args: { data: Record<string, unknown>[] }): Promise<{ count: number }>;
@@ -2428,7 +2428,7 @@ interface PrismaWithLoto {
   loto_Team: {
     create(args: { data: Record<string, unknown> }): Promise<TeamRow>;
     findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown> }): Promise<TeamRow[]>;
-    update(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<TeamRow>;
+    updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
   };
   loto_Member: {
     findFirst(args: { where: Record<string, unknown> }): Promise<{ teamId: string } | null>;
@@ -2538,7 +2538,7 @@ export class PrismaGameRepository implements GameRepository {
     if (status === 'running') data['startedAt'] = new Date();
     if (status === 'finished') data['finishedAt'] = new Date();
     if (patch?.wonByTeamId !== undefined) data['wonByTeamId'] = patch.wonByTeamId;
-    await this.prisma.loto_Game.update({ where: { id: gameId }, data });
+    await this.prisma.loto_Game.updateMany({ where: { id: gameId }, data });
   }
 
   async freezeCards(gameId: string, cards: NewDeckCard[]): Promise<void> {
@@ -2590,11 +2590,11 @@ export class PrismaGameRepository implements GameRepository {
   }
 
   async setMarks(teamId: string, markedCardIds: string[]): Promise<void> {
-    await this.prisma.loto_Team.update({ where: { id: teamId }, data: { markedCardIds } });
+    await this.prisma.loto_Team.updateMany({ where: { id: teamId }, data: { markedCardIds } });
   }
 
   async blockTeam(teamId: string, untilDraw: number): Promise<void> {
-    await this.prisma.loto_Team.update({ where: { id: teamId }, data: { blockedUntilDraw: untilDraw } });
+    await this.prisma.loto_Team.updateMany({ where: { id: teamId }, data: { blockedUntilDraw: untilDraw } });
   }
 
   async findMember(gameId: string, guestId: string): Promise<{ teamId: string } | null> {
@@ -2637,7 +2637,9 @@ export class PrismaGameRepository implements GameRepository {
 }
 ```
 
-Note d implémentation : `findFirst` plutôt que `findUnique`, comme dans le dépôt des jeux de cartes. L extension de cloisonnement du noyau injecte le locataire dans le `where`, et `findUnique` sur une clé composite ne lui laisse pas la place de le faire. Ne jamais écrire `tenantId` à la main dans une requête de module.
+**Règle des clés composites, payée à la tâche 14 : sur un modèle de module, jamais `findUnique`, `update` ni `delete`.** Prisma exige pour ces trois-là le sélecteur composé `{ id_tenantId: { id, tenantId } }`, alors que l extension de cloisonnement du noyau injecte `tenantId` à plat dans le `where`. Les deux ne se rencontrent jamais. Employer `findFirst`, `updateMany` et `deleteMany`, dont le `where` est un filtre ordinaire que l extension sait compléter.
+
+Et ne jamais écrire `tenantId` à la main dans une requête de module : c est l extension qui le pose, et le lui retirer des mains est l anti-pattern de CLAUDE.md paragraphe 14.
 
 Le `catch` de `appendDraw` avale volontairement toutes les erreurs, ce qui est trop large. Il est resserré à la tâche 21, quand le cas d usage du tirage a de quoi distinguer une collision d unicité d une panne de base.
 
