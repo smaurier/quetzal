@@ -34,10 +34,13 @@ Le module de référence est `packages/module-hello`. Quand une question de stru
 packages/module-loto/
 ├── package.json
 ├── tsconfig.json
+├── tsconfig.typecheck.json               inclut les specs, que tsconfig.json exclut
 ├── vitest.config.ts
 ├── vitest.integration.config.ts
 ├── prisma/
 │   └── models.prisma                     tables Loto_*
+├── scripts/
+│   └── seed-loto.ts                      active le module et pose le jeu traditionnel
 ├── src/
 │   ├── index.ts                          exporte manifest et LotoModule
 │   ├── client.ts                         clientManifest, entrée navigateur
@@ -46,11 +49,13 @@ packages/module-loto/
 │   ├── domain/                           pur, zéro dépendance framework
 │   │   ├── errors.ts                     erreurs de domaine typées
 │   │   ├── pattern.ts                    les quatre figures, prédicats purs
-│   │   ├── tabla.ts                      génération et projection en grille
+│   │   ├── tabla.ts                      génération, unicité, projection en grille
+│   │   ├── drawn-cards.ts                brand DrawnCardId, seule fabrique légitime
 │   │   ├── claim.ts                      validation d'une réclamation
 │   │   ├── penalty.ts                    blocage après fausse réclamation
-│   │   ├── game-status.ts                machine à états de la partie
+│   │   ├── game-status.ts                machine à états et actions permises
 │   │   ├── team-assignment.ts            répartition en équipes
+│   │   ├── team-name.ts                  nom dérivé d'une équipe
 │   │   ├── join-code.ts                  génération du code court
 │   │   └── ports/
 │   │       ├── deck.repository.ts
@@ -59,43 +64,54 @@ packages/module-loto/
 │   ├── application/                      cas d'usage
 │   │   ├── create-game.use-case.ts
 │   │   ├── open-game.use-case.ts
-│   │   ├── draw-card.use-case.ts
 │   │   ├── join-game.use-case.ts
+│   │   ├── draw-card.use-case.ts
 │   │   ├── toggle-mark.use-case.ts
 │   │   ├── claim.use-case.ts
-│   │   ├── list-decks.use-case.ts
-│   │   ├── duplicate-deck.use-case.ts
-│   │   ├── edit-card.use-case.ts
-│   │   └── delete-deck.use-case.ts
+│   │   ├── finish-game.use-case.ts
+│   │   ├── game-snapshot.use-case.ts     charge utile de l'événement state
+│   │   ├── list-games.use-case.ts
+│   │   ├── manage-decks.use-case.ts
+│   │   └── testing/
+│   │       └── fake-repositories.ts      factories manuelles, jamais vi.mock
 │   ├── infrastructure/
+│   │   ├── traditional-deck.ts           les 54 cartes livrées
 │   │   ├── prisma-deck.repository.ts
 │   │   ├── prisma-game.repository.ts
-│   │   ├── prisma-card-image.store.ts
-│   │   └── seed-traditional-deck.ts      les 54 cartes livrées
+│   │   └── prisma-card-image.store.ts
 │   ├── presentation/
 │   │   ├── deck.controller.ts
 │   │   ├── game.controller.ts
 │   │   ├── image.controller.ts
-│   │   ├── loto.gateway.ts
-│   │   ├── dto/                          schémas Zod des entrées
+│   │   ├── loto.gateway.ts               identité posée au handshake, jamais par message
+│   │   ├── loto.broadcaster.ts           diffusion aux salles
+│   │   ├── dto/loto.dto.ts               schémas Zod des entrées
 │   │   └── ui/
-│   │       ├── decks-page.tsx
+│   │       ├── decks-page.tsx            jeux de cartes, création et historique
 │   │       ├── deck-editor.tsx
 │   │       ├── animator-page.tsx
 │   │       ├── guest-join.tsx            écran joueur, monté par la plateforme
+│   │       ├── use-game-socket.ts        état temps réel partagé par les deux écrans
+│   │       ├── resize-image.ts
 │   │       └── components/
 │   │           ├── tabla-grid.tsx
 │   │           ├── card-face.tsx
 │   │           └── draw-ribbon.tsx
 │   └── i18n/{fr,en,es}.json
 └── tests/
-    └── manifest.spec.ts                  runContractSuite
+    ├── manifest.spec.ts                  runContractSuite
+    └── events.spec.ts                    contrat des événements publiés
 
 packages/core/src/events/loto.ts          types des événements publiés
+packages/core/src/rooms.ts                rooms.subgroup, salon d'équipe
+packages/core/src/client/socket.ts        query de souscription au handshake
+apps/api/src/filters/global-exception.filter.ts   DomainError vers 400
 e2e/tests/loto-guest.e2e.spec.ts          parcours invité complet
 ```
 
 Chaque fichier du domaine a une seule responsabilité et se lit d'un coup. C'est voulu : c'est la couche la plus testée et celle où une erreur coûte le plus cher.
+
+Quatre fichiers hors du module sont touchés, et chacun l'est pour une raison qui dépasse le Lotería : un type d'événement est un contrat public, un salon d'équipe ne doit pas être une chaîne écrite à la main, un utilisateur authentifié doit pouvoir dire ce qu'il regarde, et une règle métier violée est une requête invalide plutôt qu'une panne. Si l'un d'eux se met à porter quelque chose de spécifique au Lotería, c'est que la frontière a bougé au mauvais endroit.
 
 ---
 
@@ -7143,3 +7159,1113 @@ couvrait que l utilisateur connecté."
 - [ ] Lancer : `pnpm turbo run build lint typecheck`
       Attendu : tout vert. Penser à `NEXT_PUBLIC_MODULES=hello,loto` si la map de loaders sort vide.
 - [ ] Ouvrir une PR. Les deux étapes restantes, éditeur de jeux et images, peuvent attendre : ce qui est là se joue.
+
+## Étape 5 — Éditeur de jeux de cartes
+
+But de l étape : Elda compose ses propres jeux. C est la valeur pédagogique durable du module — un jeu de vocabulaire sur le thème du moment vaut plus, en cours d espagnol, que la lotería traditionnelle jouée pour la dixième fois.
+
+### Tâche 36 : Écran de gestion des jeux
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/presentation/ui/decks-page.tsx`
+- Modifier : `packages/module-loto/src/client.ts`
+
+- [ ] **Étape 1 : écrire l écran**
+
+`src/presentation/ui/decks-page.tsx` :
+
+```tsx
+'use client';
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { apiClient } from '@quetzal/core/client';
+import { Button, Card, Input } from '@quetzal/ui';
+
+interface DeckSummary {
+  id: string;
+  name: string;
+  isTemplate: boolean;
+  cardCount: number;
+}
+
+const MIN_PLAYABLE = 16;
+
+export default function DecksPage() {
+  const t = useTranslations('module.loto.decks');
+  const [decks, setDecks] = useState<DeckSummary[]>([]);
+  const [newName, setNewName] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    const res = await apiClient().apiFetch('/api/modules/loto/decks');
+    if (!res.ok) return;
+    const data = (await res.json()) as { decks: DeckSummary[] };
+    setDecks(data.decks);
+  }, []);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  async function send(path: string, init: RequestInit): Promise<void> {
+    setError(null);
+    const res = await apiClient().apiFetch(path, init);
+    if (!res.ok) {
+      const body = (await res.json()) as { error?: string };
+      setError(body.error ?? String(res.status));
+      return;
+    }
+    await reload();
+  }
+
+  async function duplicate(deck: DeckSummary): Promise<void> {
+    await send('/api/modules/loto/decks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: `${deck.name} (copie)`, duplicateOf: deck.id }),
+    });
+  }
+
+  async function createBlank(): Promise<void> {
+    if (newName.trim() === '') return;
+    await send('/api/modules/loto/decks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    });
+    setNewName('');
+  }
+
+  async function remove(deck: DeckSummary): Promise<void> {
+    // La suppression emporte l historique des parties liées. L avertissement
+    // est explicite parce que l action est définitive, cascade comprise.
+    if (!window.confirm(t('deleteWarning'))) return;
+    await send(`/api/modules/loto/decks/${deck.id}`, { method: 'DELETE' });
+  }
+
+  return (
+    <Card className="space-y-6 p-6">
+      <h1 className="text-2xl font-semibold">{t('title')}</h1>
+
+      {error !== null && <p role="alert">{error === 'deck_locked' ? t('locked') : error}</p>}
+
+      {decks.length === 0 && <p>{t('empty')}</p>}
+
+      <ul className="space-y-2" data-testid="decks">
+        {decks.map((deck) => (
+          <li key={deck.id} className="flex items-center gap-3 rounded-lg border p-3">
+            <span className="flex-1 font-medium">{deck.name}</span>
+            <span className={deck.cardCount < MIN_PLAYABLE ? 'text-destructive' : undefined}>
+              {t('cardCount', { count: deck.cardCount })}
+              {deck.cardCount < MIN_PLAYABLE ? ` · ${t('tooSmall')}` : ''}
+            </span>
+            <Button variant="outline" onClick={() => void duplicate(deck)}>{t('duplicate')}</Button>
+            {!deck.isTemplate && (
+              <Button variant="destructive" onClick={() => void remove(deck)}>{t('delete')}</Button>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      <div className="flex gap-2">
+        <Input value={newName} maxLength={120} onChange={(event) => setNewName(event.target.value)} />
+        <Button onClick={() => void createBlank()}>{t('createBlank')}</Button>
+      </div>
+    </Card>
+  );
+}
+```
+
+Le modèle livré n a pas de bouton de suppression : c est le point de départ de toute duplication, et le perdre obligerait à réamorcer la base.
+
+- [ ] **Étape 2 : déclarer la route d édition dans le manifeste client**
+
+Dans `src/client.ts`, ajouter une troisième route :
+
+```ts
+    {
+      path: 'decks/:deckId',
+      component: () => import('./presentation/ui/deck-editor.js'),
+      requiredRoles: ['owner', 'creator'],
+      layout: 'shell',
+    },
+```
+
+- [ ] **Étape 3 : vérifier et commiter**
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint && pnpm --filter @quetzal/module-loto exec vitest run tests/manifest.spec.ts`
+Attendu : aucune erreur, suite de contrat verte.
+
+```bash
+git add packages/module-loto/src/presentation/ui/decks-page.tsx packages/module-loto/src/client.ts
+git commit -m "feat(module-loto): écran de gestion des jeux de cartes
+
+Le modèle livré n a pas de bouton de suppression : c est le point de départ
+de toute duplication.
+
+Exempté du cycle test-first au titre de CLAUDE.md paragraphe 5, couche
+Presentation."
+```
+
+### Tâche 37 : Éditeur d un jeu de cartes
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/presentation/ui/deck-editor.tsx`
+
+- [ ] **Étape 1 : écrire l éditeur**
+
+```tsx
+'use client';
+import { useCallback, useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { apiClient } from '@quetzal/core/client';
+import { Button, Card, Input } from '@quetzal/ui';
+
+interface DeckCard {
+  id: string;
+  rank: number;
+  label: string;
+  imageId: string | null;
+}
+
+interface Deck {
+  id: string;
+  name: string;
+  isTemplate: boolean;
+  cardCount: number;
+  cards: DeckCard[];
+}
+
+const MIN_PLAYABLE = 16;
+
+export default function DeckEditor({ deckId }: { deckId: string }) {
+  const t = useTranslations('module.loto.decks');
+  const [deck, setDeck] = useState<Deck | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(async () => {
+    const res = await apiClient().apiFetch(`/api/modules/loto/decks/${deckId}`);
+    if (!res.ok) return;
+    setDeck((await res.json()) as Deck);
+  }, [deckId]);
+
+  useEffect(() => {
+    void reload();
+  }, [reload]);
+
+  async function patch(body: unknown): Promise<void> {
+    setError(null);
+    const res = await apiClient().apiFetch(`/api/modules/loto/decks/${deckId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const payload = (await res.json()) as { error?: string };
+      setError(payload.error ?? String(res.status));
+      return;
+    }
+    await reload();
+  }
+
+  if (deck === null) return null;
+
+  return (
+    <Card className="space-y-6 p-6">
+      <div className="flex items-center gap-3">
+        <Input
+          defaultValue={deck.name}
+          maxLength={120}
+          onBlur={(event) => void patch({ name: event.target.value })}
+        />
+        <span className={deck.cards.length < MIN_PLAYABLE ? 'text-destructive' : undefined}>
+          {t('cardCount', { count: deck.cards.length })}
+          {deck.cards.length < MIN_PLAYABLE ? ` · ${t('tooSmall')}` : ''}
+        </span>
+      </div>
+
+      {error !== null && <p role="alert">{error === 'deck_locked' ? t('locked') : error}</p>}
+
+      <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="deck-cards">
+        {deck.cards.map((card) => (
+          <li key={card.id} className="space-y-2 rounded-lg border p-2">
+            <span className="text-xs text-muted-foreground">{card.rank}</span>
+            <Input
+              defaultValue={card.label}
+              maxLength={80}
+              onBlur={(event) => void patch({ card: { rank: card.rank, label: event.target.value } })}
+            />
+          </li>
+        ))}
+      </ol>
+
+      <Button onClick={() => void patch({ card: { rank: deck.cards.length + 1, label: '' } })}>
+        {t('createBlank')}
+      </Button>
+    </Card>
+  );
+}
+```
+
+L édition se déclenche au `blur` et non à chaque frappe : une requête par caractère saturerait le wifi de l établissement, et le verrou de la décision D5 renverrait alors une erreur par caractère plutôt qu une.
+
+L ajout d une carte réutilise `PATCH` avec un rang qui n existe pas encore. Le dépôt de la tâche 14 fait un `updateMany` qui ne touche rien dans ce cas : **cette route ne crée pas encore de carte**. C est une limite connue de l éditeur à ce stade, à traiter par une route dédiée `POST /decks/:id/cards` si Elda a besoin de partir d un jeu vierge plutôt que d une duplication. Le noter dans la dette plutôt que de l improviser ici.
+
+- [ ] **Étape 2 : ajouter la route de lecture d un jeu**
+
+L éditeur lit `GET /api/modules/loto/decks/:id`, qui n existe pas encore. Dans `deck.controller.ts` :
+
+```ts
+  @Get(':id')
+  async read(@Param('id') id: string) {
+    const deck = await this.decks.findOne({ deckId: id });
+    return deck;
+  }
+```
+
+Et dans `manage-decks.use-case.ts` :
+
+```ts
+  async findOne(input: { deckId: string }): Promise<Deck> {
+    return this.require(input.deckId);
+  }
+```
+
+Ajouter la permission correspondante dans `manifest.ts` :
+
+```ts
+    'http:GET /api/modules/loto/decks/:id': ['owner', 'creator'],
+```
+
+- [ ] **Étape 3 : vérifier et commiter**
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint && pnpm --filter @quetzal/module-loto test`
+Attendu : aucune erreur, tests unitaires au même compte qu avant.
+
+```bash
+git add packages/module-loto/src/presentation/ui/deck-editor.tsx packages/module-loto/src/presentation/deck.controller.ts packages/module-loto/src/application/manage-decks.use-case.ts packages/module-loto/src/manifest.ts
+git commit -m "feat(module-loto): éditeur d un jeu de cartes
+
+Édition au blur et non à chaque frappe : une requête par caractère saturerait
+le wifi d établissement, et le verrou D5 renverrait une erreur par caractère.
+
+L ajout d une carte à un jeu vierge n est pas encore possible : PATCH ne crée
+pas de rang inexistant. Tracé en dette."
+```
+
+**Fin de l étape 5.**
+
+- [ ] Vérifier à la main : dupliquer la lotería traditionnelle, renommer trois cartes dans la copie, revenir sur le modèle et constater qu il n a pas bougé.
+- [ ] Vérifier à la main : ouvrir une partie sur un jeu, puis tenter de renommer ce jeu. L écran doit afficher le message de verrou et non une erreur brute.
+
+### Tâche 38 : Historique et création de partie
+
+Deux manques que la relecture du plan a fait apparaître. Le manifeste déclare `http:GET /api/modules/loto/games`, mais aucune route ne la sert : la matrice de permissions mentirait. Et rien, dans les écrans, ne crée de partie — l écran animateur suppose une partie déjà là, alors que l E2E de la tâche 35 clique sur « Nouvelle partie ».
+
+L historique des parties est au périmètre, section 3.1 de la spec. Il n a pas de valeur décorative : c est ce qui permet à Elda de rouvrir l écran d une partie de la veille pour retrouver qui avait gagné.
+
+**Fichiers :**
+- Modifier : `packages/module-loto/src/domain/ports/game.repository.ts`
+- Modifier : `packages/module-loto/src/infrastructure/prisma-game.repository.ts`
+- Test : `packages/module-loto/src/infrastructure/prisma-game.repository.integration.spec.ts`
+- Créer : `packages/module-loto/src/application/list-games.use-case.ts`
+- Test : `packages/module-loto/src/application/list-games.use-case.spec.ts`
+- Modifier : `packages/module-loto/src/presentation/game.controller.ts`
+- Modifier : `packages/module-loto/src/loto.module.ts`
+- Modifier : `packages/module-loto/src/presentation/ui/decks-page.tsx`
+
+- [ ] **Étape 1 : ajouter le type et la méthode au port**
+
+Dans `game.repository.ts` :
+
+```ts
+export interface GameSummary {
+  id: string;
+  deckId: string;
+  status: GameStatus;
+  pattern: PatternKey;
+  joinCode: string;
+  createdAt: Date;
+  wonByTeamId: string | null;
+}
+```
+
+et dans l interface `GameRepository` :
+
+```ts
+  /** Historique du locataire, la plus récente d abord. */
+  list(): Promise<GameSummary[]>;
+```
+
+- [ ] **Étape 2 : écrire le test d intégration qui échoue**
+
+À ajouter dans `prisma-game.repository.integration.spec.ts` :
+
+```ts
+  it('liste les parties du locataire, la plus récente d abord', async () => {
+    const { tenantId, ownerId, games, deck } = await aGame();
+    await inTenant(tenantId, ownerId, () =>
+      games.create({ deckId: deck.id, createdBy: ownerId, joinCode: 'ZZZ999', settings: { ...SETTINGS } }),
+    );
+
+    const list = await inTenant(tenantId, ownerId, () => games.list());
+
+    expect(list).toHaveLength(2);
+    expect(list[0]?.joinCode).toBe('ZZZ999');
+    expect(list[0]?.createdAt.getTime()).toBeGreaterThanOrEqual(list[1]!.createdAt.getTime());
+  });
+
+  it('ne liste jamais les parties d un autre locataire', async () => {
+    await aGame();
+    const other = await seedTenant();
+    const games = new PrismaGameRepository();
+
+    const list = await inTenant(other.tenantId, other.ownerId, () => games.list());
+    expect(list).toEqual([]);
+  });
+```
+
+- [ ] **Étape 3 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : ÉCHEC, `games.list is not a function`.
+
+- [ ] **Étape 4 : écrire l implémentation du dépôt**
+
+Élargir `GameRow` avec `createdAt: Date`, ajouter `findMany` au type `loto_Game` de `PrismaWithLoto` :
+
+```ts
+    findMany(args: { orderBy: Record<string, unknown> }): Promise<GameRow[]>;
+```
+
+puis la méthode :
+
+```ts
+  async list(): Promise<GameSummary[]> {
+    const rows = await this.prisma.loto_Game.findMany({ orderBy: { createdAt: 'desc' } });
+    return rows.flatMap((row) => {
+      if (!isGameStatus(row.status) || !isPatternKey(row.pattern)) return [];
+      return [
+        {
+          id: row.id,
+          deckId: row.deckId,
+          status: row.status,
+          pattern: row.pattern,
+          joinCode: row.joinCode,
+          createdAt: row.createdAt,
+          wonByTeamId: row.wonByTeamId,
+        },
+      ];
+    });
+  }
+```
+
+`flatMap` et non `map` : une ligne dont le statut ne serait pas reconnu disparaît de l historique au lieu de faire échouer toute la liste. C est le bon compromis pour un écran de consultation — le chemin de jeu, lui, lève une erreur, ce que fait déjà `toState`.
+
+Aucun `where` sur `tenantId` : l extension de cloisonnement du noyau l injecte. En écrire un à la main serait exactement l anti-pattern que CLAUDE.md paragraphe 14 proscrit.
+
+- [ ] **Étape 5 : lancer le test d intégration**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : `Tests 17 passed`.
+
+- [ ] **Étape 6 : écrire le test du cas d usage qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { ListGamesUseCase } from './list-games.use-case.js';
+import { FakeDeckRepository, FakeGameRepository, deckOf } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+describe('ListGamesUseCase', () => {
+  it('joint le nom du jeu de cartes à chaque partie', async () => {
+    const decks = new FakeDeckRepository();
+    const games = new FakeGameRepository();
+    decks.add(deckOf(54, { id: 'deck-1', name: 'Lotería tradicional' }));
+    await games.create({ deckId: 'deck-1', createdBy: 'u-1', joinCode: 'AAA222', settings: { ...SETTINGS } });
+
+    const list = await new ListGamesUseCase(games, decks).execute();
+
+    expect(list[0]?.deckName).toBe('Lotería tradicional');
+  });
+
+  it('affiche une partie dont le jeu a été supprimé, sans nom plutôt que sans partie', async () => {
+    const decks = new FakeDeckRepository();
+    const games = new FakeGameRepository();
+    await games.create({ deckId: 'disparu', createdBy: 'u-1', joinCode: 'AAA222', settings: { ...SETTINGS } });
+
+    const list = await new ListGamesUseCase(games, decks).execute();
+
+    expect(list).toHaveLength(1);
+    expect(list[0]?.deckName).toBeNull();
+  });
+
+  it('ne lit chaque jeu de cartes qu une fois, même pour dix parties', async () => {
+    const decks = new FakeDeckRepository();
+    const games = new FakeGameRepository();
+    decks.add(deckOf(54, { id: 'deck-1' }));
+    for (let i = 0; i < 10; i++) {
+      await games.create({ deckId: 'deck-1', createdBy: 'u-1', joinCode: `C${String(i)}`, settings: { ...SETTINGS } });
+    }
+    let reads = 0;
+    const original = decks.findById.bind(decks);
+    decks.findById = async (id: string) => {
+      reads += 1;
+      return original(id);
+    };
+
+    await new ListGamesUseCase(games, decks).execute();
+    expect(reads).toBe(1);
+  });
+});
+```
+
+Le troisième test n est pas de la performance pour la performance : l historique d une année scolaire, c est quelques centaines de parties sur une poignée de jeux, et une lecture par partie ferait des centaines d allers-retours pour rien.
+
+`FakeGameRepository` doit gagner une méthode `list()` qui rend ses parties, la plus récente d abord — les fabriques factices implémentent le port, donc elles suivent quand il s élargit.
+
+- [ ] **Étape 7 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/list-games.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './list-games.use-case.js'`.
+
+- [ ] **Étape 8 : écrire le cas d usage**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import type { DeckRepository } from '../domain/ports/deck.repository.js';
+import type { GameRepository, GameSummary } from '../domain/ports/game.repository.js';
+
+export interface GameHistoryEntry extends GameSummary {
+  deckName: string | null;
+}
+
+@Injectable()
+export class ListGamesUseCase {
+  constructor(
+    private readonly games: GameRepository,
+    private readonly decks: DeckRepository,
+  ) {}
+
+  async execute(): Promise<GameHistoryEntry[]> {
+    const list = await this.games.list();
+
+    const names = new Map<string, string | null>();
+    for (const deckId of new Set(list.map((game) => game.deckId))) {
+      const deck = await this.decks.findById(deckId);
+      names.set(deckId, deck?.name ?? null);
+    }
+
+    return list.map((game) => ({ ...game, deckName: names.get(game.deckId) ?? null }));
+  }
+}
+```
+
+- [ ] **Étape 9 : lancer le test et brancher la route**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/list-games.use-case.spec.ts`
+Attendu : `Tests 3 passed`.
+
+Dans `game.controller.ts`, injecter `ListGamesUseCase` et ajouter, **avant** `@Get(':id')** pour que `games` ne soit pas pris pour un identifiant :
+
+```ts
+  @Get()
+  async list() {
+    return { games: await this.listGames.execute() };
+  }
+```
+
+Dans `loto.module.ts` :
+
+```ts
+    {
+      provide: ListGamesUseCase,
+      useFactory: (games: GameRepository, decks: DeckRepository) => new ListGamesUseCase(games, decks),
+      inject: [GAMES, DECKS],
+    },
+```
+
+- [ ] **Étape 10 : ajouter la création de partie et l historique à l écran des jeux**
+
+Dans `decks-page.tsx`, sous la liste des jeux :
+
+```tsx
+interface GameHistoryEntry {
+  id: string;
+  deckName: string | null;
+  status: string;
+  joinCode: string;
+  createdAt: string;
+}
+
+// ...
+
+  const [games, setGames] = useState<GameHistoryEntry[]>([]);
+  const [gameDeckId, setGameDeckId] = useState('');
+  const [pattern, setPattern] = useState('linea');
+  const [maxTeams, setMaxTeams] = useState(6);
+  const [penalty, setPenalty] = useState(0);
+
+  const reloadGames = useCallback(async () => {
+    const res = await apiClient().apiFetch('/api/modules/loto/games');
+    if (!res.ok) return;
+    const data = (await res.json()) as { games: GameHistoryEntry[] };
+    setGames(data.games);
+  }, []);
+
+  async function createGame(): Promise<void> {
+    const res = await apiClient().apiFetch('/api/modules/loto/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deckId: gameDeckId,
+        pattern,
+        maxTeams,
+        falseClaimPenaltyDraws: penalty,
+      }),
+    });
+    if (!res.ok) return;
+    const game = (await res.json()) as { id: string };
+    window.location.assign(`/modules/loto/games/${game.id}`);
+  }
+```
+
+et le fragment de rendu :
+
+```tsx
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">{t('../game.create')}</h2>
+        <div className="flex flex-wrap items-end gap-2">
+          <select value={gameDeckId} onChange={(event) => setGameDeckId(event.target.value)}>
+            {decks
+              .filter((deck) => deck.cardCount >= MIN_PLAYABLE)
+              .map((deck) => (
+                <option key={deck.id} value={deck.id}>{deck.name}</option>
+              ))}
+          </select>
+          <select value={pattern} onChange={(event) => setPattern(event.target.value)}>
+            {['linea', 'esquinas', 'centro', 'llena'].map((key) => (
+              <option key={key} value={key}>{key}</option>
+            ))}
+          </select>
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            value={maxTeams}
+            onChange={(event) => setMaxTeams(Number(event.target.value))}
+          />
+          <Input
+            type="number"
+            min={0}
+            max={99}
+            value={penalty}
+            onChange={(event) => setPenalty(Number(event.target.value))}
+          />
+          <Button disabled={gameDeckId === ''} onClick={() => void createGame()} data-testid="create-game">
+            {t('../game.create')}
+          </Button>
+        </div>
+      </section>
+
+      <ul className="space-y-1" data-testid="game-history">
+        {games.map((game) => (
+          <li key={game.id}>
+            <a href={`/modules/loto/games/${game.id}`}>
+              {game.deckName ?? '—'} · {game.joinCode} · {game.status}
+            </a>
+          </li>
+        ))}
+      </ul>
+```
+
+La liste déroulante ne propose que les jeux d au moins seize cartes : proposer un jeu injouable pour recevoir une erreur ensuite serait un mauvais service. La pénalité est à zéro par défaut, ce dont dépend la boucle de l E2E de la tâche 35.
+
+Les clés de traduction employées ici traversent deux espaces de noms. Plutôt que la notation `'../game.create'` esquissée ci-dessus, qui n existe pas dans next-intl, prendre **deux** hooks dans le composant :
+
+```tsx
+  const t = useTranslations('module.loto.decks');
+  const tGame = useTranslations('module.loto.game');
+```
+
+et employer `tGame('create')`, `tGame('pattern')`, `tGame('maxTeams')`, `tGame('penalty')`. Les libellés des quatre figures viennent de `useTranslations('module.loto.pattern')`.
+
+- [ ] **Étape 11 : vérifier et commiter**
+
+Lancer : `pnpm --filter @quetzal/module-loto test && pnpm --filter @quetzal/module-loto test:integration && pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint`
+Attendu : tout vert.
+
+```bash
+git add packages/module-loto/src/infrastructure/prisma-game.repository.integration.spec.ts packages/module-loto/src/application/list-games.use-case.spec.ts
+git commit -m "test(module-loto): historique des parties, cloisonné et sans N+1"
+git add packages/module-loto/src/domain/ports/game.repository.ts packages/module-loto/src/infrastructure/prisma-game.repository.ts packages/module-loto/src/application/list-games.use-case.ts packages/module-loto/src/presentation/game.controller.ts packages/module-loto/src/loto.module.ts packages/module-loto/src/presentation/ui/decks-page.tsx
+git commit -m "feat(module-loto): historique et création de partie
+
+Le manifeste déclarait GET /games sans que rien ne la serve, et aucun écran
+ne créait de partie alors que l E2E clique sur le bouton. Une partie dont le
+jeu a été supprimé s affiche sans nom plutôt que de disparaître."
+```
+
+## Étape 6 — Images
+
+But de l étape : les cartes portent les photos du jeu d Elda. C est ce qui fait la différence entre un exercice de vocabulaire et une lotería.
+
+Décision D6 : les images vivent en base, derrière un port. Une carte redimensionnée pèse quelques dizaines de kilooctets, un jeu complet quelques mégaoctets, à comparer au palier gratuit de Neon. Aucun service supplémentaire, aucun secret de plus, cloisonnement par locataire hérité de l extension Prisma.
+
+**Déclencheur de migration, à inscrire dans la dette dès maintenant** : le jour où un deuxième module a besoin d images, la capacité remonte au niveau de la plateforme et bascule sur un stockage objet servi par CDN. Le port rend ce basculement équivalent au remplacement d un adaptateur.
+
+### Tâche 39 : Port des images, stockage et service
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/domain/ports/card-image.store.ts`
+- Créer : `packages/module-loto/src/infrastructure/prisma-card-image.store.ts`
+- Test : `packages/module-loto/src/infrastructure/prisma-card-image.store.integration.spec.ts`
+- Créer : `packages/module-loto/src/presentation/image.controller.ts`
+- Modifier : `packages/module-loto/src/loto.module.ts`
+- Modifier : `packages/module-loto/src/manifest.ts`
+
+- [ ] **Étape 1 : écrire le port**
+
+```ts
+export interface StoredImage {
+  id: string;
+  contentHash: string;
+  mimeType: string;
+  bytes: Uint8Array;
+}
+
+export interface CardImageStore {
+  /** Rend l image existante si le contenu est déjà stocké : l empreinte déduplique. */
+  put(input: { mimeType: string; bytes: Uint8Array }): Promise<StoredImage>;
+  findByHash(contentHash: string): Promise<StoredImage | null>;
+}
+```
+
+- [ ] **Étape 2 : écrire le test d intégration qui échoue**
+
+```ts
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
+import { tenantStore } from '@quetzal/core';
+import { PrismaCardImageStore } from './prisma-card-image.store.js';
+
+function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    tenantStore.run({ tenantId, userId, requestId: 'test' }, () => fn().then(resolve, reject));
+  });
+}
+
+const PNG = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1, 2, 3]);
+
+describe('PrismaCardImageStore (intégration)', () => {
+  beforeAll(async () => { await ensureTestPostgres(); });
+  beforeEach(async () => { await resetTestDatabase(); });
+
+  it('stocke une image et la relit par son empreinte', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const store = new PrismaCardImageStore();
+
+    const stored = await inTenant(tenantId, ownerId, () => store.put({ mimeType: 'image/webp', bytes: PNG }));
+    expect(stored.contentHash).toHaveLength(64);
+
+    const found = await inTenant(tenantId, ownerId, () => store.findByHash(stored.contentHash));
+    expect(found?.mimeType).toBe('image/webp');
+    expect(Array.from(found?.bytes ?? [])).toEqual(Array.from(PNG));
+  });
+
+  it('déduplique : le même contenu deux fois ne crée qu une ligne', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const store = new PrismaCardImageStore();
+
+    const first = await inTenant(tenantId, ownerId, () => store.put({ mimeType: 'image/webp', bytes: PNG }));
+    const second = await inTenant(tenantId, ownerId, () => store.put({ mimeType: 'image/webp', bytes: PNG }));
+
+    expect(second.id).toBe(first.id);
+  });
+
+  it('cloisonne les images entre locataires', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const store = new PrismaCardImageStore();
+    const stored = await inTenant(tenantId, ownerId, () => store.put({ mimeType: 'image/webp', bytes: PNG }));
+
+    const other = await seedTenant();
+    const leaked = await inTenant(other.tenantId, other.ownerId, () => store.findByHash(stored.contentHash));
+    expect(leaked).toBeNull();
+  });
+});
+```
+
+- [ ] **Étape 3 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : ÉCHEC, `Cannot find module './prisma-card-image.store.js'`.
+
+- [ ] **Étape 4 : écrire l implémentation**
+
+```ts
+import { createHash } from 'node:crypto';
+import { Injectable } from '@nestjs/common';
+import { newId } from '@quetzal/db';
+import { getTenantScopedPrisma } from '@quetzal/core';
+import type { CardImageStore, StoredImage } from '../domain/ports/card-image.store.js';
+
+interface ImageRow {
+  id: string;
+  contentHash: string;
+  mimeType: string;
+  bytes: Uint8Array;
+}
+
+interface PrismaWithImages {
+  loto_CardImage: {
+    findFirst(args: { where: Record<string, unknown> }): Promise<ImageRow | null>;
+    create(args: { data: Record<string, unknown> }): Promise<ImageRow>;
+  };
+}
+
+@Injectable()
+export class PrismaCardImageStore implements CardImageStore {
+  private get prisma(): PrismaWithImages {
+    return getTenantScopedPrisma() as unknown as PrismaWithImages;
+  }
+
+  async put(input: { mimeType: string; bytes: Uint8Array }): Promise<StoredImage> {
+    const contentHash = createHash('sha256').update(input.bytes).digest('hex');
+    const existing = await this.prisma.loto_CardImage.findFirst({ where: { contentHash } });
+    if (existing !== null) return existing;
+
+    return this.prisma.loto_CardImage.create({
+      data: { id: newId(), contentHash, mimeType: input.mimeType, bytes: input.bytes },
+    });
+  }
+
+  async findByHash(contentHash: string): Promise<StoredImage | null> {
+    return this.prisma.loto_CardImage.findFirst({ where: { contentHash } });
+  }
+}
+```
+
+L empreinte du contenu sert de clé, ce qui déduplique naturellement quand la même image sert deux cartes, et rend l adresse immuable — donc cachable indéfiniment.
+
+- [ ] **Étape 5 : écrire le contrôleur d images**
+
+```ts
+import { Controller, Get, Header, NotFoundException, Param, Post, Body, BadRequestException } from '@nestjs/common';
+import { z } from 'zod';
+import { ManageDecksUseCase } from '../application/manage-decks.use-case.js';
+import type { CardImageStore } from '../domain/ports/card-image.store.js';
+
+const uploadSchema = z.object({
+  mimeType: z.enum(['image/webp', 'image/jpeg', 'image/png']),
+  /** Contenu encodé en base64, déjà redimensionné par le navigateur. */
+  data: z.string().min(1).max(4_000_000),
+});
+
+@Controller('api/modules/loto')
+export class ImageController {
+  constructor(
+    private readonly images: CardImageStore,
+    private readonly decks: ManageDecksUseCase,
+  ) {}
+
+  @Get('images/:hash')
+  @Header('Cache-Control', 'public, max-age=31536000, immutable')
+  async read(@Param('hash') hash: string) {
+    const image = await this.images.findByHash(hash);
+    if (image === null) throw new NotFoundException();
+    return { mimeType: image.mimeType, data: Buffer.from(image.bytes).toString('base64') };
+  }
+
+  @Post('decks/:deckId/cards/:rank/image')
+  async upload(
+    @Param('deckId') deckId: string,
+    @Param('rank') rank: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = uploadSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+
+    const stored = await this.images.put({
+      mimeType: parsed.data.mimeType,
+      bytes: new Uint8Array(Buffer.from(parsed.data.data, 'base64')),
+    });
+    await this.decks.editCard({
+      deckId,
+      rank: Number(rank),
+      patch: { imageId: stored.contentHash },
+    });
+    return { imageId: stored.contentHash };
+  }
+}
+```
+
+`Cache-Control` immuable et d un an : l adresse dépend du contenu, donc elle ne peut pas désigner autre chose demain.
+
+L image est référencée par son empreinte et non par son identifiant de ligne, pour que l adresse reste la même après déduplication.
+
+- [ ] **Étape 6 : déclarer le contrôleur, le port et les permissions**
+
+Dans `loto.module.ts`, ajouter `ImageController` aux contrôleurs et le fournisseur :
+
+```ts
+    { provide: 'LotoCardImageStore', useClass: PrismaCardImageStore },
+```
+
+et injecter `'LotoCardImageStore'` dans `ImageController`.
+
+Dans `manifest.ts`, ajouter les deux permissions que la spec section 8.3 prévoit :
+
+```ts
+    'http:POST /api/modules/loto/decks/:id/cards/:rank/image': ['owner', 'creator'],
+    'http:GET /api/modules/loto/images/:hash': ['owner', 'creator', 'learner', 'guest'],
+```
+
+La lecture est ouverte aux invités : un élève doit voir les images de sa tabla.
+
+- [ ] **Étape 7 : lancer les tests et commiter**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration && pnpm --filter @quetzal/module-loto exec vitest run tests/manifest.spec.ts`
+Attendu : tout vert.
+
+```bash
+git add packages/module-loto/src/infrastructure/prisma-card-image.store.integration.spec.ts
+git commit -m "test(module-loto): stockage des images, déduplication et cloisonnement"
+git add packages/module-loto/src/domain/ports/card-image.store.ts packages/module-loto/src/infrastructure/prisma-card-image.store.ts packages/module-loto/src/presentation/image.controller.ts packages/module-loto/src/loto.module.ts packages/module-loto/src/manifest.ts
+git commit -m "feat(module-loto): images en base derrière un port
+
+Décision D6. L empreinte du contenu sert de clé : la même image pour deux
+cartes ne coûte qu une ligne, et l adresse étant dérivée du contenu, elle est
+cachable indéfiniment. Le port rend le basculement vers un stockage objet
+équivalent au remplacement d un adaptateur, le jour où un deuxième module en
+aura besoin."
+```
+
+### Tâche 40 : Envoi et redimensionnement côté navigateur
+
+Sans redimensionnement, une classe qui charge trente tablas met la connexion de l établissement à genoux. Le calcul se fait donc sur le téléphone de l enseignante, avant l envoi.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/presentation/ui/resize-image.ts`
+- Test : `packages/module-loto/src/presentation/ui/resize-image.spec.ts`
+- Modifier : `packages/module-loto/src/presentation/ui/deck-editor.tsx`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+La partie testable sans navigateur est le calcul des dimensions. Le reste est de l API DOM, couvert par la vérification manuelle.
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { fitWithin, MAX_IMAGE_EDGE } from './resize-image.js';
+
+describe('fitWithin', () => {
+  it('ramène le côté le plus long à la borne', () => {
+    expect(fitWithin(2400, 1200)).toEqual({ width: MAX_IMAGE_EDGE, height: MAX_IMAGE_EDGE / 2 });
+  });
+
+  it('fonctionne aussi en portrait', () => {
+    expect(fitWithin(600, 1800)).toEqual({ width: MAX_IMAGE_EDGE / 3, height: MAX_IMAGE_EDGE });
+  });
+
+  it('n agrandit jamais une image déjà petite', () => {
+    expect(fitWithin(200, 100)).toEqual({ width: 200, height: 100 });
+  });
+
+  it('arrondit à l entier : un canvas n a pas de demi-pixel', () => {
+    const { width, height } = fitWithin(1000, 333);
+    expect(Number.isInteger(width)).toBe(true);
+    expect(Number.isInteger(height)).toBe(true);
+  });
+
+  it('ne rend jamais une dimension nulle', () => {
+    const { width, height } = fitWithin(4000, 3);
+    expect(width).toBeGreaterThan(0);
+    expect(height).toBeGreaterThan(0);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/presentation/ui/resize-image.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './resize-image.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation**
+
+```ts
+/** Côté le plus long après redimensionnement. Au-delà, on paie du réseau pour rien. */
+export const MAX_IMAGE_EDGE = 800;
+
+export function fitWithin(width: number, height: number): { width: number; height: number } {
+  const longest = Math.max(width, height);
+  if (longest <= MAX_IMAGE_EDGE) return { width, height };
+  const ratio = MAX_IMAGE_EDGE / longest;
+  return {
+    width: Math.max(1, Math.round(width * ratio)),
+    height: Math.max(1, Math.round(height * ratio)),
+  };
+}
+
+export async function resizeToDataUrl(file: File): Promise<{ mimeType: string; data: string }> {
+  const bitmap = await createImageBitmap(file);
+  const { width, height } = fitWithin(bitmap.width, bitmap.height);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (context === null) throw new Error('Canvas 2D indisponible');
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  // WebP avec repli JPEG : Safari a longtemps rendu un PNG quand on lui
+  // demandait du WebP, ce qui triplait le poids sans prévenir.
+  const webp = canvas.toDataURL('image/webp', 0.82);
+  const dataUrl = webp.startsWith('data:image/webp') ? webp : canvas.toDataURL('image/jpeg', 0.82);
+
+  const [header = '', data = ''] = dataUrl.split(',');
+  const mimeType = header.slice(5, header.indexOf(';'));
+  return { mimeType, data };
+}
+```
+
+- [ ] **Étape 4 : brancher l envoi dans l éditeur**
+
+Dans `deck-editor.tsx`, ajouter à chaque carte, sous le champ de nom :
+
+```tsx
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file !== undefined) void upload(card.rank, file);
+              }}
+            />
+```
+
+et la fonction correspondante :
+
+```tsx
+  async function upload(rank: number, file: File): Promise<void> {
+    const { resizeToDataUrl } = await import('./resize-image.js');
+    const payload = await resizeToDataUrl(file);
+    const res = await apiClient().apiFetch(`/api/modules/loto/decks/${deckId}/cards/${String(rank)}/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) await reload();
+  }
+```
+
+`capture="environment"` ouvre directement l appareil photo sur un téléphone, ce qui est le geste réel : Elda photographie ses cartes une par une.
+
+- [ ] **Étape 5 : lancer les tests et commiter**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/presentation/ui/resize-image.spec.ts && pnpm --filter @quetzal/module-loto typecheck`
+Attendu : `Tests 5 passed`, typecheck silencieux.
+
+```bash
+git add packages/module-loto/src/presentation/ui/resize-image.spec.ts
+git commit -m "test(module-loto): calcul de redimensionnement des images"
+git add packages/module-loto/src/presentation/ui/resize-image.ts packages/module-loto/src/presentation/ui/deck-editor.tsx
+git commit -m "feat(module-loto): envoi d images redimensionnées côté navigateur
+
+Sans redimensionnement, une classe qui charge trente tablas met la connexion
+de l établissement à genoux. Repli JPEG explicite : Safari a longtemps rendu
+un PNG quand on lui demandait du WebP, ce qui triplait le poids sans prévenir."
+```
+
+### Tâche 41 : Préchargement et repli
+
+Dernière tâche du sous-projet. Elle règle le seul moment où la classe entière tape le réseau en même temps : le premier tirage.
+
+**Fichiers :**
+- Modifier : `packages/module-loto/src/presentation/ui/guest-join.tsx`
+- Modifier : `packages/module-loto/src/presentation/ui/components/card-face.tsx`
+
+- [ ] **Étape 1 : précharger les images de la tabla pendant la salle d attente**
+
+Dans `PlayerBoard`, ajouter :
+
+```tsx
+  useEffect(() => {
+    if (snapshot?.tabla === undefined || snapshot?.tabla === null) return;
+    // Les images d une tabla sont chargées pendant l attente, ce qui étale la
+    // charge sur la durée des connexions au lieu de la concentrer au premier
+    // tirage, quand trente téléphones demandent tout en même temps.
+    for (const card of snapshot.tabla.cards) {
+      if (card.imageId === null) continue;
+      const image = new Image();
+      image.src = `/api/modules/loto/images/${card.imageId}`;
+    }
+  }, [snapshot?.tabla]);
+```
+
+- [ ] **Étape 2 : rendre le repli visible quand une image manque à l appel**
+
+Dans `card-face.tsx`, une image qui échoue au chargement doit retomber sur le nom plutôt que laisser un cadre vide :
+
+```tsx
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = imageId !== null && !imageFailed;
+```
+
+et dans le rendu :
+
+```tsx
+      {!showImage ? (
+        <span>{label}</span>
+      ) : (
+        <img
+          src={`/api/modules/loto/images/${imageId}`}
+          alt={label}
+          onError={() => setImageFailed(true)}
+          className="max-h-full object-contain"
+        />
+      )}
+```
+
+Le repli n est pas une politesse : sur un wifi d établissement, une image sur trente échoue, et une case vide sur une tabla rend la partie injouable pour cet élève.
+
+- [ ] **Étape 3 : vérifier à la main**
+
+- Charger une image sur trois cartes d un jeu, lancer une partie, rejoindre depuis un téléphone.
+- Les cartes avec image s affichent en image, les autres en toutes lettres, dans la même grille.
+- Couper le réseau du téléphone une seconde après l affichage de la tabla, le rétablir : la tabla se réaffiche à l identique, marquages compris.
+
+- [ ] **Étape 4 : commit**
+
+```bash
+git add packages/module-loto/src/presentation/ui/guest-join.tsx packages/module-loto/src/presentation/ui/components/card-face.tsx
+git commit -m "feat(module-loto): préchargement des images et repli typographique
+
+Le préchargement pendant la salle d attente étale la charge au lieu de la
+concentrer au premier tirage. Le repli sur le nom en cas d échec n est pas
+une politesse : une case vide rend la tabla injouable pour cet élève."
+```
+
+**Fin de l étape 6, et du sous-projet 2.**
+
+- [ ] Lancer : `pnpm turbo run build lint typecheck test`
+      Attendu : tout vert sur tous les paquets.
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+- [ ] Lancer : `pnpm exec playwright test`
+- [ ] Lancer : `pnpm audit --prod --audit-level high`
+      Attendu : exit 0.
+- [ ] Invoquer l agent `correcteur-labs` sur les commits du sous-projet, comme au sous-projet 1 : verdict GO, FIX ou STOP.
+- [ ] Mettre à jour `docs/journal/project-log.md` et la mémoire projet.
+
+## Dette laissée ouverte, à tracer en issues
+
+À ouvrir avant de clore le sous-projet, pour qu aucun de ces points ne vive seulement dans ce document :
+
+1. **Ajout d une carte à un jeu vierge** — `PATCH` ne crée pas un rang inexistant. Route `POST /decks/:id/cards` à écrire si Elda part d un jeu vierge plutôt que d une duplication.
+2. **Images orphelines** — cette version ne supprime jamais une image. Supprimer un jeu laisse ses images en base. Accepté au volume visé ; le nettoyage viendra avec la remontée du stockage au niveau de la plateforme.
+3. **Stockage objet** — déclencheur : un deuxième module qui a besoin d images. Le port `CardImageStore` rend le basculement équivalent au remplacement d un adaptateur.
+4. **Renommage d équipe par l animatrice** — hors périmètre assumé de la spec, demandé tôt ou tard.
+5. **Plusieurs figures successives dans une même partie** — hors périmètre assumé. Déclencheur : la demande d enchaîner `linea` puis `llena` sans recréer de partie.
+6. **`typecheck` du reste du dépôt n inclut pas les specs** — `module-loto` a son `tsconfig.typecheck.json`, les autres paquets non. À généraliser au niveau de `packages/config`.
+7. **Effectifs au-delà de trente-cinq** — non mesuré. À constater à la première séance en classe entière.
