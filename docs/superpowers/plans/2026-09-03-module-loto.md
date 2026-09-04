@@ -2653,7 +2653,7 @@ Le `catch` de `appendDraw` avale volontairement toutes les erreurs, ce qui est t
 - [ ] **Étape 4 : lancer le test et vérifier qu il passe**
 
 Lancer : `pnpm --filter @quetzal/module-loto test:integration`
-Attendu : `Tests 15 passed`, soit les six du dépôt des jeux de cartes et les neuf nouveaux.
+Attendu : `Tests 17 passed`, soit les six du dépôt des jeux de cartes et les onze nouveaux.
 
 - [ ] **Étape 5 : commit**
 
