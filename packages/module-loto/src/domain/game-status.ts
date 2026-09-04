@@ -29,6 +29,11 @@ export function canDraw(status: GameStatus): boolean {
   return status === 'open' || status === 'running';
 }
 
+/** Un élève peut marquer dès la salle d attente : c est sans effet, et sans risque. */
+export function canMark(status: GameStatus): boolean {
+  return status === 'open' || status === 'running';
+}
+
 export function canClaim(status: GameStatus): boolean {
   return status === 'running';
 }

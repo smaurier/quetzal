@@ -68,3 +68,15 @@ export class DeckLockedError extends DomainError {
     super(`Jeu de cartes ${deckId} verrouillé : une partie en cours l utilise`);
   }
 }
+
+export class CardNotOnTablaError extends DomainError {
+  constructor(cardId: string) {
+    super(`Carte ${cardId} absente de la tabla de l équipe`);
+  }
+}
+
+export class TeamNotFoundError extends DomainError {
+  constructor(teamId: string) {
+    super(`Équipe introuvable : ${teamId}`);
+  }
+}
