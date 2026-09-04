@@ -57,7 +57,7 @@ export type EventName = `${string}.${string}` | `${string}.${string}.${string}`;
 
 export interface QuetzalRoute {
   path: string;
-  component: () => Promise<{ default: ComponentType }>;
+  component: () => Promise<{ default: ComponentType<Readonly<Record<string, string>>> }>;
   requiredRoles: readonly QuetzalRole[];
   layout: 'shell' | 'full';
 }
