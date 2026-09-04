@@ -10,6 +10,10 @@ export class ManageDecksUseCase {
     return this.decks.list();
   }
 
+  async findOne(input: { deckId: string }): Promise<Deck> {
+    return this.require(input.deckId);
+  }
+
   async duplicate(input: { deckId: string; name: string; createdBy: string }): Promise<Deck> {
     const source = await this.require(input.deckId);
     // Pas de verrou ici : dupliquer ne touche jamais à l original, c est même

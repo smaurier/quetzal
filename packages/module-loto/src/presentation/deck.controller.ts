@@ -15,6 +15,11 @@ export class DeckController {
     return { decks: await this.decks.list() };
   }
 
+  @Get(':id')
+  async read(@Param('id') id: string) {
+    return this.decks.findOne({ deckId: id });
+  }
+
   @Post()
   async create(@Body() body: unknown) {
     const parsed = createDeckSchema.safeParse(body);
