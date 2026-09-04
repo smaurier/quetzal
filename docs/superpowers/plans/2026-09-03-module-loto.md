@@ -5853,3 +5853,374 @@ Décision D7 : les commandes de l animatrice passent en HTTP, le WebSocket ne
 sert qu à diffuser. Exempté du cycle test-first au titre de CLAUDE.md
 paragraphe 5, couche Presentation et wiring ; couvert par l E2E de la tâche 35."
 ```
+
+### Tâche 31 : Passerelle WebSocket et diffusion
+
+Trois pièges déjà payés se rejoignent ici. Les relire avant d écrire une ligne.
+
+1. **Nest renvoie un `@SubscribeMessage` qui retourne `{event, data}` comme un événement, jamais comme un accusé de réception.** Trouvé en sondant la production le 03/09. Le client doit écouter l événement, pas passer un callback. Un ping mort pendant une session entière avait cette cause.
+2. **L identité WS est résolue au handshake, jamais par message.** Le module ne déclare ni `cors` ni garde : l adaptateur de la plateforme s en charge et pose l identité sur `client.data`. Un message absent de `permissions` est refusé pour tout le monde, sans erreur visible côté client.
+3. **Les rewrites Vercel ne relaient pas les upgrades WebSocket.** Le client vise `NEXT_PUBLIC_API_URL` directement, via `connectSocket` de `@quetzal/core/client`.
+
+Point de conception propre au Lotería : **il n existe pas de message d entrée**. Un invité est affecté à son équipe à la connexion, à partir de l identité que le handshake a déjà posée. L écran joueur n a donc jamais de fenêtre pendant laquelle il serait connecté sans tabla.
+
+**Fichiers :**
+- Modifier : `packages/core/src/rooms.ts`
+- Test : `packages/core/src/rooms.spec.ts`
+- Créer : `packages/module-loto/src/presentation/loto.broadcaster.ts`
+- Créer : `packages/module-loto/src/presentation/loto.gateway.ts`
+- Test : `packages/module-loto/src/presentation/loto.gateway.integration.spec.ts`
+
+- [ ] **Étape 1 : écrire le test du salon d équipe qui échoue**
+
+Les marquages se diffusent aux coéquipiers seulement, pas à toute la partie : il faut un salon par équipe. CLAUDE.md interdit toute chaîne de salon écrite à la main, donc le helper vit dans le noyau.
+
+À ajouter dans `packages/core/src/rooms.spec.ts` :
+
+```ts
+describe('rooms.subgroup', () => {
+  it('dérive un salon plus fin à l intérieur d une session', () => {
+    expect(rooms.subgroup('loto', 'game-1', 'team-2')).toBe('loto:session:game-1:team-2');
+  });
+
+  it('reste préfixé par le salon de session, pour que le module ne puisse pas viser ailleurs', () => {
+    expect(rooms.subgroup('loto', 'game-1', 'team-2')).toContain(rooms.session('loto', 'game-1'));
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/core exec vitest run src/rooms.spec.ts`
+Attendu : ÉCHEC, `rooms.subgroup is not a function`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+`packages/core/src/rooms.ts` :
+
+```ts
+export const rooms = {
+  session: (moduleSlug: string, sessionId: string) => `${moduleSlug}:session:${sessionId}` as const,
+  tenant:  (moduleSlug: string, tenantId: string)  => `${moduleSlug}:tenant:${tenantId}` as const,
+  subgroup: (moduleSlug: string, sessionId: string, groupId: string) =>
+    `${moduleSlug}:session:${sessionId}:${groupId}` as const,
+};
+```
+
+- [ ] **Étape 4 : lancer le test et reconstruire le noyau**
+
+Lancer : `pnpm --filter @quetzal/core exec vitest run src/rooms.spec.ts && pnpm --filter @quetzal/core build`
+Attendu : les tests passent, le build ne dit rien.
+
+- [ ] **Étape 5 : commit du noyau**
+
+```bash
+git add packages/core/src/rooms.spec.ts
+git commit -m "test(core): salon plus fin à l intérieur d une session"
+git add packages/core/src/rooms.ts
+git commit -m "feat(core): rooms.subgroup
+
+Un module qui diffuse à un sous-ensemble d une session ne doit pas écrire la
+chaîne à la main : le préfixe de session reste garanti par le helper."
+```
+
+- [ ] **Étape 6 : écrire le diffuseur**
+
+`src/presentation/loto.broadcaster.ts` :
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { rooms } from '@quetzal/core';
+import type { Server } from 'socket.io';
+import { GameSnapshotUseCase } from '../application/game-snapshot.use-case.js';
+import type { ClaimResult } from '../application/claim.use-case.js';
+import type { DeckCard } from '../domain/ports/deck.repository.js';
+
+/**
+ * Le contrôleur HTTP exécute la commande, le diffuseur prévient la salle. Cette
+ * séparation est la décision D7 : les commandes méritent un code de retour, le
+ * WebSocket ne sert qu à diffuser.
+ */
+@Injectable()
+export class LotoBroadcaster {
+  private server: Server | null = null;
+
+  constructor(private readonly snapshot: GameSnapshotUseCase) {}
+
+  attach(server: Server): void {
+    this.server = server;
+  }
+
+  private room(gameId: string): string {
+    return rooms.session('loto', gameId);
+  }
+
+  async gameChanged(gameId: string): Promise<void> {
+    const snapshot = await this.snapshot.execute({ gameId });
+    this.server?.to(this.room(gameId)).emit('game-changed', snapshot.game);
+  }
+
+  async teamJoined(gameId: string, teamId: string): Promise<void> {
+    const snapshot = await this.snapshot.execute({ gameId });
+    const team = snapshot.teams.find((candidate) => candidate.id === teamId);
+    if (team === undefined) return;
+    this.server?.to(this.room(gameId)).emit('team-joined', team);
+  }
+
+  async cardDrawn(gameId: string, order: number, card: DeckCard): Promise<void> {
+    this.server?.to(this.room(gameId)).emit('card-drawn', {
+      order,
+      cardId: card.id,
+      label: card.label,
+      imageId: card.imageId,
+    });
+  }
+
+  markChanged(
+    gameId: string,
+    teamId: string,
+    payload: { cardId: string; marked: boolean; byGuestId: string },
+  ): void {
+    this.server?.to(rooms.subgroup('loto', gameId, teamId)).emit('mark-changed', payload);
+  }
+
+  claimResult(gameId: string, teamId: string, result: ClaimResult): void {
+    this.server?.to(this.room(gameId)).emit('claim-result', {
+      teamId,
+      valid: result.valid,
+      atDraw: result.atDraw,
+      blockedUntilDraw: result.blockedUntilDraw,
+    });
+  }
+
+  async gameFinished(gameId: string, wonByTeamId: string | null): Promise<void> {
+    const snapshot = await this.snapshot.execute({ gameId });
+    this.server?.to(this.room(gameId)).emit('game-finished', {
+      wonByTeamId,
+      pattern: snapshot.game.pattern,
+      drawCount: snapshot.game.lastDrawOrder,
+    });
+  }
+}
+```
+
+- [ ] **Étape 7 : écrire la passerelle**
+
+`src/presentation/loto.gateway.ts` :
+
+```ts
+import {
+  ConnectedSocket,
+  MessageBody,
+  OnGatewayConnection,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
+} from '@nestjs/websockets';
+import { rooms, logger } from '@quetzal/core';
+import type { Server, Socket } from 'socket.io';
+import { ClaimUseCase } from '../application/claim.use-case.js';
+import { GameSnapshotUseCase } from '../application/game-snapshot.use-case.js';
+import { JoinGameUseCase } from '../application/join-game.use-case.js';
+import { ToggleMarkUseCase } from '../application/toggle-mark.use-case.js';
+import { LotoBroadcaster } from './loto.broadcaster.js';
+
+interface SocketData {
+  role?: string;
+  guestId?: string;
+  displayName?: string;
+  sessionId?: string;
+  userId?: string;
+  tenantId?: string;
+  teamId?: string;
+  gameId?: string;
+}
+
+// CORS et authentification du handshake appartiennent à l adaptateur de la
+// plateforme, jamais au module.
+@WebSocketGateway({ namespace: 'ws/loto' })
+export class LotoGateway implements OnGatewayConnection {
+  @WebSocketServer() server!: Server;
+
+  constructor(
+    private readonly join: JoinGameUseCase,
+    private readonly toggleMark: ToggleMarkUseCase,
+    private readonly claim: ClaimUseCase,
+    private readonly snapshot: GameSnapshotUseCase,
+    private readonly broadcaster: LotoBroadcaster,
+  ) {}
+
+  async handleConnection(client: Socket): Promise<void> {
+    this.broadcaster.attach(this.server);
+    const data = client.data as SocketData;
+
+    // Un invité tient son identifiant de partie de son jeton : il ne peut pas
+    // en viser une autre. Une animatrice le passe en query, et le cloisonnement
+    // par locataire fait le reste — une partie d un autre locataire est
+    // introuvable, donc la connexion échoue proprement.
+    const gameId =
+      data.role === 'guest' ? data.sessionId : queryValue(client.handshake.query['gameId']);
+    if (gameId === undefined) {
+      client.disconnect(true);
+      return;
+    }
+    data.gameId = gameId;
+
+    try {
+      if (data.role === 'guest' && data.guestId !== undefined) {
+        const result = await this.join.execute({
+          gameId,
+          guestId: data.guestId,
+          displayName: data.displayName ?? 'Invité',
+        });
+        data.teamId = result.teamId;
+        await client.join(rooms.subgroup('loto', gameId, result.teamId));
+      }
+
+      await client.join(rooms.session('loto', gameId));
+
+      const snapshot = await this.snapshot.execute(
+        data.teamId === undefined ? { gameId } : { gameId, teamId: data.teamId },
+      );
+      client.emit('state', snapshot);
+
+      if (data.teamId !== undefined) await this.broadcaster.teamJoined(gameId, data.teamId);
+    } catch (err) {
+      logger.warn({ err, gameId }, 'loto: connexion refusée');
+      client.emit('join-failed', { reason: (err as Error).name });
+      client.disconnect(true);
+    }
+  }
+
+  @SubscribeMessage('mark')
+  async handleMark(
+    @MessageBody() body: { cardId: string; marked: boolean },
+    @ConnectedSocket() client: Socket,
+  ): Promise<void> {
+    const data = client.data as SocketData;
+    if (data.gameId === undefined || data.teamId === undefined) return;
+
+    const result = await this.toggleMark.execute({
+      gameId: data.gameId,
+      teamId: data.teamId,
+      cardId: body.cardId,
+      marked: body.marked,
+    });
+
+    // Diffusé, jamais retourné : Nest transformerait un retour {event, data} en
+    // événement et non en accusé de réception. Le client écoute mark-changed.
+    this.broadcaster.markChanged(data.gameId, data.teamId, {
+      cardId: result.cardId,
+      marked: result.marked,
+      byGuestId: data.guestId ?? '',
+    });
+  }
+
+  @SubscribeMessage('claim')
+  async handleClaim(@ConnectedSocket() client: Socket): Promise<void> {
+    const data = client.data as SocketData;
+    if (data.gameId === undefined || data.teamId === undefined) return;
+
+    const result = await this.claim.execute({ gameId: data.gameId, teamId: data.teamId });
+    this.broadcaster.claimResult(data.gameId, data.teamId, result);
+    if (result.valid) await this.broadcaster.gameFinished(data.gameId, data.teamId);
+  }
+}
+
+function queryValue(value: string | string[] | undefined): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) return value[0];
+  return undefined;
+}
+```
+
+Les deux messages, `mark` et `claim`, figurent dans la matrice de permissions du manifeste sous `ws:mark` et `ws:claim`. En ajouter un troisième sans l y déclarer produirait un message qui ne passe jamais, sans erreur visible.
+
+- [ ] **Étape 8 : écrire le test d intégration de la passerelle**
+
+Ce test démarre un vrai serveur socket.io, comme celui du module hello écrit le 03/09. Il vérifie le contrat temps réel, pas la logique de jeu, déjà couverte.
+
+```ts
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import { io, type Socket as ClientSocket } from 'socket.io-client';
+import { LotoGateway } from './loto.gateway.js';
+
+describe('LotoGateway (intégration)', () => {
+  let app: INestApplication;
+  let url: string;
+
+  beforeAll(async () => {
+    // Le module de test fournit des cas d usage adossés aux dépôts factices :
+    // on teste le contrat de transport, pas la persistance.
+    const moduleRef = await Test.createTestingModule({
+      providers: [LotoGateway /* + fabriques factices, cf. fake-repositories */],
+    }).compile();
+    app = moduleRef.createNestApplication();
+    await app.listen(0);
+    const address = app.getHttpServer().address();
+    url = `http://localhost:${typeof address === 'object' && address !== null ? address.port : 0}`;
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  function connect(auth: Record<string, unknown>, query: Record<string, string> = {}): ClientSocket {
+    return io(`${url}/ws/loto`, { transports: ['websocket'], auth, query, forceNew: true });
+  }
+
+  it('émet state à la connexion, sans qu on ait à le demander', async () => {
+    const socket = connect({ guestToken: 'jeton-invité-valide' });
+    const state = await new Promise((resolve) => socket.once('state', resolve));
+    expect(state).toHaveProperty('game');
+    expect(state).toHaveProperty('tabla');
+    socket.close();
+  });
+
+  it('répond à mark par un événement mark-changed, jamais par un accusé', async () => {
+    const socket = connect({ guestToken: 'jeton-invité-valide' });
+    await new Promise((resolve) => socket.once('state', resolve));
+
+    const changed = new Promise((resolve) => socket.once('mark-changed', resolve));
+    let ackCalled = false;
+    socket.emit('mark', { cardId: 'c1', marked: true }, () => {
+      ackCalled = true;
+    });
+
+    expect(await changed).toMatchObject({ cardId: 'c1', marked: true });
+    expect(ackCalled).toBe(false);
+    socket.close();
+  });
+
+  it('coupe une connexion sans identifiant de partie', async () => {
+    const socket = connect({ token: 'jeton-utilisateur-valide' });
+    await new Promise((resolve) => socket.once('disconnect', resolve));
+    expect(socket.connected).toBe(false);
+  });
+});
+```
+
+L exécutant complétera le module de test avec les fabriques de `fake-repositories.ts` et un adaptateur de handshake factice qui pose `client.data`. Si le harnais s avère plus coûteux qu il n en a l air, le signaler plutôt que de le bâcler : le contrat temps réel du Lotería mérite un vrai test, et l E2E de la tâche 35 le couvre aussi de bout en bout.
+
+- [ ] **Étape 9 : lancer le test**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : les tests du dépôt et ceux de la passerelle passent.
+
+- [ ] **Étape 10 : commit**
+
+```bash
+git add packages/module-loto/src/presentation/loto.gateway.integration.spec.ts
+git commit -m "test(module-loto): contrat temps réel de la passerelle
+
+Vérifie que mark répond par un événement et jamais par un accusé : Nest
+transforme un retour {event, data} en événement, piège payé le 03/09."
+git add packages/module-loto/src/presentation/loto.gateway.ts packages/module-loto/src/presentation/loto.broadcaster.ts
+git commit -m "feat(module-loto): passerelle WebSocket et diffusion
+
+Aucun message d entrée : un invité est affecté à son équipe à la connexion,
+à partir de l identité posée au handshake. L écran joueur n a donc jamais de
+fenêtre pendant laquelle il serait connecté sans tabla."
+```
