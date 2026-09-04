@@ -14,6 +14,7 @@ import {
   DeckLockedError,
   CardNotOnTablaError,
   TeamNotFoundError,
+  TeamIndexCollisionError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -70,5 +71,13 @@ describe('erreurs des cas d usage', () => {
     expect(new TeamNotFoundError('t-9')).toBeInstanceOf(DomainError);
     expect(new CardNotOnTablaError('c-9').message).toContain('c-9');
     expect(new TeamNotFoundError('t-9').message).toContain('t-9');
+  });
+
+  it('signale la collision d index d équipe, pour que le cas d usage la distingue d une vraie panne', () => {
+    const err = new TeamIndexCollisionError('g-1', 0);
+    expect(err).toBeInstanceOf(DomainError);
+    expect(err.name).toBe('TeamIndexCollisionError');
+    expect(err.message).toContain('g-1');
+    expect(err.message).toContain('0');
   });
 });

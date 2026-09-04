@@ -100,6 +100,23 @@ describe('JoinGameUseCase', () => {
     expect(teams[0]?.cardIds).not.toEqual(teams[1]?.cardIds);
   });
 
+  it('deux entrées lancées de front sur une partie à une seule équipe rendent le même teamId', async () => {
+    // maxTeams: 1 force la collision : les deux appels lisent la liste des
+    // équipes vide avant que l un ou l autre n ait créé la sienne, et
+    // décident donc chacun teamIndex 0. Sans traitement de la collision, deux
+    // équipes distinctes naissent au même index — ce que la contrainte
+    // d unicité refuserait en base (spec tâche 34, étape 4 ter).
+    const { games, game, useCase } = await build({ maxTeams: 1 });
+
+    const [a, b] = await Promise.all([
+      useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' }),
+      useCase.execute({ gameId: game.id, guestId: 'g-2', displayName: 'Beto' }),
+    ]);
+
+    expect(a.teamId).toBe(b.teamId);
+    expect(await games.teams(game.id)).toHaveLength(1);
+  });
+
   it('refuse une partie inconnue', async () => {
     const { useCase } = await build();
     await expect(

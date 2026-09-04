@@ -4,6 +4,7 @@ import { tenantStore } from '@quetzal/core';
 import { PrismaDeckRepository } from './prisma-deck.repository.js';
 import { PrismaGameRepository } from './prisma-game.repository.js';
 import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from './traditional-deck.js';
+import { TeamIndexCollisionError } from '../domain/errors.js';
 
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -126,6 +127,18 @@ describe('PrismaGameRepository (intégration)', () => {
 
     const teams = await inTenant(tenantId, ownerId, () => games.teams(game.id));
     expect(teams.map((t) => t.teamIndex)).toEqual([0, 1, 2]);
+  });
+
+  it('signale la collision quand deux équipes visent le même index, plutôt que d y échouer sans y aider', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 0, cardIds: [] }));
+
+    await expect(
+      inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 0, cardIds: [] })),
+    ).rejects.toBeInstanceOf(TeamIndexCollisionError);
+
+    const teams = await inTenant(tenantId, ownerId, () => games.teams(game.id));
+    expect(teams).toHaveLength(1);
   });
 
   it('retrouve un invité déjà entré, ce qui rend la reconnexion idempotente', async () => {
