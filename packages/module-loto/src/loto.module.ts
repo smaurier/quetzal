@@ -6,6 +6,7 @@ import { DrawCardUseCase } from './application/draw-card.use-case.js';
 import { FinishGameUseCase } from './application/finish-game.use-case.js';
 import { GameSnapshotUseCase } from './application/game-snapshot.use-case.js';
 import { JoinGameUseCase } from './application/join-game.use-case.js';
+import { ListGamesUseCase } from './application/list-games.use-case.js';
 import { ManageDecksUseCase } from './application/manage-decks.use-case.js';
 import { OpenGameUseCase } from './application/open-game.use-case.js';
 import { ToggleMarkUseCase } from './application/toggle-mark.use-case.js';
@@ -74,6 +75,11 @@ const GAMES = 'LotoGameRepository';
       provide: GameSnapshotUseCase,
       useFactory: (games: GameRepository) => new GameSnapshotUseCase(games),
       inject: [GAMES],
+    },
+    {
+      provide: ListGamesUseCase,
+      useFactory: (games: GameRepository, decks: DeckRepository) => new ListGamesUseCase(games, decks),
+      inject: [GAMES, DECKS],
     },
   ],
 })

@@ -9,6 +9,7 @@ import type {
   GameRepository,
   GameSettings,
   GameState,
+  GameSummary,
   TeamState,
 } from '../../domain/ports/game.repository.js';
 import type { GameStatus } from '../../domain/game-status.js';
@@ -109,6 +110,7 @@ export class FakeDeckRepository implements DeckRepository {
 
 export class FakeGameRepository implements GameRepository {
   readonly games = new Map<string, GameState>();
+  readonly createdAt = new Map<string, Date>();
   readonly frozen = new Map<string, DeckCard[]>();
   readonly teamsByGame = new Map<string, TeamState[]>();
   readonly members = new Map<string, { gameId: string; teamId: string; displayName: string }>();
@@ -131,6 +133,10 @@ export class FakeGameRepository implements GameRepository {
       wonByTeamId: null,
     };
     this.games.set(game.id, game);
+    // Compteur plutôt que `new Date()` : plusieurs parties créées dans la même
+    // milliseconde doivent quand même se départager pour retrouver « la plus
+    // récente d abord », ce que la précision de Date.now() ne garantit pas.
+    this.createdAt.set(game.id, new Date(counter));
     return game;
   }
 
@@ -148,6 +154,20 @@ export class FakeGameRepository implements GameRepository {
       if (game.joinCode === joinCode) return game;
     }
     return null;
+  }
+
+  async list(): Promise<GameSummary[]> {
+    return [...this.games.values()]
+      .sort((a, b) => (this.createdAt.get(b.id)?.getTime() ?? 0) - (this.createdAt.get(a.id)?.getTime() ?? 0))
+      .map((game) => ({
+        id: game.id,
+        deckId: game.deckId,
+        status: game.status,
+        pattern: game.settings.pattern,
+        joinCode: game.joinCode,
+        createdAt: this.createdAt.get(game.id) ?? new Date(0),
+        wonByTeamId: game.wonByTeamId,
+      }));
   }
 
   async setStatus(gameId: string, status: GameStatus, patch?: { wonByTeamId?: string }): Promise<void> {

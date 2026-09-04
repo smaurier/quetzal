@@ -4,6 +4,7 @@ import { CreateGameUseCase } from '../application/create-game.use-case.js';
 import { DrawCardUseCase } from '../application/draw-card.use-case.js';
 import { FinishGameUseCase } from '../application/finish-game.use-case.js';
 import { GameSnapshotUseCase } from '../application/game-snapshot.use-case.js';
+import { ListGamesUseCase } from '../application/list-games.use-case.js';
 import { OpenGameUseCase } from '../application/open-game.use-case.js';
 import { LotoBroadcaster } from './loto.broadcaster.js';
 import { createGameSchema } from './dto/loto.dto.js';
@@ -19,8 +20,15 @@ export class GameController {
     @Inject(DrawCardUseCase) private readonly drawCard: DrawCardUseCase,
     @Inject(FinishGameUseCase) private readonly finishGame: FinishGameUseCase,
     @Inject(GameSnapshotUseCase) private readonly snapshot: GameSnapshotUseCase,
+    @Inject(ListGamesUseCase) private readonly listGames: ListGamesUseCase,
     @Inject(LotoBroadcaster) private readonly broadcaster: LotoBroadcaster,
   ) {}
+
+  // Avant `:id` : sinon Nest lit `games` comme un identifiant de partie.
+  @Get()
+  async list() {
+    return { games: await this.listGames.execute() };
+  }
 
   @Post()
   async create(@Body() body: unknown) {

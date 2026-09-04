@@ -9,6 +9,7 @@ import type {
   GameRepository,
   GameSettings,
   GameState,
+  GameSummary,
   TeamState,
 } from '../domain/ports/game.repository.js';
 
@@ -20,6 +21,7 @@ interface GameRow {
   falseClaimPenaltyDraws: number;
   maxTeams: number;
   joinCode: string;
+  createdAt: Date;
   wonByTeamId: string | null;
 }
 
@@ -36,6 +38,7 @@ interface PrismaWithLoto {
     create(args: { data: Record<string, unknown> }): Promise<GameRow>;
     findFirst(args: { where: Record<string, unknown> }): Promise<GameRow | null>;
     updateMany(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<{ count: number }>;
+    findMany(args: { orderBy: Record<string, unknown> }): Promise<GameRow[]>;
   };
   loto_GameCard: {
     createMany(args: { data: Record<string, unknown>[] }): Promise<{ count: number }>;
@@ -152,6 +155,24 @@ export class PrismaGameRepository implements GameRepository {
     const row = await this.prisma.loto_Game.findFirst({ where: { joinCode } });
     if (row === null) return null;
     return this.toState(row, await this.lastDrawOrder(row.id));
+  }
+
+  async list(): Promise<GameSummary[]> {
+    const rows = await this.prisma.loto_Game.findMany({ orderBy: { createdAt: 'desc' } });
+    return rows.flatMap((row) => {
+      if (!isGameStatus(row.status) || !isPatternKey(row.pattern)) return [];
+      return [
+        {
+          id: row.id,
+          deckId: row.deckId,
+          status: row.status,
+          pattern: row.pattern,
+          joinCode: row.joinCode,
+          createdAt: row.createdAt,
+          wonByTeamId: row.wonByTeamId,
+        },
+      ];
+    });
   }
 
   async setStatus(gameId: string, status: GameStatus, patch?: { wonByTeamId?: string }): Promise<void> {

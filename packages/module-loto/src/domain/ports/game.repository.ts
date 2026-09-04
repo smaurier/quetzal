@@ -43,11 +43,24 @@ export interface TeamState {
   blockedUntilDraw: number;
 }
 
+export interface GameSummary {
+  id: string;
+  deckId: string;
+  status: GameStatus;
+  pattern: PatternKey;
+  joinCode: string;
+  createdAt: Date;
+  wonByTeamId: string | null;
+}
+
 export interface GameRepository {
   create(input: { deckId: string; createdBy: string; joinCode: string; settings: GameSettings }): Promise<GameState>;
   findById(gameId: string): Promise<GameState | null>;
   findByJoinCode(joinCode: string): Promise<GameState | null>;
   setStatus(gameId: string, status: GameStatus, patch?: { wonByTeamId?: string }): Promise<void>;
+
+  /** Historique du locataire, la plus récente d abord. */
+  list(): Promise<GameSummary[]>;
 
   /** Décision D5 : la partie copie les cartes dont elle a besoin au lancement. */
   freezeCards(gameId: string, cards: NewDeckCard[]): Promise<void>;
