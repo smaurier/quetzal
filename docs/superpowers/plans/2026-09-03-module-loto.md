@@ -2639,3 +2639,1863 @@ le retypage des colonnes contraintes par CHECK."
 git add packages/module-loto/src/infrastructure/prisma-game.repository.ts
 git commit -m "feat(module-loto): dépôt Prisma des parties"
 ```
+
+### Tâche 18 : Types des événements publiés
+
+Contrat public du module vers le reste de la plateforme. Il vit dans le noyau, pas dans le module : un abonné ne doit jamais importer `@quetzal/module-loto` pour typer ce qu il reçoit. CLAUDE.md paragraphe 3.
+
+**Fichiers :**
+- Créer : `packages/core/src/events/loto.ts`
+- Test : `packages/module-loto/tests/events.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import {
+  LotoGameStartedEvent,
+  LotoCardDrawnEvent,
+  LotoClaimRejectedEvent,
+  LotoGameFinishedEvent,
+} from '@quetzal/core/events/loto';
+
+describe('contrat des événements loto', () => {
+  it('expose les quatre noms de type annoncés par le manifeste', () => {
+    expect(LotoGameStartedEvent).toBe('LotoGameStartedEvent');
+    expect(LotoCardDrawnEvent).toBe('LotoCardDrawnEvent');
+    expect(LotoClaimRejectedEvent).toBe('LotoClaimRejectedEvent');
+    expect(LotoGameFinishedEvent).toBe('LotoGameFinishedEvent');
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run tests/events.spec.ts`
+Attendu : ÉCHEC, `Cannot find module '@quetzal/core/events/loto'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+`packages/core/src/events/loto.ts`, calqué sur `events/hello.ts` :
+
+```ts
+export interface LotoGameStartedEvent {
+  gameId: string;
+  tenantId: string;
+  deckId: string;
+  pattern: string;
+  teamCount: number;
+}
+
+export interface LotoCardDrawnEvent {
+  gameId: string;
+  tenantId: string;
+  order: number;
+  cardId: string;
+  label: string;
+}
+
+export interface LotoClaimRejectedEvent {
+  gameId: string;
+  tenantId: string;
+  teamId: string;
+  atDraw: number;
+  blockedUntilDraw: number;
+}
+
+export interface LotoGameFinishedEvent {
+  gameId: string;
+  tenantId: string;
+  wonByTeamId: string | null;
+  pattern: string;
+  drawCount: number;
+}
+
+export const LotoGameStartedEvent = 'LotoGameStartedEvent' as const;
+export const LotoCardDrawnEvent = 'LotoCardDrawnEvent' as const;
+export const LotoClaimRejectedEvent = 'LotoClaimRejectedEvent' as const;
+export const LotoGameFinishedEvent = 'LotoGameFinishedEvent' as const;
+```
+
+`pattern` est typé `string` et non `PatternKey` : le contrat d événement est consommé par des abonnés qui n ont aucune raison de dépendre du domaine du Lotería. C est la même raison qui met ce fichier dans le noyau.
+
+- [ ] **Étape 4 : reconstruire le noyau et lancer le test**
+
+Lancer : `pnpm --filter @quetzal/core build && pnpm --filter @quetzal/module-loto exec vitest run tests/events.spec.ts`
+Attendu : `Tests 1 passed`.
+
+Le `build` est nécessaire : `@quetzal/core/events/*` pointe sur `dist`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/tests/events.spec.ts
+git commit -m "test(module-loto): contrat des événements publiés"
+git add packages/core/src/events/loto.ts
+git commit -m "feat(core): types des événements du Lotería
+
+Dans le noyau et non dans le module : un abonné ne doit jamais importer
+@quetzal/module-loto pour typer ce qu il reçoit."
+```
+
+### Tâche 19 : Erreurs des cas d usage
+
+Cinq erreurs typées que les cas d usage des tâches suivantes lèvent. Groupées ici pour que chaque cas d usage arrive avec son vocabulaire d échec déjà prêt.
+
+**Fichiers :**
+- Modifier : `packages/module-loto/src/domain/errors.ts`
+- Test : `packages/module-loto/src/domain/errors.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+Ajouter un `describe` à la fin de `errors.spec.ts`, sans toucher aux trois existants :
+
+```ts
+describe('erreurs des cas d usage', () => {
+  it('héritent toutes de DomainError du noyau', () => {
+    expect(new DeckNotFoundError('d-1')).toBeInstanceOf(DomainError);
+    expect(new GameNotFoundError('g-1')).toBeInstanceOf(DomainError);
+    expect(new JoinCodeUnavailableError(20)).toBeInstanceOf(DomainError);
+    expect(new NoCardsLeftError('g-1')).toBeInstanceOf(DomainError);
+    expect(new DeckLockedError('d-1')).toBeInstanceOf(DomainError);
+  });
+
+  it('portent leur nom de classe', () => {
+    expect(new DeckLockedError('d-1').name).toBe('DeckLockedError');
+  });
+
+  it('donnent le contexte utile dans le message', () => {
+    expect(new DeckNotFoundError('d-1').message).toContain('d-1');
+    expect(new GameNotFoundError('g-1').message).toContain('g-1');
+    expect(new JoinCodeUnavailableError(20).message).toContain('20');
+    expect(new NoCardsLeftError('g-1').message).toContain('g-1');
+    expect(new DeckLockedError('d-1').message).toContain('d-1');
+  });
+});
+```
+
+Et l import en tête du fichier reçoit les cinq nouveaux noms :
+
+```ts
+import {
+  DeckTooSmallError,
+  InvalidGameTransitionError,
+  TeamBlockedError,
+  GameNotRunningError,
+  InvalidTeamLimitError,
+  TablaGenerationExhaustedError,
+  DeckNotFoundError,
+  GameNotFoundError,
+  JoinCodeUnavailableError,
+  NoCardsLeftError,
+  DeckLockedError,
+} from './errors.js';
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/errors.spec.ts`
+Attendu : ÉCHEC, `DeckNotFoundError is not a constructor`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+À ajouter à la fin de `errors.ts` :
+
+```ts
+export class DeckNotFoundError extends DomainError {
+  constructor(deckId: string) {
+    super(`Jeu de cartes introuvable : ${deckId}`);
+  }
+}
+
+export class GameNotFoundError extends DomainError {
+  constructor(gameId: string) {
+    super(`Partie introuvable : ${gameId}`);
+  }
+}
+
+export class JoinCodeUnavailableError extends DomainError {
+  constructor(attempts: number) {
+    super(`Aucun code d entrée libre trouvé en ${attempts} tentatives`);
+  }
+}
+
+export class NoCardsLeftError extends DomainError {
+  constructor(gameId: string) {
+    super(`Toutes les cartes ont été tirées dans la partie ${gameId}`);
+  }
+}
+
+export class DeckLockedError extends DomainError {
+  constructor(deckId: string) {
+    super(`Jeu de cartes ${deckId} verrouillé : une partie en cours l utilise`);
+  }
+}
+```
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/errors.spec.ts`
+Attendu : `Tests 6 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/domain/errors.spec.ts
+git commit -m "test(module-loto): erreurs des cas d usage"
+git add packages/module-loto/src/domain/errors.ts
+git commit -m "feat(module-loto): cinq erreurs typées pour la couche application"
+```
+
+### Tâche 20 : Cas d usage — créer une partie
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/create-game.use-case.ts`
+- Test : `packages/module-loto/src/application/create-game.use-case.spec.ts`
+- Créer : `packages/module-loto/src/application/testing/fake-repositories.ts`
+
+La fabrique de dépôts factices est écrite ici et réutilisée par tous les cas d usage suivants. CLAUDE.md paragraphe 11 : factories manuelles, jamais `vi.mock`.
+
+- [ ] **Étape 1 : écrire les dépôts factices**
+
+`src/application/testing/fake-repositories.ts` :
+
+```ts
+import type {
+  Deck,
+  DeckCard,
+  DeckRepository,
+  DeckSummary,
+  NewDeckCard,
+} from '../../domain/ports/deck.repository.js';
+import type {
+  GameRepository,
+  GameSettings,
+  GameState,
+  TeamState,
+} from '../../domain/ports/game.repository.js';
+import type { GameStatus } from '../../domain/game-status.js';
+
+let counter = 0;
+const nextId = (prefix: string): string => `${prefix}-${++counter}`;
+
+export function deckOf(cardCount: number, overrides: Partial<Deck> = {}): Deck {
+  const cards: DeckCard[] = Array.from({ length: cardCount }, (_, i) => ({
+    id: `card-${i + 1}`,
+    rank: i + 1,
+    label: `Carta ${i + 1}`,
+    imageId: null,
+  }));
+  return {
+    id: 'deck-1',
+    name: 'Jeu de test',
+    isTemplate: false,
+    cardCount,
+    cards,
+    ...overrides,
+  };
+}
+
+export class FakeDeckRepository implements DeckRepository {
+  readonly decks = new Map<string, Deck>();
+  readonly unfinished = new Set<string>();
+
+  add(deck: Deck): Deck {
+    this.decks.set(deck.id, deck);
+    return deck;
+  }
+
+  async list(): Promise<DeckSummary[]> {
+    return [...this.decks.values()].map(({ id, name, isTemplate, cardCount }) => ({
+      id,
+      name,
+      isTemplate,
+      cardCount,
+    }));
+  }
+
+  async findById(deckId: string): Promise<Deck | null> {
+    return this.decks.get(deckId) ?? null;
+  }
+
+  async create(input: {
+    name: string;
+    isTemplate: boolean;
+    createdBy: string;
+    cards: NewDeckCard[];
+  }): Promise<Deck> {
+    const deck: Deck = {
+      id: nextId('deck'),
+      name: input.name,
+      isTemplate: input.isTemplate,
+      cardCount: input.cards.length,
+      cards: input.cards.map((card, i) => ({ id: nextId('card'), ...card, rank: card.rank || i + 1 })),
+    };
+    this.decks.set(deck.id, deck);
+    return deck;
+  }
+
+  async rename(deckId: string, name: string): Promise<void> {
+    const deck = this.decks.get(deckId);
+    if (deck !== undefined) this.decks.set(deckId, { ...deck, name });
+  }
+
+  async updateCard(
+    deckId: string,
+    rank: number,
+    patch: { label?: string; imageId?: string | null },
+  ): Promise<void> {
+    const deck = this.decks.get(deckId);
+    if (deck === undefined) return;
+    this.decks.set(deckId, {
+      ...deck,
+      cards: deck.cards.map((card) => (card.rank === rank ? { ...card, ...patch } : card)),
+    });
+  }
+
+  async delete(deckId: string): Promise<void> {
+    this.decks.delete(deckId);
+  }
+
+  async hasUnfinishedGame(deckId: string): Promise<boolean> {
+    return this.unfinished.has(deckId);
+  }
+}
+
+export class FakeGameRepository implements GameRepository {
+  readonly games = new Map<string, GameState>();
+  readonly frozen = new Map<string, DeckCard[]>();
+  readonly teamsByGame = new Map<string, TeamState[]>();
+  readonly members = new Map<string, { gameId: string; teamId: string; displayName: string }>();
+  readonly draws = new Map<string, { order: number; cardId: string }[]>();
+  readonly claims: { gameId: string; teamId: string; atDraw: number; valid: boolean }[] = [];
+
+  async create(input: {
+    deckId: string;
+    createdBy: string;
+    joinCode: string;
+    settings: GameSettings;
+  }): Promise<GameState> {
+    const game: GameState = {
+      id: nextId('game'),
+      deckId: input.deckId,
+      status: 'draft',
+      joinCode: input.joinCode,
+      settings: input.settings,
+      lastDrawOrder: 0,
+      wonByTeamId: null,
+    };
+    this.games.set(game.id, game);
+    return game;
+  }
+
+  async findById(gameId: string): Promise<GameState | null> {
+    const game = this.games.get(gameId);
+    if (game === undefined) return null;
+    return { ...game, lastDrawOrder: (this.draws.get(gameId) ?? []).length };
+  }
+
+  async findByJoinCode(joinCode: string): Promise<GameState | null> {
+    for (const game of this.games.values()) {
+      if (game.joinCode === joinCode) return game;
+    }
+    return null;
+  }
+
+  async setStatus(gameId: string, status: GameStatus, patch?: { wonByTeamId?: string }): Promise<void> {
+    const game = this.games.get(gameId);
+    if (game === undefined) return;
+    this.games.set(gameId, {
+      ...game,
+      status,
+      wonByTeamId: patch?.wonByTeamId ?? game.wonByTeamId,
+    });
+  }
+
+  async freezeCards(gameId: string, cards: NewDeckCard[]): Promise<void> {
+    this.frozen.set(
+      gameId,
+      cards.map((card, i) => ({ id: `frozen-${i + 1}`, ...card })),
+    );
+  }
+
+  async frozenCards(gameId: string): Promise<DeckCard[]> {
+    return this.frozen.get(gameId) ?? [];
+  }
+
+  async teams(gameId: string): Promise<TeamState[]> {
+    return [...(this.teamsByGame.get(gameId) ?? [])].sort((a, b) => a.teamIndex - b.teamIndex);
+  }
+
+  async createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState> {
+    const team: TeamState = {
+      id: nextId('team'),
+      teamIndex: input.teamIndex,
+      memberDisplayNames: [],
+      cardIds: input.cardIds,
+      markedCardIds: [],
+      blockedUntilDraw: 0,
+    };
+    this.teamsByGame.set(gameId, [...(this.teamsByGame.get(gameId) ?? []), team]);
+    return team;
+  }
+
+  private patchTeam(teamId: string, patch: Partial<TeamState>): void {
+    for (const [gameId, teams] of this.teamsByGame) {
+      this.teamsByGame.set(
+        gameId,
+        teams.map((team) => (team.id === teamId ? { ...team, ...patch } : team)),
+      );
+    }
+  }
+
+  async setMarks(teamId: string, markedCardIds: string[]): Promise<void> {
+    this.patchTeam(teamId, { markedCardIds });
+  }
+
+  async blockTeam(teamId: string, untilDraw: number): Promise<void> {
+    this.patchTeam(teamId, { blockedUntilDraw: untilDraw });
+  }
+
+  async findMember(gameId: string, guestId: string): Promise<{ teamId: string } | null> {
+    const member = this.members.get(`${gameId}:${guestId}`);
+    return member === undefined ? null : { teamId: member.teamId };
+  }
+
+  async addMember(input: {
+    gameId: string;
+    teamId: string;
+    guestId: string;
+    displayName: string;
+  }): Promise<void> {
+    this.members.set(`${input.gameId}:${input.guestId}`, {
+      gameId: input.gameId,
+      teamId: input.teamId,
+      displayName: input.displayName,
+    });
+    for (const [gameId, teams] of this.teamsByGame) {
+      this.teamsByGame.set(
+        gameId,
+        teams.map((team) =>
+          team.id === input.teamId
+            ? { ...team, memberDisplayNames: [...team.memberDisplayNames, input.displayName] }
+            : team,
+        ),
+      );
+    }
+  }
+
+  async appendDraw(gameId: string, order: number, cardId: string): Promise<boolean> {
+    const existing = this.draws.get(gameId) ?? [];
+    if (existing.some((draw) => draw.order === order || draw.cardId === cardId)) return false;
+    this.draws.set(gameId, [...existing, { order, cardId }]);
+    return true;
+  }
+
+  async drawnCards(gameId: string): Promise<string[]> {
+    return (this.draws.get(gameId) ?? []).map((draw) => draw.cardId);
+  }
+
+  async recordClaim(input: {
+    gameId: string;
+    teamId: string;
+    atDraw: number;
+    valid: boolean;
+  }): Promise<void> {
+    this.claims.push(input);
+  }
+}
+
+export class RecordingEventBus {
+  readonly emitted: { name: string; payload: unknown }[] = [];
+
+  async emit<T = unknown>(name: string, payload: T): Promise<void> {
+    this.emitted.push({ name, payload });
+  }
+
+  on(): void {
+    // Aucun abonné dans les tests de cas d usage.
+  }
+
+  names(): string[] {
+    return this.emitted.map((event) => event.name);
+  }
+}
+```
+
+- [ ] **Étape 2 : écrire le test qui échoue**
+
+`src/application/create-game.use-case.spec.ts` :
+
+```ts
+import { describe, it, expect } from 'vitest';
+import type { EventBus } from '@quetzal/core';
+import {
+  DeckNotFoundError,
+  DeckTooSmallError,
+  InvalidTeamLimitError,
+  JoinCodeUnavailableError,
+} from '../domain/errors.js';
+import { JOIN_CODE_LENGTH } from '../domain/join-code.js';
+import { CreateGameUseCase } from './create-game.use-case.js';
+import { FakeDeckRepository, FakeGameRepository, RecordingEventBus, deckOf } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+function build(random: () => number = Math.random) {
+  const decks = new FakeDeckRepository();
+  const games = new FakeGameRepository();
+  const bus = new RecordingEventBus();
+  const useCase = new CreateGameUseCase(decks, games, bus as unknown as EventBus, random);
+  return { decks, games, bus, useCase };
+}
+
+describe('CreateGameUseCase', () => {
+  it('crée une partie à l état draft avec un code d entrée', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+
+    const game = await useCase.execute({ deckId: 'deck-1', createdBy: 'u-1', settings: { ...SETTINGS } });
+
+    expect(game.status).toBe('draft');
+    expect(game.joinCode).toHaveLength(JOIN_CODE_LENGTH);
+    expect(game.settings.maxTeams).toBe(6);
+  });
+
+  it('refuse un jeu de cartes inconnu', async () => {
+    const { useCase } = build();
+    await expect(
+      useCase.execute({ deckId: 'absent', createdBy: 'u-1', settings: { ...SETTINGS } }),
+    ).rejects.toBeInstanceOf(DeckNotFoundError);
+  });
+
+  it('refuse un jeu de moins de seize cartes', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(15));
+    await expect(
+      useCase.execute({ deckId: 'deck-1', createdBy: 'u-1', settings: { ...SETTINGS } }),
+    ).rejects.toBeInstanceOf(DeckTooSmallError);
+  });
+
+  it('refuse un maximum d équipes inférieur à un', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+    await expect(
+      useCase.execute({ deckId: 'deck-1', createdBy: 'u-1', settings: { ...SETTINGS, maxTeams: 0 } }),
+    ).rejects.toBeInstanceOf(InvalidTeamLimitError);
+  });
+
+  it('retente quand le code d entrée est déjà pris', async () => {
+    const codes = ['AAA222', 'AAA222', 'BBB333'];
+    let call = 0;
+    const { decks, games, useCase } = build();
+    decks.add(deckOf(54));
+    await games.create({ deckId: 'deck-1', createdBy: 'u-1', joinCode: 'AAA222', settings: { ...SETTINGS } });
+
+    const withFixedCodes = new CreateGameUseCase(
+      decks,
+      games,
+      new RecordingEventBus() as unknown as EventBus,
+      Math.random,
+      () => codes[call++ % codes.length]!,
+    );
+
+    const game = await withFixedCodes.execute({
+      deckId: 'deck-1',
+      createdBy: 'u-1',
+      settings: { ...SETTINGS },
+    });
+    expect(game.joinCode).toBe('BBB333');
+  });
+
+  it('abandonne après un nombre borné de codes déjà pris', async () => {
+    const { decks, games, useCase } = build();
+    decks.add(deckOf(54));
+    await games.create({ deckId: 'deck-1', createdBy: 'u-1', joinCode: 'AAA222', settings: { ...SETTINGS } });
+
+    const alwaysTaken = new CreateGameUseCase(
+      decks,
+      games,
+      new RecordingEventBus() as unknown as EventBus,
+      Math.random,
+      () => 'AAA222',
+    );
+
+    await expect(
+      alwaysTaken.execute({ deckId: 'deck-1', createdBy: 'u-1', settings: { ...SETTINGS } }),
+    ).rejects.toBeInstanceOf(JoinCodeUnavailableError);
+  });
+
+  it('ne publie aucun événement : rien n a encore commencé', async () => {
+    const { decks, bus, useCase } = build();
+    decks.add(deckOf(54));
+    await useCase.execute({ deckId: 'deck-1', createdBy: 'u-1', settings: { ...SETTINGS } });
+    expect(bus.names()).toEqual([]);
+  });
+});
+```
+
+- [ ] **Étape 3 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/create-game.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './create-game.use-case.js'`.
+
+- [ ] **Étape 4 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import type { EventBus } from '@quetzal/core';
+import {
+  DeckNotFoundError,
+  DeckTooSmallError,
+  InvalidTeamLimitError,
+  JoinCodeUnavailableError,
+} from '../domain/errors.js';
+import { generateJoinCode } from '../domain/join-code.js';
+import { MIN_DECK_SIZE } from '../domain/tabla.js';
+import type { DeckRepository } from '../domain/ports/deck.repository.js';
+import type { GameRepository, GameSettings, GameState } from '../domain/ports/game.repository.js';
+
+export const MAX_JOIN_CODE_ATTEMPTS = 20;
+
+export interface CreateGameInput {
+  deckId: string;
+  createdBy: string;
+  settings: GameSettings;
+}
+
+@Injectable()
+export class CreateGameUseCase {
+  constructor(
+    private readonly decks: DeckRepository,
+    private readonly games: GameRepository,
+    private readonly eventBus: EventBus,
+    private readonly random: () => number,
+    private readonly makeJoinCode: () => string = () => generateJoinCode(this.random),
+  ) {}
+
+  async execute(input: CreateGameInput): Promise<GameState> {
+    if (input.settings.maxTeams < 1) throw new InvalidTeamLimitError(input.settings.maxTeams);
+
+    const deck = await this.decks.findById(input.deckId);
+    if (deck === null) throw new DeckNotFoundError(input.deckId);
+    if (deck.cards.length < MIN_DECK_SIZE) throw new DeckTooSmallError(deck.cards.length);
+
+    const joinCode = await this.freeJoinCode();
+    return this.games.create({
+      deckId: deck.id,
+      createdBy: input.createdBy,
+      joinCode,
+      settings: input.settings,
+    });
+  }
+
+  private async freeJoinCode(): Promise<string> {
+    for (let attempt = 0; attempt < MAX_JOIN_CODE_ATTEMPTS; attempt++) {
+      const candidate = this.makeJoinCode();
+      if ((await this.games.findByJoinCode(candidate)) === null) return candidate;
+    }
+    throw new JoinCodeUnavailableError(MAX_JOIN_CODE_ATTEMPTS);
+  }
+}
+```
+
+Le code d entrée est vérifié en base et non seulement tiré au hasard : sa contrainte d unicité est par locataire, et deux parties d une même classe se chevauchent souvent dans la journée.
+
+- [ ] **Étape 5 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/create-game.use-case.spec.ts`
+Attendu : `Tests 7 passed`.
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git add packages/module-loto/src/application/testing/fake-repositories.ts packages/module-loto/src/application/create-game.use-case.spec.ts
+git commit -m "test(module-loto): création de partie et dépôts factices
+
+Factories manuelles, jamais vi.mock (CLAUDE.md paragraphe 11). Réutilisées
+par tous les cas d usage suivants."
+git add packages/module-loto/src/application/create-game.use-case.ts
+git commit -m "feat(module-loto): cas d usage de création de partie"
+```
+
+### Tâche 21 : Cas d usage — ouvrir la partie
+
+Décision D5 : au démarrage, la partie copie les cartes dont elle a besoin. À partir de cet instant, l historique ne peut plus mentir et aucune carte ne peut disparaître sous une partie en cours.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/open-game.use-case.ts`
+- Test : `packages/module-loto/src/application/open-game.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import type { EventBus } from '@quetzal/core';
+import { DeckNotFoundError, GameNotFoundError, InvalidGameTransitionError } from '../domain/errors.js';
+import { OpenGameUseCase } from './open-game.use-case.js';
+import { FakeDeckRepository, FakeGameRepository, RecordingEventBus, deckOf } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+async function build() {
+  const decks = new FakeDeckRepository();
+  const games = new FakeGameRepository();
+  const bus = new RecordingEventBus();
+  decks.add(deckOf(54));
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS },
+  });
+  const useCase = new OpenGameUseCase(decks, games, bus as unknown as EventBus);
+  return { decks, games, bus, game, useCase };
+}
+
+describe('OpenGameUseCase', () => {
+  it('fige les cartes du jeu et passe la partie à open', async () => {
+    const { games, game, useCase } = await build();
+
+    const opened = await useCase.execute({ gameId: game.id });
+
+    expect(opened.status).toBe('open');
+    expect(await games.frozenCards(game.id)).toHaveLength(54);
+  });
+
+  it('copie le libellé et le rang de chaque carte, pas une référence', async () => {
+    const { decks, games, game, useCase } = await build();
+    await useCase.execute({ gameId: game.id });
+
+    await decks.updateCard('deck-1', 1, { label: 'Renommée après coup' });
+
+    const frozen = await games.frozenCards(game.id);
+    expect(frozen[0]?.label).toBe('Carta 1');
+  });
+
+  it('refuse une partie inconnue', async () => {
+    const { useCase } = await build();
+    await expect(useCase.execute({ gameId: 'absent' })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+
+  it('refuse de rouvrir une partie déjà ouverte', async () => {
+    const { games, game, useCase } = await build();
+    await useCase.execute({ gameId: game.id });
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(InvalidGameTransitionError);
+    expect((await games.findById(game.id))?.status).toBe('open');
+  });
+
+  it('refuse quand le jeu de cartes a disparu entre-temps', async () => {
+    const { decks, game, useCase } = await build();
+    await decks.delete('deck-1');
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(DeckNotFoundError);
+  });
+
+  it('ne publie aucun événement : la partie n a pas encore commencé', async () => {
+    const { bus, game, useCase } = await build();
+    await useCase.execute({ gameId: game.id });
+    expect(bus.names()).toEqual([]);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/open-game.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './open-game.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import type { EventBus } from '@quetzal/core';
+import { DeckNotFoundError, DeckTooSmallError, GameNotFoundError } from '../domain/errors.js';
+import { assertTransition } from '../domain/game-status.js';
+import { MIN_DECK_SIZE } from '../domain/tabla.js';
+import type { DeckRepository } from '../domain/ports/deck.repository.js';
+import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
+
+@Injectable()
+export class OpenGameUseCase {
+  constructor(
+    private readonly decks: DeckRepository,
+    private readonly games: GameRepository,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async execute(input: { gameId: string }): Promise<GameState> {
+    const game = await this.games.findById(input.gameId);
+    if (game === null) throw new GameNotFoundError(input.gameId);
+    assertTransition(game.status, 'open');
+
+    const deck = await this.decks.findById(game.deckId);
+    if (deck === null) throw new DeckNotFoundError(game.deckId);
+    if (deck.cards.length < MIN_DECK_SIZE) throw new DeckTooSmallError(deck.cards.length);
+
+    await this.games.freezeCards(
+      game.id,
+      deck.cards.map((card) => ({ rank: card.rank, label: card.label, imageId: card.imageId })),
+    );
+    await this.games.setStatus(game.id, 'open');
+
+    const reloaded = await this.games.findById(game.id);
+    if (reloaded === null) throw new GameNotFoundError(game.id);
+    return reloaded;
+  }
+}
+```
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/open-game.use-case.spec.ts`
+Attendu : `Tests 6 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/application/open-game.use-case.spec.ts
+git commit -m "test(module-loto): ouverture de partie, le jeu est figé"
+git add packages/module-loto/src/application/open-game.use-case.ts
+git commit -m "feat(module-loto): cas d usage d ouverture de partie
+
+Décision D5 : la partie copie les cartes dont elle a besoin. L historique ne
+peut plus mentir et aucune carte ne disparaît sous une partie en cours."
+```
+
+### Tâche 22 : Cas d usage — rejoindre une partie
+
+Décision D3 : le domaine ne connaît que des équipes, un joueur seul est une équipe d un. Point notable du contrat, section 8.3 de la spec : **il n existe pas de message d entrée**. L affectation se fait à la connexion, à partir de l identité que la plateforme a posée sur le socket au handshake, et elle est idempotente par identifiant d invité.
+
+C est cette idempotence qui fait qu une reconnexion retrouve son équipe au lieu d en créer une seconde, et que l écran joueur n a jamais de fenêtre pendant laquelle il serait connecté sans tabla. Le wifi d établissement en dépend directement.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/join-game.use-case.ts`
+- Test : `packages/module-loto/src/application/join-game.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { GameNotFoundError, GameNotRunningError } from '../domain/errors.js';
+import { TABLA_SIZE } from '../domain/pattern.js';
+import { JoinGameUseCase } from './join-game.use-case.js';
+import { FakeGameRepository } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+async function build(overrides: { maxTeams?: number } = {}) {
+  const games = new FakeGameRepository();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS, maxTeams: overrides.maxTeams ?? SETTINGS.maxTeams },
+  });
+  await games.freezeCards(
+    game.id,
+    Array.from({ length: 54 }, (_, i) => ({ rank: i + 1, label: `Carta ${i + 1}`, imageId: null })),
+  );
+  await games.setStatus(game.id, 'open');
+  const useCase = new JoinGameUseCase(games, Math.random);
+  return { games, game, useCase };
+}
+
+describe('JoinGameUseCase', () => {
+  it('crée une équipe d un et lui donne une tabla de seize cartes', async () => {
+    const { games, game, useCase } = await build();
+
+    const result = await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+
+    const teams = await games.teams(game.id);
+    expect(teams).toHaveLength(1);
+    expect(teams[0]?.id).toBe(result.teamId);
+    expect(teams[0]?.cardIds).toHaveLength(TABLA_SIZE);
+    expect(teams[0]?.memberDisplayNames).toEqual(['Ana']);
+  });
+
+  it('ne tire la tabla que parmi les cartes figées de la partie', async () => {
+    const { games, game, useCase } = await build();
+    await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+
+    const frozenIds = (await games.frozenCards(game.id)).map((card) => card.id);
+    const teams = await games.teams(game.id);
+    for (const cardId of teams[0]!.cardIds) expect(frozenIds).toContain(cardId);
+  });
+
+  it('une reconnexion retrouve son équipe au lieu d en créer une seconde', async () => {
+    const { games, game, useCase } = await build();
+
+    const first = await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+    const second = await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+
+    expect(second.teamId).toBe(first.teamId);
+    expect(second.created).toBe(false);
+    expect(await games.teams(game.id)).toHaveLength(1);
+  });
+
+  it('une reconnexion fonctionne même une fois la partie commencée', async () => {
+    const { games, game, useCase } = await build();
+    const first = await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+    await games.setStatus(game.id, 'running');
+
+    const again = await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+    expect(again.teamId).toBe(first.teamId);
+  });
+
+  it('chaque arrivant forme sa propre équipe tant qu il reste de la place', async () => {
+    const { games, game, useCase } = await build({ maxTeams: 3 });
+
+    await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+    await useCase.execute({ gameId: game.id, guestId: 'g-2', displayName: 'Beto' });
+    await useCase.execute({ gameId: game.id, guestId: 'g-3', displayName: 'Caro' });
+
+    const teams = await games.teams(game.id);
+    expect(teams).toHaveLength(3);
+    expect(teams.map((t) => t.teamIndex)).toEqual([0, 1, 2]);
+  });
+
+  it('au-delà du maximum, l arrivant rejoint l équipe la moins remplie', async () => {
+    const { games, game, useCase } = await build({ maxTeams: 2 });
+
+    await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+    await useCase.execute({ gameId: game.id, guestId: 'g-2', displayName: 'Beto' });
+    const third = await useCase.execute({ gameId: game.id, guestId: 'g-3', displayName: 'Caro' });
+
+    const teams = await games.teams(game.id);
+    expect(teams).toHaveLength(2);
+    expect(third.created).toBe(false);
+    expect(teams[0]?.id).toBe(third.teamId);
+    expect(teams[0]?.memberDisplayNames).toEqual(['Ana', 'Caro']);
+  });
+
+  it('donne des tablas différentes aux équipes d une même partie', async () => {
+    const { games, game, useCase } = await build();
+    await useCase.execute({ gameId: game.id, guestId: 'g-1', displayName: 'Ana' });
+    await useCase.execute({ gameId: game.id, guestId: 'g-2', displayName: 'Beto' });
+
+    const teams = await games.teams(game.id);
+    expect(teams[0]?.cardIds).not.toEqual(teams[1]?.cardIds);
+  });
+
+  it('refuse une partie inconnue', async () => {
+    const { useCase } = await build();
+    await expect(
+      useCase.execute({ gameId: 'absent', guestId: 'g-1', displayName: 'Ana' }),
+    ).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+
+  it('refuse un nouvel arrivant une fois la partie commencée', async () => {
+    const { games, game, useCase } = await build();
+    await games.setStatus(game.id, 'running');
+
+    await expect(
+      useCase.execute({ gameId: game.id, guestId: 'g-9', displayName: 'Retardataire' }),
+    ).rejects.toBeInstanceOf(GameNotRunningError);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/join-game.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './join-game.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { GameNotFoundError, GameNotRunningError } from '../domain/errors.js';
+import { canJoin } from '../domain/game-status.js';
+import { assignTeam } from '../domain/team-assignment.js';
+import { generateUniqueTabla } from '../domain/tabla.js';
+import type { GameRepository } from '../domain/ports/game.repository.js';
+
+export interface JoinGameResult {
+  teamId: string;
+  created: boolean;
+}
+
+@Injectable()
+export class JoinGameUseCase {
+  constructor(
+    private readonly games: GameRepository,
+    private readonly random: () => number,
+  ) {}
+
+  async execute(input: {
+    gameId: string;
+    guestId: string;
+    displayName: string;
+  }): Promise<JoinGameResult> {
+    const game = await this.games.findById(input.gameId);
+    if (game === null) throw new GameNotFoundError(input.gameId);
+
+    // Idempotence AVANT le contrôle d état : une reconnexion doit aboutir même
+    // une fois la partie commencée, sinon une coupure wifi exclut un élève.
+    const existing = await this.games.findMember(input.gameId, input.guestId);
+    if (existing !== null) return { teamId: existing.teamId, created: false };
+
+    if (!canJoin(game.status)) throw new GameNotRunningError(game.status);
+
+    const teams = await this.games.teams(game.id);
+    const decision = assignTeam(
+      teams.map((team) => ({ id: team.id, memberCount: team.memberDisplayNames.length })),
+      game.settings.maxTeams,
+    );
+
+    let teamId: string;
+    let created: boolean;
+    if (decision.kind === 'existing') {
+      teamId = decision.teamId;
+      created = false;
+    } else {
+      const frozen = await this.games.frozenCards(game.id);
+      const tabla = generateUniqueTabla(
+        frozen.map((card) => card.id),
+        teams.map((team) => team.cardIds),
+        this.random,
+      );
+      const team = await this.games.createTeam(game.id, { teamIndex: teams.length, cardIds: tabla });
+      teamId = team.id;
+      created = true;
+    }
+
+    await this.games.addMember({
+      gameId: game.id,
+      teamId,
+      guestId: input.guestId,
+      displayName: input.displayName,
+    });
+
+    return { teamId, created };
+  }
+}
+```
+
+L ordre du contrôle d idempotence et du contrôle d état n est pas cosmétique. Le mettre après `canJoin` interdirait toute reconnexion pendant la partie, ce qui est exactement le cas que le wifi d établissement produit. Le test « une reconnexion fonctionne même une fois la partie commencée » est le filet qui empêche de réordonner ces deux blocs par inadvertance.
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/join-game.use-case.spec.ts`
+Attendu : `Tests 9 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/application/join-game.use-case.spec.ts
+git commit -m "test(module-loto): entrée en partie, dont la reconnexion"
+git add packages/module-loto/src/application/join-game.use-case.ts
+git commit -m "feat(module-loto): cas d usage d entrée en partie
+
+Idempotent par identifiant d invité, contrôlé avant l état de la partie :
+une coupure wifi ne doit jamais exclure un élève de sa propre équipe."
+```
+
+### Tâche 23 : Cas d usage — tirer une carte
+
+Le cas d usage le plus délicat du module, pour une raison qui ne saute pas aux yeux : **le premier tirage porte deux effets qui ne se séparent pas**. Il enregistre la carte et fait basculer la partie de `open` à `running`.
+
+Les dissocier produit une partie qui accumule des tirages en restant `open`. Or `canClaim` exige `running` : toute réclamation serait refusée. L écran animateur serait parfaitement normal, les cartes sortiraient une à une, et la partie serait ingagnable. C est le genre de défaut qu on ne diagnostique pas en classe.
+
+Le port ne fournit pas de transaction. La parade est double : l ordre des opérations, et une réconciliation en tête de méthode qui répare une partie laissée dans cet état par un incident.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/draw-card.use-case.ts`
+- Test : `packages/module-loto/src/application/draw-card.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import type { EventBus } from '@quetzal/core';
+import { GameNotFoundError, GameNotRunningError, NoCardsLeftError } from '../domain/errors.js';
+import { DrawCardUseCase } from './draw-card.use-case.js';
+import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+async function build(cardCount = 54) {
+  const games = new FakeGameRepository();
+  const bus = new RecordingEventBus();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS },
+  });
+  await games.freezeCards(
+    game.id,
+    Array.from({ length: cardCount }, (_, i) => ({ rank: i + 1, label: `Carta ${i + 1}`, imageId: null })),
+  );
+  await games.setStatus(game.id, 'open');
+  const useCase = new DrawCardUseCase(games, bus as unknown as EventBus, Math.random);
+  return { games, bus, game, useCase };
+}
+
+describe('DrawCardUseCase', () => {
+  it('tire une carte du jeu figé et l enregistre au rang un', async () => {
+    const { games, game, useCase } = await build();
+
+    const result = await useCase.execute({ gameId: game.id });
+
+    expect(result.drawn).toBe(true);
+    if (!result.drawn) throw new Error('inatteignable');
+    expect(result.order).toBe(1);
+
+    const frozenIds = (await games.frozenCards(game.id)).map((card) => card.id);
+    expect(frozenIds).toContain(result.card.id);
+    expect(await games.drawnCards(game.id)).toEqual([result.card.id]);
+  });
+
+  it('le premier tirage fait basculer la partie en running', async () => {
+    const { games, game, useCase } = await build();
+    await useCase.execute({ gameId: game.id });
+    expect((await games.findById(game.id))?.status).toBe('running');
+  });
+
+  it('publie game.started au premier tirage seulement, card.drawn à chaque fois', async () => {
+    const { bus, game, useCase } = await build();
+
+    await useCase.execute({ gameId: game.id });
+    await useCase.execute({ gameId: game.id });
+
+    expect(bus.names()).toEqual(['loto.game.started', 'loto.card.drawn', 'loto.card.drawn']);
+  });
+
+  it('ne tire jamais deux fois la même carte', async () => {
+    const { games, game, useCase } = await build(20);
+
+    for (let i = 0; i < 20; i++) await useCase.execute({ gameId: game.id });
+
+    const drawn = await games.drawnCards(game.id);
+    expect(drawn).toHaveLength(20);
+    expect(new Set(drawn).size).toBe(20);
+  });
+
+  it('refuse de tirer quand toutes les cartes sont sorties', async () => {
+    const { game, useCase } = await build(16);
+    for (let i = 0; i < 16; i++) await useCase.execute({ gameId: game.id });
+
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(NoCardsLeftError);
+  });
+
+  it('un double appui simultané reste sans effet plutôt qu erroné', async () => {
+    const { games, game, useCase } = await build();
+    // Le dépôt refuse un rang déjà pris. On simule la course en forçant le
+    // rang un à être déjà occupé par une autre carte.
+    const frozen = await games.frozenCards(game.id);
+    await games.appendDraw(game.id, 1, frozen[0]!.id);
+
+    const result = await useCase.execute({ gameId: game.id });
+    expect(result.drawn).toBe(false);
+    expect(await games.drawnCards(game.id)).toHaveLength(1);
+  });
+
+  it('répare une partie laissée en open alors que des cartes sont déjà sorties', async () => {
+    const { games, bus, game, useCase } = await build();
+    const frozen = await games.frozenCards(game.id);
+    await games.appendDraw(game.id, 1, frozen[0]!.id);
+    // La partie est restée open : un incident a coupé entre le tirage et la
+    // bascule. Sans réparation, canClaim refuse tout et la partie est ingagnable.
+    expect((await games.findById(game.id))?.status).toBe('open');
+
+    await useCase.execute({ gameId: game.id });
+
+    expect((await games.findById(game.id))?.status).toBe('running');
+    expect(bus.names()).toContain('loto.game.started');
+  });
+
+  it('refuse de tirer dans une partie en draft', async () => {
+    const { games, game, useCase } = await build();
+    await games.setStatus(game.id, 'draft');
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(GameNotRunningError);
+  });
+
+  it('refuse de tirer dans une partie terminée', async () => {
+    const { games, game, useCase } = await build();
+    await games.setStatus(game.id, 'finished');
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(GameNotRunningError);
+  });
+
+  it('refuse une partie inconnue', async () => {
+    const { useCase } = await build();
+    await expect(useCase.execute({ gameId: 'absent' })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/draw-card.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './draw-card.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import type { EventBus } from '@quetzal/core';
+import { GameNotFoundError, GameNotRunningError, NoCardsLeftError } from '../domain/errors.js';
+import { canDraw } from '../domain/game-status.js';
+import type { DeckCard } from '../domain/ports/deck.repository.js';
+import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
+
+export type DrawResult = { drawn: false } | { drawn: true; order: number; card: DeckCard };
+
+@Injectable()
+export class DrawCardUseCase {
+  constructor(
+    private readonly games: GameRepository,
+    private readonly eventBus: EventBus,
+    private readonly random: () => number,
+  ) {}
+
+  async execute(input: { gameId: string }): Promise<DrawResult> {
+    const found = await this.games.findById(input.gameId);
+    if (found === null) throw new GameNotFoundError(input.gameId);
+    if (!canDraw(found.status)) throw new GameNotRunningError(found.status);
+
+    const drawnBefore = await this.games.drawnCards(found.id);
+    const game = await this.reconcile(found, drawnBefore.length);
+
+    const frozen = await this.games.frozenCards(game.id);
+    const alreadyDrawn = new Set(drawnBefore);
+    const remaining = frozen.filter((card) => !alreadyDrawn.has(card.id));
+    if (remaining.length === 0) throw new NoCardsLeftError(game.id);
+
+    const index = Math.floor(this.random() * remaining.length) % remaining.length;
+    const card = remaining[index]!;
+    const order = game.lastDrawOrder + 1;
+
+    const inserted = await this.games.appendDraw(game.id, order, card.id);
+    if (!inserted) return { drawn: false };
+
+    await this.start(game, drawnBefore.length);
+
+    await this.eventBus.emit('loto.card.drawn', {
+      gameId: game.id,
+      order,
+      cardId: card.id,
+      label: card.label,
+    });
+    return { drawn: true, order, card };
+  }
+
+  /**
+   * Répare une partie restée en `open` alors que des cartes sont déjà sorties.
+   * Le port n offre pas de transaction : un incident entre l insertion du
+   * tirage et la bascule laisserait une partie ingagnable, puisque canClaim
+   * exige `running`. Cette réconciliation referme cette fenêtre.
+   */
+  private async reconcile(game: GameState, drawCount: number): Promise<GameState> {
+    if (game.status !== 'open' || drawCount === 0) return game;
+    await this.startFrom(game);
+    const reloaded = await this.games.findById(game.id);
+    if (reloaded === null) throw new GameNotFoundError(game.id);
+    return reloaded;
+  }
+
+  private async start(game: GameState, drawCountBefore: number): Promise<void> {
+    if (game.status !== 'open' || drawCountBefore > 0) return;
+    await this.startFrom(game);
+  }
+
+  private async startFrom(game: GameState): Promise<void> {
+    await this.games.setStatus(game.id, 'running');
+    const teams = await this.games.teams(game.id);
+    await this.eventBus.emit('loto.game.started', {
+      gameId: game.id,
+      deckId: game.deckId,
+      pattern: game.settings.pattern,
+      teamCount: teams.length,
+    });
+  }
+}
+```
+
+Le `tenantId` des charges utiles d événement est ajouté par la couche présentation, qui seule dispose du contexte de requête. Les cas d usage ne le connaissent pas : c est la même raison qui interdit à un module d écrire `tenantId` dans une requête Prisma.
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/draw-card.use-case.spec.ts`
+Attendu : `Tests 10 passed`.
+
+- [ ] **Étape 5 : resserrer le `catch` du dépôt**
+
+Le dépôt Prisma de la tâche 17 avale toutes les erreurs dans `appendDraw`. Maintenant que le cas d usage distingue les deux issues, restreindre au seul cas voulu.
+
+Remplacer le corps de `appendDraw` dans `prisma-game.repository.ts` :
+
+```ts
+  async appendDraw(gameId: string, order: number, cardId: string): Promise<boolean> {
+    try {
+      await this.prisma.loto_Draw.create({ data: { id: newId(), gameId, order, cardId } });
+      return true;
+    } catch (err) {
+      // P2002 : violation d unicité. Les deux contraintes de Loto_Draw rendent
+      // un double appui simultané sans effet plutôt qu erroné (spec 6.1).
+      // Toute autre erreur est une vraie panne et doit remonter.
+      if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002') {
+        return false;
+      }
+      throw err;
+    }
+  }
+```
+
+- [ ] **Étape 6 : relancer les tests d intégration**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : `Tests 15 passed`. Le test « une carte ne sort qu une fois » couvre déjà le chemin P2002 contre un vrai Postgres.
+
+- [ ] **Étape 7 : commit**
+
+```bash
+git add packages/module-loto/src/application/draw-card.use-case.spec.ts
+git commit -m "test(module-loto): tirage, bascule en running et réparation"
+git add packages/module-loto/src/application/draw-card.use-case.ts packages/module-loto/src/infrastructure/prisma-game.repository.ts
+git commit -m "feat(module-loto): cas d usage de tirage
+
+Le premier tirage enregistre la carte ET bascule la partie en running. Les
+dissocier produirait une partie qui accumule des tirages en restant open,
+donc ingagnable puisque canClaim exige running, avec un écran parfaitement
+normal. Une réconciliation en tête de méthode répare ce cas s il survient.
+
+Le catch de appendDraw est resserré à P2002 : une vraie panne doit remonter."
+```
+
+### Tâche 24 : Cas d usage — marquer une case
+
+Décision D2 : le marquage est un état partagé sans autorité. Il est persisté et diffusé aux coéquipiers, parce qu une tabla d équipe doit être vue à l identique par tous et survivre à une coupure réseau. **Il ne participe jamais à une décision de jeu.**
+
+Ce cas d usage est donc volontairement pauvre : il écrit et il diffuse, il ne décide rien. La tâche suivante, la réclamation, ne le lit pas.
+
+**Fichiers :**
+- Modifier : `packages/module-loto/src/domain/game-status.ts`
+- Test : `packages/module-loto/src/domain/game-status.spec.ts`
+- Modifier : `packages/module-loto/src/domain/errors.ts`
+- Test : `packages/module-loto/src/domain/errors.spec.ts`
+- Créer : `packages/module-loto/src/application/toggle-mark.use-case.ts`
+- Test : `packages/module-loto/src/application/toggle-mark.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire les tests de domaine qui échouent**
+
+À ajouter dans `game-status.spec.ts`, dans le `describe('actions permises par état')` existant :
+
+```ts
+  it('on marque dans une partie ouverte ou en cours, jamais avant ni après', () => {
+    expect(canMark('open')).toBe(true);
+    expect(canMark('running')).toBe(true);
+    expect(canMark('draft')).toBe(false);
+    expect(canMark('finished')).toBe(false);
+  });
+```
+
+Et `canMark` rejoint la liste d imports en tête du fichier.
+
+À ajouter dans `errors.spec.ts`, dans le `describe('erreurs des cas d usage')` :
+
+```ts
+  it('couvre aussi la carte hors tabla et l équipe inconnue', () => {
+    expect(new CardNotOnTablaError('c-9')).toBeInstanceOf(DomainError);
+    expect(new TeamNotFoundError('t-9')).toBeInstanceOf(DomainError);
+    expect(new CardNotOnTablaError('c-9').message).toContain('c-9');
+    expect(new TeamNotFoundError('t-9').message).toContain('t-9');
+  });
+```
+
+Et les deux noms rejoignent l import.
+
+- [ ] **Étape 2 : lancer les tests et vérifier qu ils échouent**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/game-status.spec.ts src/domain/errors.spec.ts`
+Attendu : ÉCHEC, `canMark is not a function` et `CardNotOnTablaError is not a constructor`.
+
+- [ ] **Étape 3 : écrire l implémentation de domaine**
+
+À ajouter dans `game-status.ts` :
+
+```ts
+/** Un élève peut marquer dès la salle d attente : c est sans effet, et sans risque. */
+export function canMark(status: GameStatus): boolean {
+  return status === 'open' || status === 'running';
+}
+```
+
+À ajouter dans `errors.ts` :
+
+```ts
+export class CardNotOnTablaError extends DomainError {
+  constructor(cardId: string) {
+    super(`Carte ${cardId} absente de la tabla de l équipe`);
+  }
+}
+
+export class TeamNotFoundError extends DomainError {
+  constructor(teamId: string) {
+    super(`Équipe introuvable : ${teamId}`);
+  }
+}
+```
+
+- [ ] **Étape 4 : lancer les tests de domaine et vérifier qu ils passent**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/game-status.spec.ts src/domain/errors.spec.ts`
+Attendu : `Tests 19 passed` sur les deux fichiers réunis.
+
+- [ ] **Étape 5 : commit du domaine**
+
+```bash
+git add packages/module-loto/src/domain/game-status.spec.ts packages/module-loto/src/domain/errors.spec.ts
+git commit -m "test(module-loto): canMark et deux erreurs de plus"
+git add packages/module-loto/src/domain/game-status.ts packages/module-loto/src/domain/errors.ts
+git commit -m "feat(module-loto): canMark, CardNotOnTablaError, TeamNotFoundError"
+```
+
+- [ ] **Étape 6 : écrire le test du cas d usage qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { CardNotOnTablaError, GameNotRunningError, TeamNotFoundError } from '../domain/errors.js';
+import { ToggleMarkUseCase } from './toggle-mark.use-case.js';
+import { FakeGameRepository } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+async function build() {
+  const games = new FakeGameRepository();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS },
+  });
+  await games.setStatus(game.id, 'running');
+  const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: ['c1', 'c2', 'c3'] });
+  const useCase = new ToggleMarkUseCase(games);
+  return { games, game, team, useCase };
+}
+
+describe('ToggleMarkUseCase', () => {
+  it('marque une case de la tabla', async () => {
+    const { games, game, team, useCase } = await build();
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c2', marked: true });
+
+    expect(result.marked).toBe(true);
+    const teams = await games.teams(game.id);
+    expect(teams[0]?.markedCardIds).toEqual(['c2']);
+  });
+
+  it('démarque une case déjà marquée', async () => {
+    const { games, game, team, useCase } = await build();
+    await useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c2', marked: true });
+
+    await useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c2', marked: false });
+
+    const teams = await games.teams(game.id);
+    expect(teams[0]?.markedCardIds).toEqual([]);
+  });
+
+  it('marquer deux fois la même case ne la duplique pas', async () => {
+    const { games, game, team, useCase } = await build();
+    await useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c2', marked: true });
+    await useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c2', marked: true });
+
+    const teams = await games.teams(game.id);
+    expect(teams[0]?.markedCardIds).toEqual(['c2']);
+  });
+
+  it('refuse une carte absente de la tabla de l équipe', async () => {
+    const { game, team, useCase } = await build();
+    await expect(
+      useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c99', marked: true }),
+    ).rejects.toBeInstanceOf(CardNotOnTablaError);
+  });
+
+  it('refuse une équipe inconnue', async () => {
+    const { game, useCase } = await build();
+    await expect(
+      useCase.execute({ gameId: game.id, teamId: 'absent', cardId: 'c1', marked: true }),
+    ).rejects.toBeInstanceOf(TeamNotFoundError);
+  });
+
+  it('refuse de marquer dans une partie terminée', async () => {
+    const { games, game, team, useCase } = await build();
+    await games.setStatus(game.id, 'finished');
+    await expect(
+      useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c1', marked: true }),
+    ).rejects.toBeInstanceOf(GameNotRunningError);
+  });
+
+  it('ne touche jamais aux cartes de la tabla en écrivant un marquage', async () => {
+    const { games, game, team, useCase } = await build();
+    await useCase.execute({ gameId: game.id, teamId: team.id, cardId: 'c1', marked: true });
+
+    const teams = await games.teams(game.id);
+    expect(teams[0]?.cardIds).toEqual(['c1', 'c2', 'c3']);
+  });
+});
+```
+
+- [ ] **Étape 7 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/toggle-mark.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './toggle-mark.use-case.js'`.
+
+- [ ] **Étape 8 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import {
+  CardNotOnTablaError,
+  GameNotFoundError,
+  GameNotRunningError,
+  TeamNotFoundError,
+} from '../domain/errors.js';
+import { canMark } from '../domain/game-status.js';
+import type { GameRepository } from '../domain/ports/game.repository.js';
+
+export interface ToggleMarkResult {
+  teamId: string;
+  cardId: string;
+  marked: boolean;
+  markedCardIds: string[];
+}
+
+/**
+ * Décision D2 : ce cas d usage écrit un état partagé sans autorité. Aucune
+ * décision de jeu ne lit ce qu il écrit — la réclamation part des seuls
+ * tirages du serveur. Ajouter ici une validation « la carte a-t-elle été
+ * tirée » donnerait au marquage une autorité qu il ne doit pas avoir.
+ */
+@Injectable()
+export class ToggleMarkUseCase {
+  constructor(private readonly games: GameRepository) {}
+
+  async execute(input: {
+    gameId: string;
+    teamId: string;
+    cardId: string;
+    marked: boolean;
+  }): Promise<ToggleMarkResult> {
+    const game = await this.games.findById(input.gameId);
+    if (game === null) throw new GameNotFoundError(input.gameId);
+    if (!canMark(game.status)) throw new GameNotRunningError(game.status);
+
+    const teams = await this.games.teams(game.id);
+    const team = teams.find((candidate) => candidate.id === input.teamId);
+    if (team === undefined) throw new TeamNotFoundError(input.teamId);
+    if (!team.cardIds.includes(input.cardId)) throw new CardNotOnTablaError(input.cardId);
+
+    const without = team.markedCardIds.filter((cardId) => cardId !== input.cardId);
+    const markedCardIds = input.marked ? [...without, input.cardId] : without;
+    await this.games.setMarks(team.id, markedCardIds);
+
+    return { teamId: team.id, cardId: input.cardId, marked: input.marked, markedCardIds };
+  }
+}
+```
+
+- [ ] **Étape 9 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/toggle-mark.use-case.spec.ts`
+Attendu : `Tests 7 passed`.
+
+- [ ] **Étape 10 : commit**
+
+```bash
+git add packages/module-loto/src/application/toggle-mark.use-case.spec.ts
+git commit -m "test(module-loto): marquage partagé, sans autorité"
+git add packages/module-loto/src/application/toggle-mark.use-case.ts
+git commit -m "feat(module-loto): cas d usage de marquage
+
+Écrit et diffuse, ne décide rien. Décision D2."
+```
+
+### Tâche 25 : Cas d usage — réclamer
+
+Le cœur du module. C est ici, et nulle part ailleurs, que le cas adversarial de D1 peut enfin s écrire : une équipe dont le marquage dessine une figure parfaite alors que rien n a été tiré doit voir sa réclamation refusée et se faire pénaliser.
+
+Le domaine ne peut pas porter ce test, puisqu il n accepte aucune entrée de marquage avec laquelle mentir. La couche application, elle, a les deux sous la main — et c est précisément pour cela que le brand `DrawnCardId` existe.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/claim.use-case.ts`
+- Test : `packages/module-loto/src/application/claim.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import type { EventBus } from '@quetzal/core';
+import {
+  GameNotFoundError,
+  GameNotRunningError,
+  TeamBlockedError,
+  TeamNotFoundError,
+} from '../domain/errors.js';
+import { ClaimUseCase } from './claim.use-case.js';
+import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const TABLA = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'];
+
+async function build(penalty = 3) {
+  const games = new FakeGameRepository();
+  const bus = new RecordingEventBus();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS, falseClaimPenaltyDraws: penalty },
+  });
+  await games.freezeCards(
+    game.id,
+    TABLA.map((label, i) => ({ rank: i + 1, label, imageId: null })),
+  );
+  await games.setStatus(game.id, 'running');
+  const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: [...TABLA] });
+  const useCase = new ClaimUseCase(games, bus as unknown as EventBus);
+  return { games, bus, game, team, useCase };
+}
+
+/** Enregistre des tirages réels, comme le ferait le cas d usage de tirage. */
+async function draw(games: FakeGameRepository, gameId: string, cardIds: string[]): Promise<void> {
+  let order = 0;
+  for (const cardId of cardIds) await games.appendDraw(gameId, ++order, cardId);
+}
+
+describe('ClaimUseCase', () => {
+  it('valide une réclamation appuyée sur une ligne réellement tirée', async () => {
+    const { games, bus, game, team, useCase } = await build();
+    await draw(games, game.id, ['a', 'b', 'c', 'd']);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.valid).toBe(true);
+    const reloaded = await games.findById(game.id);
+    expect(reloaded?.status).toBe('finished');
+    expect(reloaded?.wonByTeamId).toBe(team.id);
+    expect(bus.names()).toContain('loto.game.finished');
+  });
+
+  it('LE TEST QUI COMPTE : un marquage parfait sans aucun tirage ne gagne rien', async () => {
+    const { games, game, team, useCase } = await build();
+    // L équipe prétend avoir marqué une línea entière. Le serveur n a rien tiré.
+    await games.setMarks(team.id, ['a', 'b', 'c', 'd']);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.valid).toBe(false);
+    const reloaded = await games.findById(game.id);
+    expect(reloaded?.status).toBe('running');
+    expect(reloaded?.wonByTeamId).toBeNull();
+  });
+
+  it('un marquage falsifié coûte la pénalité, comme n importe quelle fausse réclamation', async () => {
+    const { games, game, team, useCase } = await build(3);
+    await draw(games, game.id, ['a', 'b']);
+    await games.setMarks(team.id, ['a', 'b', 'c', 'd']);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.valid).toBe(false);
+    expect(result.blockedUntilDraw).toBe(5);
+    const teams = await games.teams(game.id);
+    expect(teams[0]?.blockedUntilDraw).toBe(5);
+  });
+
+  it('publie claim.rejected sur une fausse réclamation', async () => {
+    const { games, bus, game, team, useCase } = await build();
+    await draw(games, game.id, ['a']);
+
+    await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(bus.names()).toEqual(['loto.claim.rejected']);
+    expect(bus.names()).not.toContain('loto.game.finished');
+  });
+
+  it('enregistre chaque réclamation, valide ou non', async () => {
+    const { games, game, team, useCase } = await build();
+    await draw(games, game.id, ['a']);
+    await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(games.claims).toHaveLength(1);
+    expect(games.claims[0]).toMatchObject({ teamId: team.id, atDraw: 1, valid: false });
+  });
+
+  it('refuse une réclamation tant que la pénalité court', async () => {
+    const { games, game, team, useCase } = await build(3);
+    await draw(games, game.id, ['a', 'b']);
+    await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    await draw(games, game.id, ['c']);
+    await expect(useCase.execute({ gameId: game.id, teamId: team.id })).rejects.toBeInstanceOf(TeamBlockedError);
+  });
+
+  it('libère l équipe au tirage de la borne', async () => {
+    const { games, game, team, useCase } = await build(3);
+    await draw(games, game.id, ['a', 'b']);
+    await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    await draw(games, game.id, ['c', 'd', 'e']);
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+    expect(result.valid).toBe(true);
+  });
+
+  it('sans pénalité configurée, une fausse réclamation ne bloque rien', async () => {
+    const { games, game, team, useCase } = await build(0);
+    await draw(games, game.id, ['a']);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+    expect(result.blockedUntilDraw).toBe(0);
+
+    const again = await useCase.execute({ gameId: game.id, teamId: team.id });
+    expect(again.valid).toBe(false);
+  });
+
+  it('refuse de réclamer dans une partie qui n est pas en cours', async () => {
+    const { games, game, team, useCase } = await build();
+    await games.setStatus(game.id, 'open');
+    await expect(useCase.execute({ gameId: game.id, teamId: team.id })).rejects.toBeInstanceOf(GameNotRunningError);
+  });
+
+  it('refuse une équipe inconnue', async () => {
+    const { game, useCase } = await build();
+    await expect(useCase.execute({ gameId: game.id, teamId: 'absent' })).rejects.toBeInstanceOf(TeamNotFoundError);
+  });
+
+  it('refuse une partie inconnue', async () => {
+    const { team, useCase } = await build();
+    await expect(useCase.execute({ gameId: 'absent', teamId: team.id })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/claim.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './claim.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import type { EventBus } from '@quetzal/core';
+import { isWinningClaim } from '../domain/claim.js';
+import { drawnCardIds } from '../domain/drawn-cards.js';
+import { GameNotFoundError, GameNotRunningError, TeamBlockedError, TeamNotFoundError } from '../domain/errors.js';
+import { canClaim } from '../domain/game-status.js';
+import { blockUntil, isBlocked } from '../domain/penalty.js';
+import type { GameRepository } from '../domain/ports/game.repository.js';
+
+export interface ClaimResult {
+  valid: boolean;
+  atDraw: number;
+  blockedUntilDraw: number;
+}
+
+@Injectable()
+export class ClaimUseCase {
+  constructor(
+    private readonly games: GameRepository,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async execute(input: { gameId: string; teamId: string }): Promise<ClaimResult> {
+    const game = await this.games.findById(input.gameId);
+    if (game === null) throw new GameNotFoundError(input.gameId);
+    if (!canClaim(game.status)) throw new GameNotRunningError(game.status);
+
+    const teams = await this.games.teams(game.id);
+    const team = teams.find((candidate) => candidate.id === input.teamId);
+    if (team === undefined) throw new TeamNotFoundError(input.teamId);
+    if (isBlocked(team.blockedUntilDraw, game.lastDrawOrder)) {
+      throw new TeamBlockedError(team.blockedUntilDraw);
+    }
+
+    // Décision D1. `team.markedCardIds` est juste là, du même type, et n est
+    // pas lu. Le brand DrawnCardId fait que le confondre avec ceci ne compile
+    // pas : c est la seule protection structurelle de cet invariant.
+    const drawn = drawnCardIds(await this.games.drawnCards(game.id));
+
+    const valid = isWinningClaim({
+      tablaCardIds: team.cardIds,
+      drawnCardIds: drawn,
+      pattern: game.settings.pattern,
+    });
+
+    await this.games.recordClaim({
+      gameId: game.id,
+      teamId: team.id,
+      atDraw: game.lastDrawOrder,
+      valid,
+    });
+
+    if (valid) {
+      await this.games.setStatus(game.id, 'finished', { wonByTeamId: team.id });
+      await this.eventBus.emit('loto.game.finished', {
+        gameId: game.id,
+        wonByTeamId: team.id,
+        pattern: game.settings.pattern,
+        drawCount: game.lastDrawOrder,
+      });
+      return { valid: true, atDraw: game.lastDrawOrder, blockedUntilDraw: team.blockedUntilDraw };
+    }
+
+    const blockedUntilDraw = blockUntil(game.lastDrawOrder, game.settings.falseClaimPenaltyDraws);
+    await this.games.blockTeam(team.id, blockedUntilDraw);
+    await this.eventBus.emit('loto.claim.rejected', {
+      gameId: game.id,
+      teamId: team.id,
+      atDraw: game.lastDrawOrder,
+      blockedUntilDraw,
+    });
+    return { valid: false, atDraw: game.lastDrawOrder, blockedUntilDraw };
+  }
+}
+```
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/claim.use-case.spec.ts`
+Attendu : `Tests 11 passed`.
+
+- [ ] **Étape 5 : vérifier que le brand tient vraiment**
+
+Ouvrir `claim.use-case.ts` et remplacer temporairement la ligne du tirage par la version catastrophique :
+
+```ts
+    const drawn = drawnCardIds(team.markedCardIds);
+```
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck`
+Attendu : **aucune erreur**. Le brand n interdit pas cet appel, il le rend visible : la fabrique s appelle `drawnCardIds` et son paramètre s appelle `fromServerDraws`, donc la ligne se lit « les cartes tirées par le serveur sont le marquage du client », ce qui est absurde à la relecture.
+
+Lancer ensuite : `pnpm --filter @quetzal/module-loto exec vitest run src/application/claim.use-case.spec.ts`
+Attendu : **ÉCHEC** du test « LE TEST QUI COMPTE ». C est lui, et non le compilateur, qui attrape cette forme-là.
+
+Essayer maintenant la variante que le compilateur attrape :
+
+```ts
+    const drawn = new Set(team.markedCardIds);
+```
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck`
+Attendu : **ÉCHEC**, `Type 'Set<string>' is not assignable to type 'ReadonlySet<DrawnCardId>'`.
+
+Rétablir la bonne ligne avant de continuer. Cette étape ne produit aucun commit : elle existe pour que l exécutant constate de ses yeux ce que chaque filet attrape, et ce qu il n attrape pas.
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git add packages/module-loto/src/application/claim.use-case.spec.ts
+git commit -m "test(module-loto): réclamation, dont le marquage falsifié
+
+Le cas adversarial de D1 ne peut s écrire qu ici : le domaine n accepte
+aucune entrée de marquage avec laquelle mentir."
+git add packages/module-loto/src/application/claim.use-case.ts
+git commit -m "feat(module-loto): cas d usage de réclamation
+
+Le serveur croise la tabla avec ses propres tirages, jamais avec le marquage.
+La triche par marquage falsifié n a pas à être détectée : elle est sans objet."
+```
