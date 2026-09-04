@@ -5004,6 +5004,141 @@ cours l utilise. Dupliquer reste toujours possible : c est le geste qui
 permet de repartir d un jeu pendant qu il sert."
 ```
 
+### Tâche 28 : Cas d usage — arrêter la partie
+
+Spec section 5.4 : une partie se termine sur une réclamation valide, ou parce que l animatrice l arrête. Le second chemin manquait. Il sert deux fois par séance : la sonnerie tombe avant qu une équipe ait gagné, ou la salle d attente se referme sur une partie que personne n a rejointe.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/finish-game.use-case.ts`
+- Test : `packages/module-loto/src/application/finish-game.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import type { EventBus } from '@quetzal/core';
+import { GameNotFoundError, InvalidGameTransitionError } from '../domain/errors.js';
+import { FinishGameUseCase } from './finish-game.use-case.js';
+import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+async function build(status: 'draft' | 'open' | 'running' | 'finished' = 'running') {
+  const games = new FakeGameRepository();
+  const bus = new RecordingEventBus();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS },
+  });
+  await games.setStatus(game.id, status);
+  const useCase = new FinishGameUseCase(games, bus as unknown as EventBus);
+  return { games, bus, game, useCase };
+}
+
+describe('FinishGameUseCase', () => {
+  it('arrête une partie en cours, sans gagnante', async () => {
+    const { games, game, useCase } = await build('running');
+
+    const finished = await useCase.execute({ gameId: game.id });
+
+    expect(finished.status).toBe('finished');
+    expect(finished.wonByTeamId).toBeNull();
+    expect((await games.findById(game.id))?.status).toBe('finished');
+  });
+
+  it('referme une salle d attente que personne n a rejointe', async () => {
+    const { game, useCase } = await build('open');
+    const finished = await useCase.execute({ gameId: game.id });
+    expect(finished.status).toBe('finished');
+  });
+
+  it('publie game.finished sans équipe gagnante', async () => {
+    const { bus, game, useCase } = await build('running');
+    await useCase.execute({ gameId: game.id });
+
+    expect(bus.names()).toEqual(['loto.game.finished']);
+    expect(bus.emitted[0]?.payload).toMatchObject({ wonByTeamId: null });
+  });
+
+  it('refuse d arrêter une partie encore en brouillon', async () => {
+    const { game, useCase } = await build('draft');
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(InvalidGameTransitionError);
+  });
+
+  it('refuse d arrêter deux fois', async () => {
+    const { game, useCase } = await build('running');
+    await useCase.execute({ gameId: game.id });
+    await expect(useCase.execute({ gameId: game.id })).rejects.toBeInstanceOf(InvalidGameTransitionError);
+  });
+
+  it('refuse une partie inconnue', async () => {
+    const { useCase } = await build();
+    await expect(useCase.execute({ gameId: 'absent' })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/finish-game.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './finish-game.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import type { EventBus } from '@quetzal/core';
+import { GameNotFoundError } from '../domain/errors.js';
+import { assertTransition } from '../domain/game-status.js';
+import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
+
+@Injectable()
+export class FinishGameUseCase {
+  constructor(
+    private readonly games: GameRepository,
+    private readonly eventBus: EventBus,
+  ) {}
+
+  async execute(input: { gameId: string }): Promise<GameState> {
+    const game = await this.games.findById(input.gameId);
+    if (game === null) throw new GameNotFoundError(input.gameId);
+    assertTransition(game.status, 'finished');
+
+    await this.games.setStatus(game.id, 'finished');
+    await this.eventBus.emit('loto.game.finished', {
+      gameId: game.id,
+      wonByTeamId: null,
+      pattern: game.settings.pattern,
+      drawCount: game.lastDrawOrder,
+    });
+
+    const reloaded = await this.games.findById(game.id);
+    if (reloaded === null) throw new GameNotFoundError(game.id);
+    return reloaded;
+  }
+}
+```
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/finish-game.use-case.spec.ts`
+Attendu : `Tests 6 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/application/finish-game.use-case.spec.ts
+git commit -m "test(module-loto): arrêt de partie par l animatrice"
+git add packages/module-loto/src/application/finish-game.use-case.ts
+git commit -m "feat(module-loto): cas d usage d arrêt de partie
+
+Second chemin vers finished, prévu par la spec section 5.4 : la sonnerie
+tombe avant la victoire, ou la salle d attente se referme sur une partie que
+personne n a rejointe."
+```
+
 **Fin de l étape 2.** Vérification complète avant de passer au temps réel :
 
 - [ ] Lancer : `pnpm --filter @quetzal/module-loto test`
@@ -5016,3 +5151,705 @@ permet de repartir d un jeu pendant qu il sert."
       Attendu : aucune correspondance. Le domaine est resté pur malgré une couche application entière posée dessus.
 - [ ] Lancer : `grep -rn "markedCardIds" packages/module-loto/src/application/`
       Attendu : deux fichiers seulement, `toggle-mark.use-case.ts` qui l écrit et `game-snapshot.use-case.ts` qui l affiche. **Si `claim.use-case.ts` apparaît dans cette liste, s arrêter et relire la décision D1.**
+
+## Étape 3 — Temps réel et écrans
+
+But de l étape : le module devient un vrai module de la plateforme. Manifeste, routes HTTP, passerelle WebSocket, écran animateur, écran joueur. À la fin, une partie se joue de bout en bout dans un navigateur.
+
+### Tâche 29 : Manifeste, catalogues et suite de contrat
+
+Deux entrées, comme le veut le contrat : `./manifest` côté serveur, `./client` côté hôte. Le piège a déjà coûté une session au sous-projet 1 : l entrée racine d un module tire NestJS dans le bundle Next, et le host ne doit jamais l importer.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/client.ts`
+- Créer : `packages/module-loto/src/manifest.ts`
+- Créer : `packages/module-loto/src/index.ts`
+- Créer : `packages/module-loto/src/i18n/fr.json`
+- Créer : `packages/module-loto/src/i18n/en.json`
+- Créer : `packages/module-loto/src/i18n/es.json`
+- Test : `packages/module-loto/tests/manifest.spec.ts`
+
+- [ ] **Étape 1 : écrire le test de contrat**
+
+`tests/manifest.spec.ts`, calqué sur celui de `module-hello` :
+
+```ts
+import { runContractSuite } from '@quetzal/core/testing/index';
+import { resolve } from 'node:path';
+import { manifest } from '../src/manifest.js';
+
+runContractSuite(manifest, { moduleRoot: resolve(import.meta.dirname, '..') });
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run tests/manifest.spec.ts`
+Attendu : ÉCHEC, `Cannot find module '../src/manifest.js'`.
+
+- [ ] **Étape 3 : écrire les catalogues de traduction**
+
+Parité stricte des clés entre les trois langues : la suite de contrat la vérifie, et une clé manquante fait échouer le build de l hôte.
+
+`src/i18n/fr.json` :
+
+```json
+{
+  "module": {
+    "loto": {
+      "nav": { "title": "Lotería" },
+      "decks": {
+        "title": "Jeux de cartes",
+        "empty": "Aucun jeu de cartes pour l instant",
+        "cardCount": "{count, plural, one {# carte} other {# cartes}}",
+        "duplicate": "Dupliquer",
+        "createBlank": "Créer un jeu vierge",
+        "rename": "Renommer",
+        "delete": "Supprimer",
+        "deleteWarning": "Supprimer ce jeu efface aussi l historique des parties qui s y rattachent. Cette action est définitive.",
+        "locked": "Ce jeu est utilisé par une partie en cours, il ne peut pas être modifié",
+        "tooSmall": "Il faut au moins 16 cartes pour jouer"
+      },
+      "game": {
+        "create": "Nouvelle partie",
+        "pattern": "Figure gagnante",
+        "maxTeams": "Nombre maximum d équipes",
+        "penalty": "Pénalité de fausse réclamation, en tours",
+        "open": "Ouvrir la salle",
+        "draw": "Tirer une carte",
+        "finish": "Arrêter la partie",
+        "joinCode": "Code d entrée",
+        "waiting": "En attente des joueurs",
+        "remaining": "{count, plural, one {# carte restante} other {# cartes restantes}}",
+        "wonBy": "Victoire de {team}",
+        "stopped": "Partie arrêtée"
+      },
+      "pattern": {
+        "linea": "Línea",
+        "esquinas": "Cuatro esquinas",
+        "centro": "El centro",
+        "llena": "Lotería llena"
+      },
+      "team": { "numbered": "Équipe {number}" },
+      "player": {
+        "claim": "¡Lotería!",
+        "blocked": "Réclamation bloquée jusqu au tirage {draw}",
+        "rejected": "Réclamation refusée",
+        "waiting": "La partie va commencer"
+      }
+    }
+  }
+}
+```
+
+`src/i18n/es.json` :
+
+```json
+{
+  "module": {
+    "loto": {
+      "nav": { "title": "Lotería" },
+      "decks": {
+        "title": "Barajas",
+        "empty": "Todavía no hay ninguna baraja",
+        "cardCount": "{count, plural, one {# carta} other {# cartas}}",
+        "duplicate": "Duplicar",
+        "createBlank": "Crear una baraja vacía",
+        "rename": "Renombrar",
+        "delete": "Eliminar",
+        "deleteWarning": "Eliminar esta baraja borra también el historial de las partidas asociadas. Esta acción es definitiva.",
+        "locked": "Una partida en curso usa esta baraja, no se puede modificar",
+        "tooSmall": "Hacen falta al menos 16 cartas para jugar"
+      },
+      "game": {
+        "create": "Nueva partida",
+        "pattern": "Figura ganadora",
+        "maxTeams": "Número máximo de equipos",
+        "penalty": "Penalización por falsa lotería, en turnos",
+        "open": "Abrir la sala",
+        "draw": "Sacar una carta",
+        "finish": "Terminar la partida",
+        "joinCode": "Código de entrada",
+        "waiting": "Esperando a los jugadores",
+        "remaining": "{count, plural, one {# carta restante} other {# cartas restantes}}",
+        "wonBy": "Gana {team}",
+        "stopped": "Partida terminada"
+      },
+      "pattern": {
+        "linea": "Línea",
+        "esquinas": "Cuatro esquinas",
+        "centro": "El centro",
+        "llena": "Lotería llena"
+      },
+      "team": { "numbered": "Equipo {number}" },
+      "player": {
+        "claim": "¡Lotería!",
+        "blocked": "Lotería bloqueada hasta la carta {draw}",
+        "rejected": "Lotería rechazada",
+        "waiting": "La partida va a empezar"
+      }
+    }
+  }
+}
+```
+
+`src/i18n/en.json` :
+
+```json
+{
+  "module": {
+    "loto": {
+      "nav": { "title": "Lotería" },
+      "decks": {
+        "title": "Card decks",
+        "empty": "No card deck yet",
+        "cardCount": "{count, plural, one {# card} other {# cards}}",
+        "duplicate": "Duplicate",
+        "createBlank": "Create an empty deck",
+        "rename": "Rename",
+        "delete": "Delete",
+        "deleteWarning": "Deleting this deck also erases the history of the games that use it. This cannot be undone.",
+        "locked": "A running game uses this deck, it cannot be edited",
+        "tooSmall": "At least 16 cards are needed to play",
+        "cardCount_": ""
+      },
+      "game": {
+        "create": "New game",
+        "pattern": "Winning pattern",
+        "maxTeams": "Maximum number of teams",
+        "penalty": "False claim penalty, in turns",
+        "open": "Open the room",
+        "draw": "Draw a card",
+        "finish": "Stop the game",
+        "joinCode": "Join code",
+        "waiting": "Waiting for players",
+        "remaining": "{count, plural, one {# card left} other {# cards left}}",
+        "wonBy": "{team} wins",
+        "stopped": "Game stopped"
+      },
+      "pattern": {
+        "linea": "Línea",
+        "esquinas": "Cuatro esquinas",
+        "centro": "El centro",
+        "llena": "Lotería llena"
+      },
+      "team": { "numbered": "Team {number}" },
+      "player": {
+        "claim": "¡Lotería!",
+        "blocked": "Claim blocked until draw {draw}",
+        "rejected": "Claim rejected",
+        "waiting": "The game is about to start"
+      }
+    }
+  }
+}
+```
+
+**Attention** : la clé `"cardCount_": ""` ci-dessus est délibérément fausse. Elle n existe ni en français ni en espagnol. Elle sert à vérifier, à l étape suivante, que la suite de contrat attrape bien une rupture de parité. La retirer une fois l échec constaté.
+
+Les quatre noms de figures ne sont pas traduits : ce sont les noms espagnols du jeu, et une enseignante d espagnol ne dit pas « ligne » en classe.
+
+- [ ] **Étape 4 : écrire le manifeste client**
+
+`src/client.ts` :
+
+```ts
+import type { ClientModuleManifest } from '@quetzal/core';
+
+// Bundlé par le host (Next.js) : surface UI seulement, aucun import serveur ici.
+export const clientManifest: ClientModuleManifest = {
+  slug: 'loto',
+  name: { fr: 'Lotería', en: 'Lotería', es: 'Lotería' },
+  uiRoutes: [
+    {
+      path: '',
+      component: () => import('./presentation/ui/decks-page.js'),
+      requiredRoles: ['owner', 'creator'],
+      layout: 'shell',
+    },
+    {
+      path: 'games/:gameId',
+      component: () => import('./presentation/ui/animator-page.js'),
+      requiredRoles: ['owner', 'creator'],
+      layout: 'shell',
+    },
+  ],
+  navItem: {
+    icon: 'grid-3x3',
+    labelKey: 'module.loto.nav.title',
+    visibleTo: ['owner', 'creator'],
+    order: 20,
+  },
+  guestJoinComponent: () => import('./presentation/ui/guest-join.js'),
+};
+```
+
+- [ ] **Étape 5 : écrire le manifeste serveur**
+
+`src/manifest.ts` :
+
+```ts
+import type { QuetzalModuleManifest } from '@quetzal/core';
+import { LotoModule } from './loto.module.js';
+import { clientManifest } from './client.js';
+
+export const manifest: QuetzalModuleManifest = {
+  ...clientManifest,
+  description: {
+    fr: 'Lotería mexicaine jouable en classe',
+    en: 'Mexican lotería playable in class',
+    es: 'Lotería mexicana para jugar en clase',
+  },
+  version: '0.1.0',
+  contractVersion: '1.0.0',
+  enabledByDefault: false,
+  apiModule: LotoModule,
+  eventsPublished: [
+    { name: 'loto.game.started', typeRef: 'LotoGameStartedEvent' },
+    { name: 'loto.card.drawn', typeRef: 'LotoCardDrawnEvent' },
+    { name: 'loto.claim.rejected', typeRef: 'LotoClaimRejectedEvent' },
+    { name: 'loto.game.finished', typeRef: 'LotoGameFinishedEvent' },
+  ],
+  permissions: {
+    'http:GET /api/modules/loto/decks': ['owner', 'creator'],
+    'http:POST /api/modules/loto/decks': ['owner', 'creator'],
+    'http:PATCH /api/modules/loto/decks/:id': ['owner', 'creator'],
+    'http:DELETE /api/modules/loto/decks/:id': ['owner', 'creator'],
+    'http:GET /api/modules/loto/games': ['owner', 'creator'],
+    'http:POST /api/modules/loto/games': ['owner', 'creator'],
+    'http:POST /api/modules/loto/games/:id/open': ['owner', 'creator'],
+    'http:POST /api/modules/loto/games/:id/draw': ['owner', 'creator'],
+    'http:POST /api/modules/loto/games/:id/finish': ['owner', 'creator'],
+    'ws:mark': ['guest', 'learner'],
+    'ws:claim': ['guest', 'learner'],
+  },
+  guestAccess: {
+    enabled: true,
+    tokenTTL: 7200,
+    requireDisplayName: true,
+    maxConcurrentPerSession: 40,
+  },
+  prismaModels: 'prisma/models.prisma',
+};
+```
+
+`enabledByDefault: false` : contrairement au module stub, la lotería s active par locataire. Les deux routes d images de la spec section 8.3 ne sont pas déclarées ici — elles arrivent avec leurs contrôleurs à l étape 6. Déclarer une permission pour une route qui n existe pas donnerait une matrice qui ment.
+
+`maxConcurrentPerSession: 40` : une classe entière plus quelques reconnexions, pas cent comme le module stub.
+
+**Rappel de la convention de sécurité WS** posée au sous-projet 1 : tout message WebSocket doit figurer dans `permissions` sous `ws:<event>`, sinon il est refusé pour tout le monde, fail closed. Ajouter un message côté passerelle sans l ajouter ici produit un message qui ne passe jamais, sans erreur visible côté client.
+
+- [ ] **Étape 6 : écrire l entrée racine**
+
+`src/index.ts` :
+
+```ts
+export { manifest } from './manifest.js';
+export { LotoModule } from './loto.module.js';
+```
+
+- [ ] **Étape 7 : lancer la suite de contrat et constater qu elle attrape la parité**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run tests/manifest.spec.ts`
+Attendu : ÉCHEC sur la parité des clés i18n, à cause de `cardCount_` présente en anglais seulement.
+
+Si la suite passe malgré cette clé, la vérification de parité est cassée : s arrêter et le signaler, c est un défaut du noyau et non du module.
+
+- [ ] **Étape 8 : retirer la clé fautive et vérifier que tout passe**
+
+Retirer `"cardCount_": ""` de `src/i18n/en.json`.
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run tests/manifest.spec.ts`
+Attendu : la suite de contrat passe entièrement.
+
+La tâche 30 crée `loto.module.ts`. Tant qu il n existe pas, `manifest.ts` ne compile pas : enchaîner les deux tâches sans lancer `typecheck` entre elles.
+
+- [ ] **Étape 9 : commit**
+
+```bash
+git add packages/module-loto/tests/manifest.spec.ts
+git commit -m "test(module-loto): suite de contrat du manifeste"
+git add packages/module-loto/src/client.ts packages/module-loto/src/manifest.ts packages/module-loto/src/index.ts packages/module-loto/src/i18n
+git commit -m "feat(module-loto): manifeste, catalogues et matrice de permissions
+
+Deux entrées comme le veut le contrat. Tout message WS est déclaré sous
+ws:<event> : le noyau refuse par défaut ce qui n y figure pas."
+```
+
+### Tâche 30 : Module NestJS et contrôleurs HTTP
+
+Décision D7 : les commandes de l animatrice passent en HTTP, parce qu elles méritent un code de retour et une idempotence claire. Le WebSocket ne sert qu à diffuser.
+
+Première marche : les erreurs de domaine doivent cesser de ressortir en 500. Le filtre global du noyau ne connaît aujourd hui que les erreurs du noyau ; une `DeckTooSmallError` devient une erreur serveur et un bruit Sentry, alors que c est une requête invalide.
+
+**Fichiers :**
+- Modifier : `apps/api/src/filters/global-exception.filter.ts`
+- Test : `apps/api/src/filters/global-exception.filter.spec.ts`
+- Créer : `packages/module-loto/src/presentation/dto/loto.dto.ts`
+- Créer : `packages/module-loto/src/presentation/deck.controller.ts`
+- Créer : `packages/module-loto/src/presentation/game.controller.ts`
+- Créer : `packages/module-loto/src/loto.module.ts`
+
+- [ ] **Étape 1 : écrire le test du filtre qui échoue**
+
+À ajouter dans `apps/api/src/filters/global-exception.filter.spec.ts` :
+
+```ts
+import { DomainError } from '@quetzal/core/errors';
+
+class SampleDomainError extends DomainError {
+  constructor() {
+    super('Un jeu de cartes doit contenir au moins 16 cartes');
+  }
+}
+
+describe('erreurs de domaine des modules', () => {
+  it('répond 400 et non 500 : une règle métier violée est une requête invalide', () => {
+    const { host, status, json } = fakeHost();
+    new GlobalExceptionFilter().catch(new SampleDomainError(), host);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'sample_domain_error' }),
+    );
+  });
+
+  it('transmet le message du domaine, qui est écrit pour être lu', () => {
+    const { host, json } = fakeHost();
+    new GlobalExceptionFilter().catch(new SampleDomainError(), host);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('16 cartes') }),
+    );
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter quetzal-api exec vitest run src/filters/global-exception.filter.spec.ts`
+Attendu : ÉCHEC, `expected 500 to be 400`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+Dans `global-exception.filter.ts`, ajouter l import et la branche, **après** celles de `TenantScopeViolationError` et `TenantContextMissingError` et **avant** le repli en 500 :
+
+```ts
+import { DomainError } from '@quetzal/core/errors';
+
+function toErrorCode(name: string): string {
+  return name
+    .replace(/Error$/, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .toLowerCase();
+}
+```
+
+```ts
+    if (exception instanceof DomainError) {
+      // Une règle métier violée est une requête invalide, pas une panne : ni
+      // 500, ni Sentry. Le message du domaine est écrit pour être lu.
+      logger.warn({ err: exception, path: request.url }, 'domain rule violated');
+      return response.status(HttpStatus.BAD_REQUEST).json({
+        error: toErrorCode(exception.name),
+        message: exception.message,
+      });
+    }
+```
+
+`TenantScopeViolationError` et `TenantContextMissingError` héritent elles aussi de `DomainError` : leurs branches doivent rester **avant** celle-ci, sinon elles perdent leurs codes 403 et 401. Le test existant du sous-projet 1 le vérifie.
+
+- [ ] **Étape 4 : lancer les tests du filtre**
+
+Lancer : `pnpm --filter quetzal-api exec vitest run src/filters/global-exception.filter.spec.ts`
+Attendu : tous les tests passent, y compris les deux du sous-projet 1 sur 401 et 403.
+
+- [ ] **Étape 5 : commit du filtre**
+
+```bash
+git add apps/api/src/filters/global-exception.filter.spec.ts
+git commit -m "test(api): une erreur de domaine de module répond 400"
+git add apps/api/src/filters/global-exception.filter.ts
+git commit -m "feat(api): mappe DomainError vers 400 au lieu de 500
+
+Une règle métier violée est une requête invalide, pas une panne. Les branches
+tenant restent avant celle-ci : elles héritent de DomainError et gardent
+leurs codes 403 et 401."
+```
+
+- [ ] **Étape 6 : écrire les schémas Zod d entrée**
+
+`src/presentation/dto/loto.dto.ts` :
+
+```ts
+import { z } from 'zod';
+import { GAME_STATUSES } from '../../domain/game-status.js';
+import { PATTERN_KEYS } from '../../domain/pattern.js';
+
+export const createDeckSchema = z.object({
+  name: z.string().min(1).max(120),
+  duplicateOf: z.string().min(1).optional(),
+});
+
+export const patchDeckSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  card: z
+    .object({
+      rank: z.number().int().min(1),
+      label: z.string().min(1).max(80).optional(),
+      imageId: z.string().min(1).nullable().optional(),
+    })
+    .optional(),
+});
+
+export const createGameSchema = z.object({
+  deckId: z.string().min(1),
+  pattern: z.enum(PATTERN_KEYS),
+  maxTeams: z.number().int().min(1).max(20),
+  falseClaimPenaltyDraws: z.number().int().min(0).max(99),
+});
+
+export type CreateDeckBody = z.infer<typeof createDeckSchema>;
+export type PatchDeckBody = z.infer<typeof patchDeckSchema>;
+export type CreateGameBody = z.infer<typeof createGameSchema>;
+
+export const gameStatusValues = GAME_STATUSES;
+```
+
+`z.enum(PATTERN_KEYS)` marche directement parce que `PATTERN_KEYS` est déclaré `as const` : c est la deuxième raison d être de ce `as const`, la première étant le typeguard de la tâche 15.
+
+- [ ] **Étape 7 : écrire les contrôleurs**
+
+`src/presentation/deck.controller.ts` :
+
+```ts
+import { Body, Controller, Delete, Get, Param, Patch, Post, BadRequestException } from '@nestjs/common';
+import { ManageDecksUseCase } from '../application/manage-decks.use-case.js';
+import { DeckNotFoundError } from '../domain/errors.js';
+import { getCurrentTenant } from '@quetzal/core';
+import { createDeckSchema, patchDeckSchema } from './dto/loto.dto.js';
+
+@Controller('api/modules/loto/decks')
+export class DeckController {
+  constructor(private readonly decks: ManageDecksUseCase) {}
+
+  @Get()
+  async list() {
+    return { decks: await this.decks.list() };
+  }
+
+  @Post()
+  async create(@Body() body: unknown) {
+    const parsed = createDeckSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const { userId } = getCurrentTenant();
+    if (userId === undefined || userId === null) throw new BadRequestException('Utilisateur requis');
+
+    if (parsed.data.duplicateOf !== undefined) {
+      return this.decks.duplicate({
+        deckId: parsed.data.duplicateOf,
+        name: parsed.data.name,
+        createdBy: userId,
+      });
+    }
+    return this.decks.createBlank({ name: parsed.data.name, createdBy: userId });
+  }
+
+  @Patch(':id')
+  async patch(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = patchDeckSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+
+    if (parsed.data.name !== undefined) {
+      await this.decks.rename({ deckId: id, name: parsed.data.name });
+    }
+    if (parsed.data.card !== undefined) {
+      const { rank, ...patch } = parsed.data.card;
+      await this.decks.editCard({ deckId: id, rank, patch });
+    }
+    return { ok: true };
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string) {
+    await this.decks.delete({ deckId: id });
+    return { ok: true };
+  }
+}
+```
+
+`src/presentation/game.controller.ts` :
+
+```ts
+import { Body, Controller, Get, Param, Post, BadRequestException } from '@nestjs/common';
+import { getCurrentTenant } from '@quetzal/core';
+import { CreateGameUseCase } from '../application/create-game.use-case.js';
+import { DrawCardUseCase } from '../application/draw-card.use-case.js';
+import { FinishGameUseCase } from '../application/finish-game.use-case.js';
+import { GameSnapshotUseCase } from '../application/game-snapshot.use-case.js';
+import { OpenGameUseCase } from '../application/open-game.use-case.js';
+import { LotoBroadcaster } from './loto.broadcaster.js';
+import { createGameSchema } from './dto/loto.dto.js';
+
+@Controller('api/modules/loto/games')
+export class GameController {
+  constructor(
+    private readonly createGame: CreateGameUseCase,
+    private readonly openGame: OpenGameUseCase,
+    private readonly drawCard: DrawCardUseCase,
+    private readonly finishGame: FinishGameUseCase,
+    private readonly snapshot: GameSnapshotUseCase,
+    private readonly broadcaster: LotoBroadcaster,
+  ) {}
+
+  @Post()
+  async create(@Body() body: unknown) {
+    const parsed = createGameSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const { userId } = getCurrentTenant();
+    if (userId === undefined || userId === null) throw new BadRequestException('Utilisateur requis');
+
+    return this.createGame.execute({
+      deckId: parsed.data.deckId,
+      createdBy: userId,
+      settings: {
+        pattern: parsed.data.pattern,
+        maxTeams: parsed.data.maxTeams,
+        falseClaimPenaltyDraws: parsed.data.falseClaimPenaltyDraws,
+      },
+    });
+  }
+
+  @Get(':id')
+  async read(@Param('id') id: string) {
+    return this.snapshot.execute({ gameId: id });
+  }
+
+  @Post(':id/open')
+  async open(@Param('id') id: string) {
+    const game = await this.openGame.execute({ gameId: id });
+    await this.broadcaster.gameChanged(id);
+    return game;
+  }
+
+  @Post(':id/draw')
+  async draw(@Param('id') id: string) {
+    const result = await this.drawCard.execute({ gameId: id });
+    if (result.drawn) {
+      await this.broadcaster.cardDrawn(id, result.order, result.card);
+    }
+    return result;
+  }
+
+  @Post(':id/finish')
+  async finish(@Param('id') id: string) {
+    const game = await this.finishGame.execute({ gameId: id });
+    await this.broadcaster.gameFinished(id, null);
+    return game;
+  }
+}
+```
+
+`LotoBroadcaster` est écrit à la tâche 31. Les deux tâches se compilent ensemble.
+
+- [ ] **Étape 8 : écrire le module NestJS**
+
+`src/loto.module.ts` :
+
+```ts
+import { Module } from '@nestjs/common';
+import { eventBus } from '@quetzal/core';
+import { ClaimUseCase } from './application/claim.use-case.js';
+import { CreateGameUseCase } from './application/create-game.use-case.js';
+import { DrawCardUseCase } from './application/draw-card.use-case.js';
+import { FinishGameUseCase } from './application/finish-game.use-case.js';
+import { GameSnapshotUseCase } from './application/game-snapshot.use-case.js';
+import { JoinGameUseCase } from './application/join-game.use-case.js';
+import { ManageDecksUseCase } from './application/manage-decks.use-case.js';
+import { OpenGameUseCase } from './application/open-game.use-case.js';
+import { ToggleMarkUseCase } from './application/toggle-mark.use-case.js';
+import type { DeckRepository } from './domain/ports/deck.repository.js';
+import type { GameRepository } from './domain/ports/game.repository.js';
+import { PrismaDeckRepository } from './infrastructure/prisma-deck.repository.js';
+import { PrismaGameRepository } from './infrastructure/prisma-game.repository.js';
+import { DeckController } from './presentation/deck.controller.js';
+import { GameController } from './presentation/game.controller.js';
+import { LotoBroadcaster } from './presentation/loto.broadcaster.js';
+import { LotoGateway } from './presentation/loto.gateway.js';
+
+const DECKS = 'LotoDeckRepository';
+const GAMES = 'LotoGameRepository';
+
+@Module({
+  controllers: [DeckController, GameController],
+  providers: [
+    LotoGateway,
+    LotoBroadcaster,
+    { provide: DECKS, useClass: PrismaDeckRepository },
+    { provide: GAMES, useClass: PrismaGameRepository },
+    {
+      provide: ManageDecksUseCase,
+      useFactory: (decks: DeckRepository) => new ManageDecksUseCase(decks),
+      inject: [DECKS],
+    },
+    {
+      provide: CreateGameUseCase,
+      useFactory: (decks: DeckRepository, games: GameRepository) =>
+        new CreateGameUseCase(decks, games, eventBus, Math.random),
+      inject: [DECKS, GAMES],
+    },
+    {
+      provide: OpenGameUseCase,
+      useFactory: (decks: DeckRepository, games: GameRepository) =>
+        new OpenGameUseCase(decks, games, eventBus),
+      inject: [DECKS, GAMES],
+    },
+    {
+      provide: JoinGameUseCase,
+      useFactory: (games: GameRepository) => new JoinGameUseCase(games, Math.random),
+      inject: [GAMES],
+    },
+    {
+      provide: DrawCardUseCase,
+      useFactory: (games: GameRepository) => new DrawCardUseCase(games, eventBus, Math.random),
+      inject: [GAMES],
+    },
+    {
+      provide: ToggleMarkUseCase,
+      useFactory: (games: GameRepository) => new ToggleMarkUseCase(games),
+      inject: [GAMES],
+    },
+    {
+      provide: ClaimUseCase,
+      useFactory: (games: GameRepository) => new ClaimUseCase(games, eventBus),
+      inject: [GAMES],
+    },
+    {
+      provide: FinishGameUseCase,
+      useFactory: (games: GameRepository) => new FinishGameUseCase(games, eventBus),
+      inject: [GAMES],
+    },
+    {
+      provide: GameSnapshotUseCase,
+      useFactory: (games: GameRepository) => new GameSnapshotUseCase(games),
+      inject: [GAMES],
+    },
+  ],
+})
+export class LotoModule {}
+```
+
+`Math.random` est injecté ici, une seule fois, à la frontière du framework. C est la contrepartie de la règle du domaine : aucune fonction pure n appelle l horloge ni le hasard elle-même.
+
+- [ ] **Étape 9 : vérifier la compilation**
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck`
+Attendu : aucune erreur, une fois la tâche 31 écrite. Si `loto.broadcaster.js` ou `loto.gateway.js` manquent encore, passer à la tâche 31 et revenir.
+
+- [ ] **Étape 10 : commit**
+
+```bash
+git add packages/module-loto/src/presentation/dto packages/module-loto/src/presentation/deck.controller.ts packages/module-loto/src/presentation/game.controller.ts packages/module-loto/src/loto.module.ts
+git commit -m "feat(module-loto): module NestJS et contrôleurs HTTP
+
+Décision D7 : les commandes de l animatrice passent en HTTP, le WebSocket ne
+sert qu à diffuser. Exempté du cycle test-first au titre de CLAUDE.md
+paragraphe 5, couche Presentation et wiring ; couvert par l E2E de la tâche 35."
+```
