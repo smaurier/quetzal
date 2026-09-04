@@ -61,6 +61,18 @@ export default function DeckEditor(props: Props) {
     await reload();
   }
 
+  async function upload(rank: number, file: File): Promise<void> {
+    if (deckId === undefined) return;
+    const { resizeToDataUrl } = await import('./resize-image.js');
+    const payload = await resizeToDataUrl(file);
+    const res = await apiClient().apiFetch(`/api/modules/loto/decks/${deckId}/cards/${String(rank)}/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) await reload();
+  }
+
   if (deckId === undefined) return null;
   if (deck === null) return null;
 
@@ -88,6 +100,15 @@ export default function DeckEditor(props: Props) {
               defaultValue={card.label}
               maxLength={80}
               onBlur={(event) => void patch({ card: { rank: card.rank, label: event.target.value } })}
+            />
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file !== undefined) void upload(card.rank, file);
+              }}
             />
           </li>
         ))}
