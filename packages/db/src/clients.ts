@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { applyTenantConstraint } from './tenant-scope.js';
-import { modelHasTenantId } from './model-tenant-registry.js';
+import { modelHasTenantId } from './model-tenant-lookup.js';
 
 export type RootPrismaClient = PrismaClient & { readonly __brand: 'root' };
 
