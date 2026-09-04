@@ -3994,7 +3994,7 @@ Remplacer le corps de `appendDraw` dans `prisma-game.repository.ts` :
 - [ ] **Étape 6 : relancer les tests d intégration**
 
 Lancer : `pnpm --filter @quetzal/module-loto test:integration`
-Attendu : `Tests 15 passed`. Le test « une carte ne sort qu une fois » couvre déjà le chemin P2002 contre un vrai Postgres.
+Attendu : `Tests 17 passed`. Le test « une carte ne sort qu une fois » couvre déjà le chemin P2002 contre un vrai Postgres.
 
 - [ ] **Étape 7 : commit**
 
