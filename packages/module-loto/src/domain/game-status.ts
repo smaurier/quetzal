@@ -32,3 +32,7 @@ export function canDraw(status: GameStatus): boolean {
 export function canClaim(status: GameStatus): boolean {
   return status === 'running';
 }
+
+export function isGameStatus(value: string): value is GameStatus {
+  return (GAME_STATUSES as readonly string[]).includes(value);
+}

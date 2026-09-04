@@ -42,3 +42,7 @@ const PREDICATES: Record<PatternKey, (grid: Grid) => boolean> = {
 export function matchesPattern(grid: Grid, pattern: PatternKey): boolean {
   return PREDICATES[pattern](grid);
 }
+
+export function isPatternKey(value: string): value is PatternKey {
+  return (PATTERN_KEYS as readonly string[]).includes(value);
+}
