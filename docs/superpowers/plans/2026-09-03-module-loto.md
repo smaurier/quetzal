@@ -7054,6 +7054,16 @@ Ajouter le script dans `packages/module-loto/package.json` :
 Lancer : `pnpm --filter @quetzal/db prisma migrate deploy && pnpm --filter @quetzal/module-loto seed`
 Attendu : `54 cartes créées (...)`. Relancer une seconde fois et vérifier : `modèle déjà présent`.
 
+- [ ] **Étape 4 bis : l adresse d entrée doit porter le locataire**
+
+Manque trouvé en écrivant l écran animateur, à la tâche 32. La page d entrée invité de la plateforme, `apps/host/src/app/j/[moduleSlug]/[sessionId]/page.tsx`, **exige un paramètre `tenantId`** et rend « Missing tenantId » sans lui. L écran animateur fabrique pourtant `${origin}/j/loto/${game.id}` sans ce paramètre : le QR code mène donc à une page morte, et l E2E de la tâche 35 échouera dessus.
+
+Le composant n a aujourd hui aucun moyen de connaître le locataire courant : ni `apiClient`, ni `GameSnapshot`, ni le contrat de route ne l exposent. Or `apiClient().getToken()` récupère déjà un JWT qui **contient** la revendication `tenantId`.
+
+Ajouter donc à `@quetzal/core/client` de quoi lire le locataire courant depuis ce jeton — c est un besoin de plateforme et non du Lotería, puisque tout module à entrée invité fabriquera la même adresse. En TDD, avec ses deux commits : décoder la charge utile du JWT sans vérifier la signature (le navigateur n a pas à la vérifier, le serveur le fait), rendre `null` sur un jeton absent ou illisible plutôt que de lever, et ne jamais journaliser le jeton.
+
+Puis l employer dans `animator-page.tsx` : `${origin}/j/loto/${game.id}?tenantId=${tenantId}`, et n afficher ni QR ni adresse tant que le locataire n est pas connu.
+
 - [ ] **Étape 5 : lancer la plateforme et vérifier à la main**
 
 Lancer : `pnpm dev`
@@ -8321,3 +8331,4 @@ une politesse : une case vide rend la tabla injouable pour cet élève."
 5. **Plusieurs figures successives dans une même partie** — hors périmètre assumé. Déclencheur : la demande d enchaîner `linea` puis `llena` sans recréer de partie.
 6. **`typecheck` du reste du dépôt n inclut pas les specs** — `module-loto` a son `tsconfig.typecheck.json`, les autres paquets non. À généraliser au niveau de `packages/config`.
 7. **Effectifs au-delà de trente-cinq** — non mesuré. À constater à la première séance en classe entière.
+8. **Libellé de victoire côté joueur** — quand l équipe qui regarde a gagné, l écran rend `game.wonBy` avec un nom d équipe vide, donc « Victoire de » suivi de rien. Il manque une clé du genre `player.youWon`. Cosmétique, mais c est le dernier écran que voit l élève.
