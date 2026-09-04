@@ -27,7 +27,8 @@
         "waiting": "Waiting for players",
         "remaining": "{count, plural, one {# card left} other {# cards left}}",
         "wonBy": "{team} wins",
-        "stopped": "Game stopped"
+        "stopped": "Game stopped",
+        "status": { "draft": "Draft", "open": "Room open", "running": "Running", "finished": "Finished" }
       },
       "pattern": {
         "linea": "Línea",

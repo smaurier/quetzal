@@ -214,7 +214,7 @@ export default function DecksPage() {
         {games.map((game) => (
           <li key={game.id}>
             <a href={`/modules/loto/games/${game.id}`}>
-              {`${game.deckName ?? '—'} · ${game.joinCode} · ${game.status}`}
+              {`${game.deckName ?? '—'} · ${game.joinCode} · ${tGame(`status.${game.status}`)}`}
             </a>
           </li>
         ))}

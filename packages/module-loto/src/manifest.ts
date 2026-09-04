@@ -26,6 +26,7 @@ export const manifest: QuetzalModuleManifest = {
     'http:PATCH /api/modules/loto/decks/:id': ['owner', 'creator'],
     'http:DELETE /api/modules/loto/decks/:id': ['owner', 'creator'],
     'http:GET /api/modules/loto/games': ['owner', 'creator'],
+    'http:GET /api/modules/loto/games/:id': ['owner', 'creator'],
     'http:POST /api/modules/loto/games': ['owner', 'creator'],
     'http:POST /api/modules/loto/games/:id/open': ['owner', 'creator'],
     'http:POST /api/modules/loto/games/:id/draw': ['owner', 'creator'],

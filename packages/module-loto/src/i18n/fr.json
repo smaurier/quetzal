@@ -27,7 +27,8 @@
         "waiting": "En attente des joueurs",
         "remaining": "{count, plural, one {# carte restante} other {# cartes restantes}}",
         "wonBy": "Victoire de {team}",
-        "stopped": "Partie arrêtée"
+        "stopped": "Partie arrêtée",
+        "status": { "draft": "Brouillon", "open": "Salle ouverte", "running": "En cours", "finished": "Terminée" }
       },
       "pattern": {
         "linea": "Línea",
