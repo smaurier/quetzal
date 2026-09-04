@@ -55,6 +55,14 @@ export interface GameRepository {
 
   /** Triées par teamIndex croissant, pour que la répartition soit déterministe. */
   teams(gameId: string): Promise<TeamState[]>;
+  /**
+   * Lève TeamIndexCollisionError si une équipe existe déjà à ce teamIndex
+   * pour cette partie — signal distinct d une vraie panne, posé sur la
+   * contrainte d unicité `[gameId, teamIndex, tenantId]`. À charge de
+   * l appelant (JoinGameUseCase) de relire les équipes et de rejouer
+   * l affectation : deux entrées concurrentes lisent la même liste avant que
+   * l une ou l autre n ait créé sa ligne, et visent donc le même index.
+   */
   createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState>;
   setMarks(teamId: string, markedCardIds: string[]): Promise<void>;
   blockTeam(teamId: string, untilDraw: number): Promise<void>;

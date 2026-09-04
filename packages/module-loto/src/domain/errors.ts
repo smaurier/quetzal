@@ -80,3 +80,9 @@ export class TeamNotFoundError extends DomainError {
     super(`Équipe introuvable : ${teamId}`);
   }
 }
+
+export class TeamIndexCollisionError extends DomainError {
+  constructor(gameId: string, teamIndex: number) {
+    super(`Une équipe existe déjà à l index ${teamIndex} de la partie ${gameId}`);
+  }
+}

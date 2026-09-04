@@ -3,6 +3,7 @@ import { newId } from '@quetzal/db';
 import { getTenantScopedPrisma } from '@quetzal/core';
 import { isGameStatus, type GameStatus } from '../domain/game-status.js';
 import { isPatternKey } from '../domain/pattern.js';
+import { TeamIndexCollisionError } from '../domain/errors.js';
 import type { DeckCard, NewDeckCard } from '../domain/ports/deck.repository.js';
 import type {
   GameRepository,
@@ -66,6 +67,11 @@ interface PrismaWithLoto {
 function toStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === 'string');
+}
+
+/** Code d erreur Prisma pour une violation de contrainte d unicité. */
+function isUniqueConstraintViolation(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002';
 }
 
 @Injectable()
@@ -192,16 +198,25 @@ export class PrismaGameRepository implements GameRepository {
   }
 
   async createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState> {
-    const row = await this.prisma.loto_Team.create({
-      data: {
-        id: newId(),
-        gameId,
-        teamIndex: input.teamIndex,
-        cardIds: input.cardIds,
-        markedCardIds: [],
-      },
-    });
-    return this.toTeam(row, []);
+    try {
+      const row = await this.prisma.loto_Team.create({
+        data: {
+          id: newId(),
+          gameId,
+          teamIndex: input.teamIndex,
+          cardIds: input.cardIds,
+          markedCardIds: [],
+        },
+      });
+      return this.toTeam(row, []);
+    } catch (err) {
+      // P2002 sur [gameId, teamIndex, tenantId] : deux entrées concurrentes ont
+      // visé le même index. Signal distinct pour que JoinGameUseCase relise et
+      // rejoue l affectation plutôt que d échouer sur une vraie panne (spec
+      // tâche 34, étape 4 ter). Toute autre erreur remonte telle quelle.
+      if (isUniqueConstraintViolation(err)) throw new TeamIndexCollisionError(gameId, input.teamIndex);
+      throw err;
+    }
   }
 
   async setMarks(teamId: string, markedCardIds: string[]): Promise<void> {
@@ -233,9 +248,7 @@ export class PrismaGameRepository implements GameRepository {
       // P2002 : violation d unicité. Les deux contraintes de Loto_Draw rendent
       // un double appui simultané sans effet plutôt qu erroné (spec 6.1).
       // Toute autre erreur est une vraie panne et doit remonter.
-      if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002') {
-        return false;
-      }
+      if (isUniqueConstraintViolation(err)) return false;
       throw err;
     }
   }

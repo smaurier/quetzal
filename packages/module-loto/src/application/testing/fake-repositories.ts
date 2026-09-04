@@ -12,6 +12,7 @@ import type {
   TeamState,
 } from '../../domain/ports/game.repository.js';
 import type { GameStatus } from '../../domain/game-status.js';
+import { TeamIndexCollisionError } from '../../domain/errors.js';
 
 let counter = 0;
 // `-gen-` distingue les ids générés des ids de convention posés par les
@@ -174,7 +175,19 @@ export class FakeGameRepository implements GameRepository {
     return [...(this.teamsByGame.get(gameId) ?? [])].sort((a, b) => a.teamIndex - b.teamIndex);
   }
 
+  /**
+   * Reproduit la contrainte d unicité `[gameId, teamIndex, tenantId]` : c est
+   * le seul moyen fidèle de rendre en mémoire ce que deux entrées concurrentes
+   * provoquent en base. Contrairement à `failNextAppendDraw`, aucune armature
+   * manuelle n est nécessaire — deux `execute()` lancés de front interleavent
+   * réellement leurs lectures avant écriture (cf. join-game.use-case.spec.ts),
+   * donc la collision se produit d elle-même dès que le second appel arrive ici.
+   */
   async createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState> {
+    const existing = this.teamsByGame.get(gameId) ?? [];
+    if (existing.some((team) => team.teamIndex === input.teamIndex)) {
+      throw new TeamIndexCollisionError(gameId, input.teamIndex);
+    }
     const team: TeamState = {
       id: nextId('team'),
       teamIndex: input.teamIndex,
@@ -183,7 +196,7 @@ export class FakeGameRepository implements GameRepository {
       markedCardIds: [],
       blockedUntilDraw: 0,
     };
-    this.teamsByGame.set(gameId, [...(this.teamsByGame.get(gameId) ?? []), team]);
+    this.teamsByGame.set(gameId, [...existing, team]);
     return team;
   }
 
