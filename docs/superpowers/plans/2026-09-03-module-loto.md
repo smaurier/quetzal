@@ -2904,7 +2904,11 @@ import type {
 import type { GameStatus } from '../../domain/game-status.js';
 
 let counter = 0;
-const nextId = (prefix: string): string => `${prefix}-${++counter}`;
+// `-gen-` sépare les identifiants engendrés des identifiants d amorçage écrits
+// à la main : sans lui, le premier `create` d un fichier de test rend `deck-1`,
+// qui est aussi l identifiant par défaut de `deckOf`, et la copie écrase
+// l original dans la Map sans que rien ne le signale.
+const nextId = (prefix: string): string => `${prefix}-gen-${++counter}`;
 
 export function deckOf(cardCount: number, overrides: Partial<Deck> = {}): Deck {
   const cards: DeckCard[] = Array.from({ length: cardCount }, (_, i) => ({
