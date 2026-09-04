@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { assignTeam, type TeamLoad } from './team-assignment.js';
+import { InvalidTeamLimitError } from './errors.js';
 
 const teams = (...counts: number[]): TeamLoad[] =>
   counts.map((memberCount, i) => ({ id: `t${i + 1}`, memberCount }));
@@ -42,5 +43,25 @@ describe('assignTeam', () => {
   it('avec un maximum d une seule équipe, tout le monde joue ensemble', () => {
     expect(assignTeam(teams(), 1)).toEqual({ kind: 'new' });
     expect(assignTeam(teams(5), 1)).toEqual({ kind: 'existing', teamId: 't1' });
+  });
+
+  it('refuse un maximum d équipes nul', () => {
+    let error: unknown;
+    try {
+      assignTeam(teams(), 0);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(InvalidTeamLimitError);
+  });
+
+  it('refuse un maximum d équipes négatif', () => {
+    let error: unknown;
+    try {
+      assignTeam(teams(), -1);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(InvalidTeamLimitError);
   });
 });
