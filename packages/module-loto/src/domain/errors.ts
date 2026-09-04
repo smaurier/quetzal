@@ -1,4 +1,4 @@
-import { DomainError } from '@quetzal/core';
+import { DomainError } from '@quetzal/core/errors';
 
 export class DeckTooSmallError extends DomainError {
   constructor(size: number) {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { DomainError } from '@quetzal/core';
+import { DomainError } from '@quetzal/core/errors';
 import {
   DeckTooSmallError,
   InvalidGameTransitionError,
