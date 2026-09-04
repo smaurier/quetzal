@@ -29,3 +29,12 @@ export class InvalidTeamLimitError extends DomainError {
     super(`Une partie doit accepter au moins une équipe, celle-ci en accepte ${maxTeams}`);
   }
 }
+
+export class TablaGenerationExhaustedError extends DomainError {
+  constructor(existingTablaCount: number, attempts: number) {
+    super(
+      `Impossible de générer une tabla unique après ${attempts} tentatives ` +
+        `(${existingTablaCount} tabla(s) déjà distribuée(s) dans cette partie)`,
+    );
+  }
+}
