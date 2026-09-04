@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "lint": "eslint src",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts"
