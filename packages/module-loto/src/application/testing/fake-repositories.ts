@@ -14,7 +14,10 @@ import type {
 import type { GameStatus } from '../../domain/game-status.js';
 
 let counter = 0;
-const nextId = (prefix: string): string => `${prefix}-${++counter}`;
+// `-gen-` distingue les ids générés des ids de convention posés par les
+// fixtures (deckOf() rend toujours 'deck-1', 'card-1'…) : sans ce préfixe, le
+// tout premier id généré dans un fichier de test collisionne avec eux.
+const nextId = (prefix: string): string => `${prefix}-gen-${++counter}`;
 
 export function deckOf(cardCount: number, overrides: Partial<Deck> = {}): Deck {
   const cards: DeckCard[] = Array.from({ length: cardCount }, (_, i) => ({
