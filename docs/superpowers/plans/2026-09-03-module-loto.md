@@ -8144,7 +8144,13 @@ describe('fitWithin', () => {
   });
 
   it('fonctionne aussi en portrait', () => {
-    expect(fitWithin(600, 1800)).toEqual({ width: MAX_IMAGE_EDGE / 3, height: MAX_IMAGE_EDGE });
+    // Math.round : MAX_IMAGE_EDGE / 3 vaut 266,67, et un canvas n a pas de
+    // demi-pixel. Écrire la fraction ici rendrait le test faux contre sa
+    // propre implémentation.
+    expect(fitWithin(600, 1800)).toEqual({
+      width: Math.round(MAX_IMAGE_EDGE / 3),
+      height: MAX_IMAGE_EDGE,
+    });
   });
 
   it('n agrandit jamais une image déjà petite', () => {
@@ -8281,7 +8287,13 @@ Dans `PlayerBoard`, ajouter :
       const image = new Image();
       image.src = `/api/modules/loto/images/${card.imageId}`;
     }
-  }, [snapshot?.tabla]);
+    // Dépendre de `cards` et non de `tabla` : les gestionnaires de marquage et
+    // de réclamation reconstruisent l objet `tabla` à chaque changement, alors
+    // que `cards` garde sa référence tant qu un nouvel état complet n arrive
+    // pas. Dépendre de `tabla` ferait redemander seize images à chaque case
+    // cochée, sur trente téléphones — exactement la charge que cette tâche
+    // existe pour éviter.
+  }, [snapshot?.tabla?.cards]);
 ```
 
 - [ ] **Étape 2 : rendre le repli visible quand une image manque à l appel**
