@@ -6,6 +6,7 @@ import {
   TeamBlockedError,
   GameNotRunningError,
   InvalidTeamLimitError,
+  TablaGenerationExhaustedError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -15,11 +16,13 @@ describe('erreurs du domaine loto', () => {
     expect(new TeamBlockedError(15)).toBeInstanceOf(DomainError);
     expect(new GameNotRunningError('open')).toBeInstanceOf(DomainError);
     expect(new InvalidTeamLimitError(0)).toBeInstanceOf(DomainError);
+    expect(new TablaGenerationExhaustedError(6, 100)).toBeInstanceOf(DomainError);
   });
 
   it('portent leur nom de classe, pour que le filtre global les distingue', () => {
     expect(new DeckTooSmallError(9).name).toBe('DeckTooSmallError');
     expect(new InvalidTeamLimitError(0).name).toBe('InvalidTeamLimitError');
+    expect(new TablaGenerationExhaustedError(6, 100).name).toBe('TablaGenerationExhaustedError');
   });
 
   it('donnent le contexte utile dans le message', () => {
@@ -29,5 +32,7 @@ describe('erreurs du domaine loto', () => {
     expect(new TeamBlockedError(15).message).toContain('15');
     expect(new InvalidTeamLimitError(0).message).toContain('0');
     expect(new InvalidTeamLimitError(-1).message).toContain('-1');
+    expect(new TablaGenerationExhaustedError(6, 100).message).toContain('6');
+    expect(new TablaGenerationExhaustedError(6, 100).message).toContain('100');
   });
 });

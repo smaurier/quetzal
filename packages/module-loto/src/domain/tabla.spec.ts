@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { DeckTooSmallError } from './errors.js';
-import { generateTabla, projectTabla, MIN_DECK_SIZE } from './tabla.js';
+import { DeckTooSmallError, TablaGenerationExhaustedError } from './errors.js';
+import {
+  generateTabla,
+  generateUniqueTabla,
+  projectTabla,
+  MIN_DECK_SIZE,
+  MAX_TABLA_GENERATION_ATTEMPTS,
+} from './tabla.js';
 
 const deck = (n: number): string[] => Array.from({ length: n }, (_, i) => `c${i + 1}`);
 
@@ -55,6 +61,80 @@ describe('generateTabla', () => {
     const b = generateTabla(cards, sequence([0.9, 0.8, 0.7]));
     expect(a).not.toEqual(b);
   });
+});
+
+describe('generateUniqueTabla', () => {
+  it('se comporte comme generateTabla avec un jeu de 54 cartes et aucune tabla existante', () => {
+    const cards = deck(54);
+    const tabla = generateUniqueTabla(cards, [], Math.random);
+    expect(tabla).toHaveLength(16);
+    expect(new Set(tabla).size).toBe(16);
+    for (const id of tabla) {
+      expect(cards).toContain(id);
+    }
+  });
+
+  // Seize cartes est le cas piégeux : avec un jeu de taille minimale, generateTabla
+  // rend TOUJOURS l'intégralité du jeu (voir le test dédié ci-dessus) donc toute tabla
+  // contient le même ENSEMBLE de seize cartes. Comparer des ensembles ferait donc
+  // collisionner toute paire de tablas et boucler indéfiniment. L'unicité doit porter
+  // sur la SÉQUENCE ordonnée : il y a 16! (~2·10^13) ordres distincts, largement de
+  // quoi servir six équipes sans jamais épuiser le budget de tentatives.
+  it('avec un jeu de seize cartes exactement, sert six équipes de suite sans jamais bloquer, avec des tablas distinctes en ordre mais identiques en ensemble', () => {
+    const cards = deck(16);
+    const tablas: string[][] = [];
+    for (let team = 0; team < 6; team++) {
+      const tabla = generateUniqueTabla(cards, tablas, Math.random);
+      tablas.push(tabla);
+    }
+
+    expect(tablas).toHaveLength(6);
+    for (const tabla of tablas) {
+      expect([...tabla].sort()).toEqual([...cards].sort());
+    }
+    for (let i = 0; i < tablas.length; i++) {
+      for (let j = i + 1; j < tablas.length; j++) {
+        expect(tablas[i]).not.toEqual(tablas[j]);
+      }
+    }
+  });
+
+  it('détecte une collision avec un générateur déterministe puis diverge au retirage', () => {
+    const cards = deck(54);
+    const drawSeq = [0.1, 0.9, 0.5, 0.3, 0.7];
+    const existing = generateTabla(cards, sequence(drawSeq));
+
+    // Les seize premiers appels rejouent exactement drawSeq (donc reproduisent `existing`,
+    // collision garantie) ; les seize suivants divergent pour le retirage.
+    const firstAttempt = Array.from({ length: 16 }, (_, i) => drawSeq[i % drawSeq.length]!);
+    const secondAttempt = firstAttempt.map((v) => (v + 0.41) % 1);
+    const collideThenDiverge = sequence([...firstAttempt, ...secondAttempt]);
+
+    const result = generateUniqueTabla(cards, [existing], collideThenDiverge);
+    expect(result).not.toEqual(existing);
+    expect(new Set(result).size).toBe(16);
+  });
+
+  it(
+    'épuise le budget de tentatives et lève TablaGenerationExhaustedError plutôt que de boucler indéfiniment',
+    () => {
+      const cards = deck(16);
+      const alwaysSame = sequence([0]);
+      const existing = generateTabla(cards, alwaysSame);
+
+      let caught: unknown;
+      try {
+        generateUniqueTabla(cards, [existing], alwaysSame);
+      } catch (error) {
+        caught = error;
+      }
+
+      expect(caught).toBeInstanceOf(TablaGenerationExhaustedError);
+      expect((caught as Error).name).toBe('TablaGenerationExhaustedError');
+      expect((caught as Error).message).toContain(String(MAX_TABLA_GENERATION_ATTEMPTS));
+    },
+    1000,
+  );
 });
 
 describe('projectTabla', () => {
