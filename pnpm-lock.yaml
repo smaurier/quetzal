@@ -80,6 +80,9 @@ importers:
       '@quetzal/module-hello':
         specifier: workspace:*
         version: link:../../packages/module-hello
+      '@quetzal/module-loto':
+        specifier: workspace:*
+        version: link:../../packages/module-loto
       '@sentry/node':
         specifier: ^8.42.0
         version: 8.55.2
@@ -159,6 +162,9 @@ importers:
       '@quetzal/module-hello':
         specifier: workspace:*
         version: link:../../packages/module-hello
+      '@quetzal/module-loto':
+        specifier: workspace:*
+        version: link:../../packages/module-loto
       '@quetzal/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -509,6 +515,9 @@ importers:
       '@types/react':
         specifier: ^19.0.2
         version: 19.2.18
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.12
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

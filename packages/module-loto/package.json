@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "lint": "eslint src",
     "test": "vitest run",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "seed": "node --env-file-if-exists=../../.env.local --import tsx scripts/seed-loto.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.15",
@@ -36,6 +37,7 @@
     "@nestjs/testing": "^10.4.15",
     "@nestjs/platform-express": "^10.4.15",
     "@types/react": "^19.0.2",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^3.2.7"
   }

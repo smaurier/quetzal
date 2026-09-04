@@ -7091,6 +7091,8 @@ Vérifier dans l ordre, et **noter le résultat réel de chaque point** :
 9. Réclamer trop tôt. La réclamation est refusée et le bouton se bloque pour trois tirages.
 10. Tirer jusqu à compléter une ligne de la tabla, réclamer. La partie s arrête, l équipe gagnante s affiche des deux côtés.
 
+**Piège du cache de build, payé le 04/09.** Si `next build` s arrête sur `uncaughtException [TypeError: Cannot read properties of undefined (reading 'length')]`, sans nom de fichier ni pile, ce n est pas le module : c est le cache `.next` laissé par un build précédent interrompu. `rm -rf apps/host/.next` et relancer. Le symptôme imite à s y méprendre un problème de chargement de module, et il survient aussi avec un seul module.
+
 - [ ] **Étape 6 : déclarer le module dans la CI et en production**
 
 Dans `.github/workflows/ci.yml`, les deux variables de niveau workflow passent à `hello,loto` :
