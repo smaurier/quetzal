@@ -6865,3 +6865,281 @@ Presentation ; couvert par l E2E de la tâche 35."
       Attendu : uniquement `loto.gateway.ts` et `loto.broadcaster.ts`. Aucune chaîne de salon écrite à la main ailleurs.
 - [ ] Lancer : `grep -rn "@nestjs" packages/module-loto/src/presentation/ui/`
       Attendu : aucune correspondance. Les composants d écran sont bundlés par Next et ne doivent jamais tirer NestJS.
+
+## Étape 4 — Partie jouable
+
+But de l étape : **la première séance en classe devient possible**. Le module est activé pour le locataire, le jeu traditionnel est en base, et une partie entière se joue avec les cinquante-quatre cartes en noms seuls.
+
+C est le point d arrêt propre du sous-projet. Si la préparation de la certification d octobre reprend la main ici, ce qui est livré est utilisable tel quel.
+
+### Tâche 34 : Câblage et amorçage
+
+**Fichiers :**
+- Créer : `packages/module-loto/scripts/seed-loto.ts`
+- Modifier : `packages/module-loto/package.json`
+- Modifier : `.github/workflows/ci.yml`
+- Modifier : `render.yaml`
+- Modifier : `apps/host/vercel.json` (rien à changer si `MODULES` y est déjà une variable)
+
+- [ ] **Étape 1 : déclarer le module dans les variables d environnement locales**
+
+Dans `.env.local` à la racine, faire passer les deux listes de modules de `hello` à `hello,loto` :
+
+```
+MODULES=hello,loto
+NEXT_PUBLIC_MODULES=hello,loto
+```
+
+Piège rappelé du 03/09 : `generate:routes` ne lit pas `.env.local`. En local, passer la variable explicitement :
+
+Lancer : `NEXT_PUBLIC_MODULES=hello,loto pnpm --filter @quetzal/core generate:routes`
+Attendu : `module-loaders.generated.ts` mentionne désormais `@quetzal/module-loto/client`.
+
+Et ne jamais lancer `turbo run typecheck` pendant un `next build` : le `pretypecheck` du host efface les routes générées.
+
+- [ ] **Étape 2 : déclarer la dépendance de l API sur le module**
+
+`apps/api` charge les modules par import dynamique. Sans dépendance déclarée, la résolution Node échoue sur Render en pnpm strict — la leçon a coûté la PR n°12 au sous-projet 1.
+
+Dans `apps/api/package.json`, ajouter aux dépendances :
+
+```json
+    "@quetzal/module-loto": "workspace:*"
+```
+
+Lancer : `pnpm install`
+Attendu : `Done in ...`.
+
+- [ ] **Étape 3 : écrire le script d amorçage**
+
+`packages/module-loto/scripts/seed-loto.ts` :
+
+```ts
+import { rootPrisma, newId } from '@quetzal/db';
+import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from '../src/infrastructure/traditional-deck.js';
+
+/**
+ * Idempotent : relancé sur une base déjà amorcée, il ne crée aucun doublon.
+ * C est la même exigence que le seed du noyau, et pour la même raison — il
+ * tourne à chaque déploiement.
+ */
+async function main(): Promise<void> {
+  const tenantSlug = process.env['SEED_TENANT_SLUG'] ?? 'default';
+  const organization = await rootPrisma.organization.findFirst({ where: { slug: tenantSlug } });
+  if (organization === null) throw new Error(`Locataire introuvable : ${tenantSlug}`);
+
+  const owner = await rootPrisma.member.findFirst({ where: { organizationId: organization.id } });
+  if (owner === null) throw new Error(`Aucun membre dans le locataire ${tenantSlug}`);
+
+  await rootPrisma.tenantModule.upsert({
+    where: { tenantId_moduleSlug: { tenantId: organization.id, moduleSlug: 'loto' } },
+    create: { tenantId: organization.id, moduleSlug: 'loto', enabled: true },
+    update: { enabled: true },
+  });
+
+  const existing = await rootPrisma.loto_Deck.findFirst({
+    where: { tenantId: organization.id, isTemplate: true, name: TRADITIONAL_DECK_NAME },
+  });
+  if (existing !== null) {
+    console.log(`[seed:loto] modèle déjà présent (${existing.id})`);
+    return;
+  }
+
+  const deckId = newId();
+  await rootPrisma.loto_Deck.create({
+    data: {
+      id: deckId,
+      tenantId: organization.id,
+      name: TRADITIONAL_DECK_NAME,
+      isTemplate: true,
+      createdBy: owner.userId,
+    },
+  });
+  await rootPrisma.loto_Card.createMany({
+    data: TRADITIONAL_CARDS.map((card) => ({
+      id: newId(),
+      tenantId: organization.id,
+      deckId,
+      rank: card.rank,
+      label: card.label,
+      imageId: null,
+    })),
+  });
+
+  console.log(`[seed:loto] ${String(TRADITIONAL_CARDS.length)} cartes créées (${deckId})`);
+}
+
+await main();
+await rootPrisma.$disconnect();
+```
+
+Ce script emploie `rootPrisma` et non le client cloisonné : c est un script d administration du noyau, pas du code de module au sens de CLAUDE.md paragraphe 3. Il écrit `tenantId` à la main **parce qu il tourne hors requête**, ce qui est précisément le cas que l extension de cloisonnement ne couvre pas.
+
+Ajouter le script dans `packages/module-loto/package.json` :
+
+```json
+    "seed": "node --env-file=../../.env.local --experimental-strip-types scripts/seed-loto.ts"
+```
+
+- [ ] **Étape 4 : appliquer la migration et amorcer**
+
+Lancer : `pnpm --filter @quetzal/db prisma migrate deploy && pnpm --filter @quetzal/module-loto seed`
+Attendu : `54 cartes créées (...)`. Relancer une seconde fois et vérifier : `modèle déjà présent`.
+
+- [ ] **Étape 5 : lancer la plateforme et vérifier à la main**
+
+Lancer : `pnpm dev`
+
+Vérifier dans l ordre, et **noter le résultat réel de chaque point** :
+
+1. La barre latérale affiche « Lotería », avec le vrai libellé et non `module.loto.nav.title`. Si la clé brute s affiche, les catalogues fusionnés n ont pas été régénérés : c est le bug du 03/09, relancer le `prebuild` d i18n.
+2. La page du module liste le jeu « Lotería tradicional », 54 cartes.
+3. Créer une partie, figure `linea`, six équipes, pénalité trois.
+4. L écran animateur affiche un code d entrée de six caractères, sans O, 0, I, 1 ni L.
+5. Ouvrir la salle. Sur un téléphone du même réseau, aller à `/j/loto/<id>`, saisir un prénom, valider.
+6. Le téléphone affiche une tabla de seize cartes. L écran animateur affiche l équipe qui vient d entrer.
+7. Tirer une carte. Elle apparaît en grand sur l écran animateur et en haut du téléphone.
+8. Marquer une case sur le téléphone. Elle change d aspect.
+9. Réclamer trop tôt. La réclamation est refusée et le bouton se bloque pour trois tirages.
+10. Tirer jusqu à compléter une ligne de la tabla, réclamer. La partie s arrête, l équipe gagnante s affiche des deux côtés.
+
+- [ ] **Étape 6 : déclarer le module dans la CI et en production**
+
+Dans `.github/workflows/ci.yml`, les deux variables de niveau workflow passent à `hello,loto` :
+
+```yaml
+env:
+  MODULES: hello,loto
+  NEXT_PUBLIC_MODULES: hello,loto
+```
+
+Dans `render.yaml`, la variable `MODULES` du service `quetzal-api` passe à `hello,loto`.
+
+Côté tableaux de bord, à faire par Sylvain et non par un agent :
+- Vercel, projet du host : `MODULES` et `NEXT_PUBLIC_MODULES` à `hello,loto`, puis redéployer.
+- Render, service `quetzal-api` : `MODULES` à `hello,loto`.
+- Après déploiement, lancer le seed une fois contre la base de production.
+
+- [ ] **Étape 7 : commit**
+
+```bash
+git add packages/module-loto/scripts packages/module-loto/package.json apps/api/package.json pnpm-lock.yaml .github/workflows/ci.yml render.yaml
+git commit -m "feat(module-loto): câblage et amorçage du jeu traditionnel
+
+Le module est déclaré dans les deux listes, l API dépend explicitement du
+paquet — sans quoi la résolution Node échoue sur Render en pnpm strict — et
+le seed pose le modèle de 54 cartes de façon idempotente.
+
+Exempté du cycle test-first au titre de CLAUDE.md paragraphe 5, scripts et
+configuration ; la vérification est l exécution, couverte par l E2E suivant."
+```
+
+### Tâche 35 : E2E du parcours invité par QR code
+
+Ce test solde le point laissé en réserve à la fermeture de la dette du sous-projet 1 : le parcours invité complet n avait jamais été couvert, le smoke E2E ne couvrant que l utilisateur connecté. Le Lotería est le premier module à en faire un vrai usage.
+
+La brique technique existe déjà : `connectSocket(ns, { guestToken })` côté client, et le refus d un jeton invité émis pour un autre module côté serveur.
+
+**Fichiers :**
+- Créer : `e2e/tests/loto-guest.e2e.spec.ts`
+
+- [ ] **Étape 1 : écrire le test**
+
+```ts
+import { test, expect, type Page } from '@playwright/test';
+
+const OWNER_EMAIL = process.env['SEED_OWNER_EMAIL'] ?? '';
+const OWNER_PASSWORD = process.env['SEED_OWNER_PASSWORD'] ?? '';
+
+async function login(page: Page): Promise<void> {
+  await page.goto('/login');
+  await page.getByLabel(/e-?mail/i).fill(OWNER_EMAIL);
+  await page.getByLabel(/mot de passe|password/i).fill(OWNER_PASSWORD);
+  await page.getByRole('button', { name: /connexion|sign in/i }).click();
+  await expect(page).toHaveURL(/dashboard/);
+}
+
+test('une partie entière, de la création à la victoire d un invité', async ({ page, browser }) => {
+  test.slow();
+
+  await login(page);
+
+  // L animatrice crée une partie sur le jeu traditionnel.
+  await page.getByRole('link', { name: 'Lotería' }).click();
+  await page.getByRole('button', { name: /nouvelle partie|new game/i }).click();
+  await page.getByRole('button', { name: /ouvrir la salle|open the room/i }).click();
+
+  const joinCode = await page.getByTestId('join-code').innerText();
+  expect(joinCode).toHaveLength(6);
+  expect(joinCode).not.toMatch(/[O0I1L]/);
+
+  const gameId = page.url().split('/').pop() ?? '';
+  expect(gameId).not.toBe('');
+
+  // Un élève entre par l adresse que porte le QR code, sur un autre contexte
+  // de navigateur : pas de cookie de session, exactement comme un téléphone.
+  const guestContext = await browser.newContext();
+  const guest = await guestContext.newPage();
+  await guest.goto(`/j/loto/${gameId}`);
+  await guest.getByLabel(/nom|name/i).fill('Ana');
+  await guest.getByRole('button', { name: /rejoindre|join/i }).click();
+
+  // Le socket est authentifié par le jeton invité, et la tabla arrive sans
+  // qu on ait rien demandé : l affectation se fait au handshake.
+  const tabla = guest.getByTestId('tabla');
+  await expect(tabla).toBeVisible();
+  await expect(tabla.locator('button')).toHaveCount(16);
+
+  // L animatrice voit l équipe arriver, en temps réel.
+  await expect(page.getByTestId('teams')).toContainText('Ana');
+
+  // Une réclamation prématurée est refusée.
+  await guest.getByTestId('claim').click();
+  await expect(guest.getByRole('alert')).toBeVisible();
+
+  // L animatrice tire jusqu à ce que la partie soit gagnée ou le jeu épuisé.
+  for (let i = 0; i < 54; i++) {
+    if (await page.getByTestId('winner').isVisible()) break;
+    await page.getByTestId('draw').click();
+    await guest.waitForTimeout(50);
+    const claim = guest.getByTestId('claim');
+    if (await claim.isEnabled()) {
+      await claim.click();
+      await guest.waitForTimeout(100);
+    }
+  }
+
+  await expect(page.getByTestId('winner')).toBeVisible();
+  await expect(guest.getByTestId('finished')).toBeVisible();
+
+  await guestContext.close();
+});
+```
+
+La boucle réclame à chaque tirage plutôt que de calculer quand la figure est complète. C est volontaire : le test ne doit pas réimplémenter la règle qu il vérifie. Chaque réclamation infructueuse est refusée par le serveur, et la pénalité de la partie créée par défaut est à zéro — vérifier que le formulaire de création laisse bien la pénalité à zéro, sinon la boucle se bloquerait elle-même.
+
+- [ ] **Étape 2 : lancer le test**
+
+Lancer : `pnpm exec playwright test e2e/tests/loto-guest.e2e.spec.ts`
+Attendu : le test passe. Reporter le temps réel : ce parcours est long, et s il dépasse largement la minute il faut le dire plutôt que d augmenter les délais d attente.
+
+- [ ] **Étape 3 : commit**
+
+```bash
+git add e2e/tests/loto-guest.e2e.spec.ts
+git commit -m "test(e2e): parcours invité complet du Lotería
+
+Solde le point laissé en réserve à la fermeture de la dette du sous-projet 1 :
+scan du QR, formulaire de nom, jeton invité, socket authentifié, tabla reçue
+au handshake, réclamation refusée puis victoire. Le smoke existant ne
+couvrait que l utilisateur connecté."
+```
+
+**Fin de l étape 4. Le module est utilisable en classe.**
+
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto test && pnpm --filter @quetzal/module-loto test:integration`
+- [ ] Lancer : `pnpm exec playwright test`
+      Attendu : le smoke du sous-projet 1 et le parcours invité passent tous deux.
+- [ ] Lancer : `pnpm turbo run build lint typecheck`
+      Attendu : tout vert. Penser à `NEXT_PUBLIC_MODULES=hello,loto` si la map de loaders sort vide.
+- [ ] Ouvrir une PR. Les deux étapes restantes, éditeur de jeux et images, peuvent attendre : ce qui est là se joue.
