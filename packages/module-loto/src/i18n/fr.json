@@ -1,0 +1,46 @@
+{
+  "module": {
+    "loto": {
+      "nav": { "title": "Lotería" },
+      "decks": {
+        "title": "Jeux de cartes",
+        "empty": "Aucun jeu de cartes pour l instant",
+        "cardCount": "{count, plural, one {# carte} other {# cartes}}",
+        "duplicate": "Dupliquer",
+        "createBlank": "Créer un jeu vierge",
+        "rename": "Renommer",
+        "delete": "Supprimer",
+        "deleteWarning": "Supprimer ce jeu efface aussi l historique des parties qui s y rattachent. Cette action est définitive.",
+        "locked": "Ce jeu est utilisé par une partie en cours, il ne peut pas être modifié",
+        "tooSmall": "Il faut au moins 16 cartes pour jouer"
+      },
+      "game": {
+        "create": "Nouvelle partie",
+        "pattern": "Figure gagnante",
+        "maxTeams": "Nombre maximum d équipes",
+        "penalty": "Pénalité de fausse réclamation, en tours",
+        "open": "Ouvrir la salle",
+        "draw": "Tirer une carte",
+        "finish": "Arrêter la partie",
+        "joinCode": "Code d entrée",
+        "waiting": "En attente des joueurs",
+        "remaining": "{count, plural, one {# carte restante} other {# cartes restantes}}",
+        "wonBy": "Victoire de {team}",
+        "stopped": "Partie arrêtée"
+      },
+      "pattern": {
+        "linea": "Línea",
+        "esquinas": "Cuatro esquinas",
+        "centro": "El centro",
+        "llena": "Lotería llena"
+      },
+      "team": { "numbered": "Équipe {number}" },
+      "player": {
+        "claim": "¡Lotería!",
+        "blocked": "Réclamation bloquée jusqu au tirage {draw}",
+        "rejected": "Réclamation refusée",
+        "waiting": "La partie va commencer"
+      }
+    }
+  }
+}

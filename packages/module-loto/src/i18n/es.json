@@ -1,0 +1,46 @@
+{
+  "module": {
+    "loto": {
+      "nav": { "title": "Lotería" },
+      "decks": {
+        "title": "Barajas",
+        "empty": "Todavía no hay ninguna baraja",
+        "cardCount": "{count, plural, one {# carta} other {# cartas}}",
+        "duplicate": "Duplicar",
+        "createBlank": "Crear una baraja vacía",
+        "rename": "Renombrar",
+        "delete": "Eliminar",
+        "deleteWarning": "Eliminar esta baraja borra también el historial de las partidas asociadas. Esta acción es definitiva.",
+        "locked": "Una partida en curso usa esta baraja, no se puede modificar",
+        "tooSmall": "Hacen falta al menos 16 cartas para jugar"
+      },
+      "game": {
+        "create": "Nueva partida",
+        "pattern": "Figura ganadora",
+        "maxTeams": "Número máximo de equipos",
+        "penalty": "Penalización por falsa lotería, en turnos",
+        "open": "Abrir la sala",
+        "draw": "Sacar una carta",
+        "finish": "Terminar la partida",
+        "joinCode": "Código de entrada",
+        "waiting": "Esperando a los jugadores",
+        "remaining": "{count, plural, one {# carta restante} other {# cartas restantes}}",
+        "wonBy": "Gana {team}",
+        "stopped": "Partida terminada"
+      },
+      "pattern": {
+        "linea": "Línea",
+        "esquinas": "Cuatro esquinas",
+        "centro": "El centro",
+        "llena": "Lotería llena"
+      },
+      "team": { "numbered": "Equipo {number}" },
+      "player": {
+        "claim": "¡Lotería!",
+        "blocked": "Lotería bloqueada hasta la carta {draw}",
+        "rejected": "Lotería rechazada",
+        "waiting": "La partida va a empezar"
+      }
+    }
+  }
+}
