@@ -1,10 +1,11 @@
 import { matchesPattern, type PatternKey } from './pattern.js';
 import { projectTabla } from './tabla.js';
+import type { DrawnCardId } from './drawn-cards.js';
 
 export interface ClaimInput {
   tablaCardIds: readonly string[];
   /** Cartes réellement tirées par le serveur. Seule source de vérité. */
-  drawnCardIds: ReadonlySet<string>;
+  drawnCardIds: ReadonlySet<DrawnCardId>;
   pattern: PatternKey;
 }
 
