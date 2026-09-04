@@ -7,6 +7,11 @@ import {
   GameNotRunningError,
   InvalidTeamLimitError,
   TablaGenerationExhaustedError,
+  DeckNotFoundError,
+  GameNotFoundError,
+  JoinCodeUnavailableError,
+  NoCardsLeftError,
+  DeckLockedError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -34,5 +39,27 @@ describe('erreurs du domaine loto', () => {
     expect(new InvalidTeamLimitError(-1).message).toContain('-1');
     expect(new TablaGenerationExhaustedError(6, 100).message).toContain('6');
     expect(new TablaGenerationExhaustedError(6, 100).message).toContain('100');
+  });
+});
+
+describe('erreurs des cas d usage', () => {
+  it('héritent toutes de DomainError du noyau', () => {
+    expect(new DeckNotFoundError('d-1')).toBeInstanceOf(DomainError);
+    expect(new GameNotFoundError('g-1')).toBeInstanceOf(DomainError);
+    expect(new JoinCodeUnavailableError(20)).toBeInstanceOf(DomainError);
+    expect(new NoCardsLeftError('g-1')).toBeInstanceOf(DomainError);
+    expect(new DeckLockedError('d-1')).toBeInstanceOf(DomainError);
+  });
+
+  it('portent leur nom de classe', () => {
+    expect(new DeckLockedError('d-1').name).toBe('DeckLockedError');
+  });
+
+  it('donnent le contexte utile dans le message', () => {
+    expect(new DeckNotFoundError('d-1').message).toContain('d-1');
+    expect(new GameNotFoundError('g-1').message).toContain('g-1');
+    expect(new JoinCodeUnavailableError(20).message).toContain('20');
+    expect(new NoCardsLeftError('g-1').message).toContain('g-1');
+    expect(new DeckLockedError('d-1').message).toContain('d-1');
   });
 });
