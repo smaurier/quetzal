@@ -52,7 +52,11 @@ export class FakeDeckRepository implements DeckRepository {
   }
 
   async findById(deckId: string): Promise<Deck | null> {
-    return this.decks.get(deckId) ?? null;
+    const deck = this.decks.get(deckId);
+    if (deck === undefined) return null;
+    // Le dépôt Prisma trie par rang. Un faux qui rend l ordre d insertion
+    // ferait passer des tests que la vraie implémentation ferait échouer.
+    return { ...deck, cards: [...deck.cards].sort((a, b) => a.rank - b.rank) };
   }
 
   async create(input: {
@@ -129,7 +133,10 @@ export class FakeGameRepository implements GameRepository {
   async findById(gameId: string): Promise<GameState | null> {
     const game = this.games.get(gameId);
     if (game === undefined) return null;
-    return { ...game, lastDrawOrder: (this.draws.get(gameId) ?? []).length };
+    // Le rang du dernier tirage, pas leur nombre. Les deux coïncident tant que
+    // les rangs se suivent sans trou, ce que rien n impose au port.
+    const orders = (this.draws.get(gameId) ?? []).map((draw) => draw.order);
+    return { ...game, lastDrawOrder: orders.length === 0 ? 0 : Math.max(...orders) };
   }
 
   async findByJoinCode(joinCode: string): Promise<GameState | null> {
@@ -222,7 +229,18 @@ export class FakeGameRepository implements GameRepository {
     }
   }
 
+  /**
+   * Arme un échec d insertion pour le prochain tirage. C est la seule façon de
+   * reproduire en mémoire une course entre deux appuis simultanés : en base,
+   * c est une contrainte d unicité qui tranche, et le perdant reçoit false.
+   */
+  failNextAppendDraw = false;
+
   async appendDraw(gameId: string, order: number, cardId: string): Promise<boolean> {
+    if (this.failNextAppendDraw) {
+      this.failNextAppendDraw = false;
+      return false;
+    }
     const existing = this.draws.get(gameId) ?? [];
     if (existing.some((draw) => draw.order === order || draw.cardId === cardId)) return false;
     this.draws.set(gameId, [...existing, { order, cardId }]);

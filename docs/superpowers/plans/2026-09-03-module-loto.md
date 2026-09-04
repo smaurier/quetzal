@@ -2942,7 +2942,11 @@ export class FakeDeckRepository implements DeckRepository {
   }
 
   async findById(deckId: string): Promise<Deck | null> {
-    return this.decks.get(deckId) ?? null;
+    const deck = this.decks.get(deckId);
+    if (deck === undefined) return null;
+    // Le dépôt Prisma trie par rang. Un faux qui rend l ordre d insertion
+    // ferait passer des tests que la vraie implémentation ferait échouer.
+    return { ...deck, cards: [...deck.cards].sort((a, b) => a.rank - b.rank) };
   }
 
   async create(input: {
@@ -3019,7 +3023,10 @@ export class FakeGameRepository implements GameRepository {
   async findById(gameId: string): Promise<GameState | null> {
     const game = this.games.get(gameId);
     if (game === undefined) return null;
-    return { ...game, lastDrawOrder: (this.draws.get(gameId) ?? []).length };
+    // Le rang du dernier tirage, pas leur nombre. Les deux coïncident tant que
+    // les rangs se suivent sans trou, ce que rien n impose au port.
+    const orders = (this.draws.get(gameId) ?? []).map((draw) => draw.order);
+    return { ...game, lastDrawOrder: orders.length === 0 ? 0 : Math.max(...orders) };
   }
 
   async findByJoinCode(joinCode: string): Promise<GameState | null> {
@@ -3112,7 +3119,18 @@ export class FakeGameRepository implements GameRepository {
     }
   }
 
+  /**
+   * Arme un échec d insertion pour le prochain tirage. C est la seule façon de
+   * reproduire en mémoire une course entre deux appuis simultanés : en base,
+   * c est une contrainte d unicité qui tranche, et le perdant reçoit false.
+   */
+  failNextAppendDraw = false;
+
   async appendDraw(gameId: string, order: number, cardId: string): Promise<boolean> {
+    if (this.failNextAppendDraw) {
+      this.failNextAppendDraw = false;
+      return false;
+    }
     const existing = this.draws.get(gameId) ?? [];
     if (existing.some((draw) => draw.order === order || draw.cardId === cardId)) return false;
     this.draws.set(gameId, [...existing, { order, cardId }]);
@@ -3808,14 +3826,18 @@ describe('DrawCardUseCase', () => {
 
   it('un double appui simultané reste sans effet plutôt qu erroné', async () => {
     const { games, game, useCase } = await build();
-    // Le dépôt refuse un rang déjà pris. On simule la course en forçant le
-    // rang un à être déjà occupé par une autre carte.
-    const frozen = await games.frozenCards(game.id);
-    await games.appendDraw(game.id, 1, frozen[0]!.id);
+    // En base, c est une contrainte d unicité de Loto_Draw qui tranche entre
+    // deux appuis simultanés, et le perdant reçoit false. En mémoire, on arme
+    // cet échec — pré-insérer un tirage ne le reproduirait pas, puisque le cas
+    // d usage lirait alors un rang déjà avancé et son insertion réussirait.
+    games.failNextAppendDraw = true;
 
     const result = await useCase.execute({ gameId: game.id });
+
     expect(result.drawn).toBe(false);
-    expect(await games.drawnCards(game.id)).toHaveLength(1);
+    expect(await games.drawnCards(game.id)).toHaveLength(0);
+    // Une course perdue ne doit surtout pas faire basculer la partie.
+    expect((await games.findById(game.id))?.status).toBe('open');
   });
 
   it('répare une partie laissée en open alors que des cartes sont déjà sorties', async () => {
