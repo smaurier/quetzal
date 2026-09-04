@@ -1,6 +1,7 @@
 'use client';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { apiClient } from '@quetzal/core/client';
+import { apiClient, getCurrentTenantId } from '@quetzal/core/client';
 import { Button, Card } from '@quetzal/ui';
 import { CardFace } from './components/card-face.js';
 import { DrawRibbon } from './components/draw-ribbon.js';
@@ -21,13 +22,30 @@ export default function AnimatorPage(props: Props) {
   const { snapshot, error } = useGameSocket({ gameId: gameId ?? '' });
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
 
+  // Aucun QR ni adresse tant que le locataire n est pas connu : l adresse
+  // d entrée invité exige tenantId en query (apps/host/src/app/j/…), sans
+  // quoi elle rend une page morte (spec tâche 34, étape 4 bis).
+  const [tenantId, setTenantId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    void getCurrentTenantId().then((id) => {
+      if (!cancelled) setTenantId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (gameId === undefined) return null;
   if (error !== null) return <p role="alert">{error}</p>;
   if (snapshot === null) return <p>{t('game.waiting')}</p>;
 
   const { game, teams, draws } = snapshot;
   const lastDraw = draws[draws.length - 1];
-  const joinUrl = `${origin}/j/loto/${game.id}`;
+  const joinUrl =
+    tenantId === undefined || tenantId === null
+      ? null
+      : `${origin}/j/loto/${game.id}?tenantId=${tenantId}`;
 
   async function post(path: string): Promise<void> {
     await apiClient().apiFetch(`/api/modules/loto/games/${gameId}/${path}`, { method: 'POST' });
@@ -41,7 +59,11 @@ export default function AnimatorPage(props: Props) {
           <p className="text-8xl font-bold tracking-widest" data-testid="join-code">
             {game.joinCode}
           </p>
-          <p className="mt-4 break-all text-sm text-muted-foreground">{joinUrl}</p>
+          {joinUrl !== null && (
+            <p className="mt-4 break-all text-sm text-muted-foreground" data-testid="join-url">
+              {joinUrl}
+            </p>
+          )}
         </div>
 
         <ul className="flex flex-wrap gap-3" data-testid="teams">
