@@ -94,7 +94,7 @@ export default function DeckEditor(props: Props) {
       </ol>
 
       <Button onClick={() => void patch({ card: { rank: deck.cards.length + 1, label: '' } })}>
-        {t('createBlank')}
+        {t('addCard')}
       </Button>
     </Card>
   );

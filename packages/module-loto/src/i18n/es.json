@@ -8,6 +8,7 @@
         "cardCount": "{count, plural, one {# carta} other {# cartas}}",
         "duplicate": "Duplicar",
         "createBlank": "Crear una baraja vacía",
+        "addCard": "Añadir una carta",
         "rename": "Renombrar",
         "delete": "Eliminar",
         "deleteWarning": "Eliminar esta baraja borra también el historial de las partidas asociadas. Esta acción es definitiva.",

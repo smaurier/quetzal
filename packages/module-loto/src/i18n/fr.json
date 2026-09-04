@@ -8,6 +8,7 @@
         "cardCount": "{count, plural, one {# carte} other {# cartes}}",
         "duplicate": "Dupliquer",
         "createBlank": "Créer un jeu vierge",
+        "addCard": "Ajouter une carte",
         "rename": "Renommer",
         "delete": "Supprimer",
         "deleteWarning": "Supprimer ce jeu efface aussi l historique des parties qui s y rattachent. Cette action est définitive.",
