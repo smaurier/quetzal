@@ -7,6 +7,7 @@ import {
   canJoin,
   canDraw,
   canClaim,
+  isGameStatus,
   type GameStatus,
 } from './game-status.js';
 
@@ -71,5 +72,17 @@ describe('actions permises par état', () => {
     expect(canClaim('running')).toBe(true);
     expect(canClaim('open')).toBe(false);
     expect(canClaim('finished')).toBe(false);
+  });
+});
+
+describe('isGameStatus', () => {
+  it('accepte les quatre états', () => {
+    for (const status of GAME_STATUSES) expect(isGameStatus(status)).toBe(true);
+  });
+
+  it('refuse une chaîne qui n est pas un état', () => {
+    expect(isGameStatus('paused')).toBe(false);
+    expect(isGameStatus('')).toBe(false);
+    expect(isGameStatus('Draft')).toBe(false);
   });
 });

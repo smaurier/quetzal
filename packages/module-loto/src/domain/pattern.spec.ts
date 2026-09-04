@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchesPattern, PATTERN_KEYS, type Grid, type PatternKey } from './pattern.js';
+import { matchesPattern, isPatternKey, PATTERN_KEYS, type Grid, type PatternKey } from './pattern.js';
 
 // Une grille se lit ligne par ligne : les cases 0 à 3 forment la première ligne.
 function grid(...marked: number[]): Grid {
@@ -101,5 +101,17 @@ describe('matchesPattern — indépendance des figures', () => {
     for (const key of PATTERN_KEYS) {
       expect(matchesPattern(EMPTY, key)).toBe(false);
     }
+  });
+});
+
+describe('isPatternKey', () => {
+  it('accepte les quatre clés', () => {
+    for (const key of PATTERN_KEYS) expect(isPatternKey(key)).toBe(true);
+  });
+
+  it('refuse une chaîne qui n est pas une figure', () => {
+    expect(isPatternKey('carton')).toBe(false);
+    expect(isPatternKey('')).toBe(false);
+    expect(isPatternKey('LINEA')).toBe(false);
   });
 });
