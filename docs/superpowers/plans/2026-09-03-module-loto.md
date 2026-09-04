@@ -4089,7 +4089,7 @@ export class TeamNotFoundError extends DomainError {
 - [ ] **Étape 4 : lancer les tests de domaine et vérifier qu ils passent**
 
 Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/game-status.spec.ts src/domain/errors.spec.ts`
-Attendu : `Tests 19 passed` sur les deux fichiers réunis.
+Attendu : `Tests 21 passed` sur les deux fichiers réunis.
 
 - [ ] **Étape 5 : commit du domaine**
 
@@ -4307,9 +4307,14 @@ async function build(penalty = 3) {
   return { games, bus, game, team, useCase };
 }
 
-/** Enregistre des tirages réels, comme le ferait le cas d usage de tirage. */
+/**
+ * Enregistre des tirages réels, comme le ferait le cas d usage de tirage.
+ * Le rang REPART du dernier enregistré, il ne recommence pas à un : le dépôt
+ * refuse un rang déjà pris, donc un second appel perdrait silencieusement ses
+ * cartes et l équipe resterait bloquée pour une raison étrangère au domaine.
+ */
 async function draw(games: FakeGameRepository, gameId: string, cardIds: string[]): Promise<void> {
-  let order = 0;
+  let order = (games.draws.get(gameId) ?? []).length;
   for (const cardId of cardIds) await games.appendDraw(gameId, ++order, cardId);
 }
 
@@ -5198,8 +5203,10 @@ personne n a rejointe."
       Attendu : aucune sortie.
 - [ ] Lancer : `grep -rE "@nestjs|@prisma|react|@quetzal/db" packages/module-loto/src/domain/`
       Attendu : aucune correspondance. Le domaine est resté pur malgré une couche application entière posée dessus.
-- [ ] Lancer : `grep -rn "markedCardIds" packages/module-loto/src/application/`
-      Attendu : deux fichiers seulement, `toggle-mark.use-case.ts` qui l écrit et `game-snapshot.use-case.ts` qui l affiche. **Si `claim.use-case.ts` apparaît dans cette liste, s arrêter et relire la décision D1.**
+- [ ] Lancer : `grep -rn "markedCardIds" packages/module-loto/src/application/ | grep -v "^\s*//" | grep -v "\.spec\.ts"`
+      Attendu : `toggle-mark.use-case.ts` qui l écrit, `game-snapshot.use-case.ts` qui l affiche, et `testing/fake-repositories.ts` qui le stocke.
+
+      `claim.use-case.ts` **cite** `markedCardIds` dans le commentaire qui explique la décision D1 : c est voulu, et le filtre ci-dessus écarte les lignes de commentaire. Ce qui doit alerter, c est le mot dans une expression : `grep -n "markedCardIds" packages/module-loto/src/application/claim.use-case.ts` ne doit rendre qu une ligne, et cette ligne doit commencer par `//`. **Si elle participe à un calcul, s arrêter et relire la décision D1.**
 
 ## Étape 3 — Temps réel et écrans
 
