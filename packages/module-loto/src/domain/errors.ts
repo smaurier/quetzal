@@ -38,3 +38,33 @@ export class TablaGenerationExhaustedError extends DomainError {
     );
   }
 }
+
+export class DeckNotFoundError extends DomainError {
+  constructor(deckId: string) {
+    super(`Jeu de cartes introuvable : ${deckId}`);
+  }
+}
+
+export class GameNotFoundError extends DomainError {
+  constructor(gameId: string) {
+    super(`Partie introuvable : ${gameId}`);
+  }
+}
+
+export class JoinCodeUnavailableError extends DomainError {
+  constructor(attempts: number) {
+    super(`Aucun code d entrée libre trouvé en ${attempts} tentatives`);
+  }
+}
+
+export class NoCardsLeftError extends DomainError {
+  constructor(gameId: string) {
+    super(`Toutes les cartes ont été tirées dans la partie ${gameId}`);
+  }
+}
+
+export class DeckLockedError extends DomainError {
+  constructor(deckId: string) {
+    super(`Jeu de cartes ${deckId} verrouillé : une partie en cours l utilise`);
+  }
+}
