@@ -7133,6 +7133,12 @@ La brique technique existe déjà : `connectSocket(ns, { guestToken })` côté c
 **Fichiers :**
 - Créer : `e2e/tests/loto-guest.e2e.spec.ts`
 
+**Correction d ordre, trouvée le 04/09.** Le test ne peut pas créer la partie par l écran : le formulaire de création arrive à la **tâche 38**, et `decks-page.tsx` n est encore qu une coquille. Il la crée donc **par l API**, avec le JWT de l animatrice. Ce n est pas un pis-aller : ce que ce test doit prouver est le parcours du joueur, pas le formulaire.
+
+**Et le job `test-e2e` de la CI doit lancer le seed du module**, sinon aucun jeu de cartes n existe et le test échoue sur sa première assertion. Étape ajoutée dans `ci.yml` après le seed du noyau.
+
+**Ce test n a encore jamais été exécuté.** Il ne peut pas l être depuis un poste de développement : `pnpm dev` lit `.env.local`, dont la base est la **production**, et le lancer y écrirait de vraies parties. Sa première exécution réelle est celle de la CI, qui dispose d un Postgres jetable. Tant qu elle n a pas eu lieu, le considérer comme non vérifié.
+
 - [ ] **Étape 1 : écrire le test**
 
 ```ts

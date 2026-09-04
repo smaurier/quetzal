@@ -136,6 +136,7 @@ jobs:
       - run: pnpm --filter @quetzal/db prisma:generate
       - run: pnpm build
       - run: pnpm --filter @quetzal/auth seed
+      - run: pnpm --filter @quetzal/module-loto seed
       - run: pnpm --filter quetzal-api start &
       - run: pnpm --filter quetzal-host start &
       - run: pnpm exec playwright install --with-deps chromium
