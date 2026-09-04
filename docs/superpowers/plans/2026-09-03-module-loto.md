@@ -5216,6 +5216,8 @@ personne n a rejointe."
 
 But de l étape : le module devient un vrai module de la plateforme. Manifeste, routes HTTP, passerelle WebSocket, écran animateur, écran joueur. À la fin, une partie se joue de bout en bout dans un navigateur.
 
+> **Ordre d exécution : 31, puis 30, puis 29.** Les trois premières tâches se référencent en chaîne — le manifeste importe le module NestJS, qui importe la passerelle et le diffuseur — et la numérotation suit le récit, pas les dépendances. Prises dans l ordre écrit, aucune ne compile avant la dernière. Prises dans l ordre 31, 30, 29, chacune laisse un `typecheck` vert derrière elle. Les tâches 32 et 33 suivent ensuite normalement.
+
 ### Tâche 29 : Manifeste, catalogues et suite de contrat
 
 Deux entrées, comme le veut le contrat : `./manifest` côté serveur, `./client` côté hôte. Le piège a déjà coûté une session au sous-projet 1 : l entrée racine d un module tire NestJS dans le bundle Next, et le host ne doit jamais l importer.
