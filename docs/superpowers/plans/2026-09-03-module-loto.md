@@ -7054,6 +7054,16 @@ Ajouter le script dans `packages/module-loto/package.json` :
 Lancer : `pnpm --filter @quetzal/db prisma migrate deploy && pnpm --filter @quetzal/module-loto seed`
 Attendu : `54 cartes créées (...)`. Relancer une seconde fois et vérifier : `modèle déjà présent`.
 
+- [ ] **Étape 4 ter : deux entrées simultanées ne doivent pas créer deux fois la même équipe**
+
+Défaut réel, révélé par un test intermittent de la tâche 31. `JoinGameUseCase` lit les équipes, décide avec `assignTeam`, puis crée. **Deux entrées concurrentes lisent la même liste et créent chacune une équipe au même `teamIndex`.** En mémoire, les deux invités atterrissent dans des salons différents et ne voient plus les marquages l un de l autre. En base, la contrainte `@@unique([gameId, teamIndex, tenantId])` fait échouer la seconde insertion : l élève voit son entrée planter.
+
+Ce n est pas un cas de laboratoire. Trente téléphones qui scannent le QR dans la même minute, c est le scénario nominal de la première séance.
+
+Traiter la collision plutôt que d espérer l éviter : capter la violation d unicité à la création d équipe, relire les équipes et rejouer l affectation, avec un nombre d essais borné. La contrainte de base est déjà le point de sérialisation — il suffit de s en servir au lieu de la subir. Test attendu : deux `execute` lancés de front sur une partie à une seule équipe rendent le même `teamId`.
+
+Le test de diffusion de la tâche 31 a été rendu séquentiel en attendant, avec un commentaire qui renvoie ici : il vérifie la diffusion à l équipe, pas la concurrence.
+
 - [ ] **Étape 4 bis : l adresse d entrée doit porter le locataire**
 
 Manque trouvé en écrivant l écran animateur, à la tâche 32. La page d entrée invité de la plateforme, `apps/host/src/app/j/[moduleSlug]/[sessionId]/page.tsx`, **exige un paramètre `tenantId`** et rend « Missing tenantId » sans lui. L écran animateur fabrique pourtant `${origin}/j/loto/${game.id}` sans ce paramètre : le QR code mène donc à une page morte, et l E2E de la tâche 35 échouera dessus.
@@ -8331,4 +8341,5 @@ une politesse : une case vide rend la tabla injouable pour cet élève."
 5. **Plusieurs figures successives dans une même partie** — hors périmètre assumé. Déclencheur : la demande d enchaîner `linea` puis `llena` sans recréer de partie.
 6. **`typecheck` du reste du dépôt n inclut pas les specs** — `module-loto` a son `tsconfig.typecheck.json`, les autres paquets non. À généraliser au niveau de `packages/config`.
 7. **Effectifs au-delà de trente-cinq** — non mesuré. À constater à la première séance en classe entière.
-8. **Libellé de victoire côté joueur** — quand l équipe qui regarde a gagné, l écran rend `game.wonBy` avec un nom d équipe vide, donc « Victoire de » suivi de rien. Il manque une clé du genre `player.youWon`. Cosmétique, mais c est le dernier écran que voit l élève.
+8. **Entrées concurrentes** — traité à l étape 4 ter ci-dessus. Tant que ce n est pas fait, ne pas faire scanner trente téléphones en même temps : les faire entrer par vagues.
+9. **Libellé de victoire côté joueur** — quand l équipe qui regarde a gagné, l écran rend `game.wonBy` avec un nom d équipe vide, donc « Victoire de » suivi de rien. Il manque une clé du genre `player.youWon`. Cosmétique, mais c est le dernier écran que voit l élève.

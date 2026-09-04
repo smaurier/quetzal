@@ -153,9 +153,15 @@ describe('LotoGateway (intégration)', () => {
     // maxTeams: 1 place ces deux invités dans la même équipe (spec §5, D3). Un
     // gateway qui répondrait via un simple retour {event, data} — le piège du
     // 03/09 — ne le renverrait qu à l émetteur : ce test l aurait vu échouer.
+    // Les deux entrées sont SÉQUENTIELLES à dessein. Les mener de front rendait
+    // ce test intermittent, et pour une raison qui n est pas de sa faute :
+    // JoinGameUseCase lit les équipes, décide, puis crée. Deux entrées
+    // concurrentes lisent la même liste vide et créent chacune une équipe au
+    // même teamIndex. Ce défaut est réel et tracé dans la dette du plan ; ce
+    // test-ci vérifie la diffusion à l équipe, pas la concurrence.
     const author = connect({ guestToken: GUEST_TOKEN });
-    const teammate = connect({ guestToken: GUEST_TOKEN_2 });
     const authorState = await new Promise<GameSnapshot>((resolve) => author.once('state', resolve));
+    const teammate = connect({ guestToken: GUEST_TOKEN_2 });
     await new Promise<GameSnapshot>((resolve) => teammate.once('state', resolve));
     const cardId = authorState.tabla?.cards[0]?.id;
     expect(cardId).toBeDefined();
