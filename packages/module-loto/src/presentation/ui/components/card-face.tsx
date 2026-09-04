@@ -5,7 +5,10 @@ interface Props {
   imageId: string | null;
   marked?: boolean;
   size: 'sm' | 'lg' | 'xl';
-  onClick?: () => void;
+  // `| undefined` explicite : exactOptionalPropertyTypes distingue une prop
+  // absente d une prop présente valant undefined, et TablaGrid bascule entre
+  // les deux au clic selon `disabled`.
+  onClick?: (() => void) | undefined;
 }
 
 const SIZES = {
