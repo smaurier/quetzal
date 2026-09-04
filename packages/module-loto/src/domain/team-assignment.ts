@@ -1,3 +1,5 @@
+import { InvalidTeamLimitError } from './errors.js';
+
 export interface TeamLoad {
   id: string;
   memberCount: number;
@@ -11,8 +13,10 @@ export type TeamAssignment = { kind: 'new' } | { kind: 'existing'; teamId: strin
  * finissent donc souvent inégales, ce qui est sans effet sur le jeu.
  */
 export function assignTeam(teams: readonly TeamLoad[], maxTeams: number): TeamAssignment {
+  if (maxTeams < 1) throw new InvalidTeamLimitError(maxTeams);
   if (teams.length < maxTeams) return { kind: 'new' };
 
+  // maxTeams >= 1 et teams.length >= maxTeams garantissent teams non vide ici.
   let lightest = teams[0]!;
   for (const team of teams) {
     if (team.memberCount < lightest.memberCount) lightest = team;

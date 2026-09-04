@@ -23,3 +23,9 @@ export class GameNotRunningError extends DomainError {
     super(`Action impossible : la partie est à l'état ${status}`);
   }
 }
+
+export class InvalidTeamLimitError extends DomainError {
+  constructor(maxTeams: number) {
+    super(`Une partie doit accepter au moins une équipe, celle-ci en accepte ${maxTeams}`);
+  }
+}
