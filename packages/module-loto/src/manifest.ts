@@ -31,6 +31,8 @@ export const manifest: QuetzalModuleManifest = {
     'http:POST /api/modules/loto/games/:id/open': ['owner', 'creator'],
     'http:POST /api/modules/loto/games/:id/draw': ['owner', 'creator'],
     'http:POST /api/modules/loto/games/:id/finish': ['owner', 'creator'],
+    'http:POST /api/modules/loto/decks/:id/cards/:rank/image': ['owner', 'creator'],
+    'http:GET /api/modules/loto/images/:hash': ['owner', 'creator', 'learner', 'guest'],
     'ws:mark': ['guest', 'learner'],
     'ws:claim': ['guest', 'learner'],
   },

@@ -25,8 +25,15 @@ export const createGameSchema = z.object({
   falseClaimPenaltyDraws: z.number().int().min(0).max(99),
 });
 
+export const uploadImageSchema = z.object({
+  mimeType: z.enum(['image/webp', 'image/jpeg', 'image/png']),
+  /** Contenu encodé en base64, déjà redimensionné par le navigateur. */
+  data: z.string().min(1).max(4_000_000),
+});
+
 export type CreateDeckBody = z.infer<typeof createDeckSchema>;
 export type PatchDeckBody = z.infer<typeof patchDeckSchema>;
 export type CreateGameBody = z.infer<typeof createGameSchema>;
+export type UploadImageBody = z.infer<typeof uploadImageSchema>;
 
 export const gameStatusValues = GAME_STATUSES;

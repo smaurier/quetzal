@@ -12,23 +12,27 @@ import { OpenGameUseCase } from './application/open-game.use-case.js';
 import { ToggleMarkUseCase } from './application/toggle-mark.use-case.js';
 import type { DeckRepository } from './domain/ports/deck.repository.js';
 import type { GameRepository } from './domain/ports/game.repository.js';
+import { PrismaCardImageStore } from './infrastructure/prisma-card-image.store.js';
 import { PrismaDeckRepository } from './infrastructure/prisma-deck.repository.js';
 import { PrismaGameRepository } from './infrastructure/prisma-game.repository.js';
 import { DeckController } from './presentation/deck.controller.js';
 import { GameController } from './presentation/game.controller.js';
+import { ImageController } from './presentation/image.controller.js';
 import { LotoBroadcaster } from './presentation/loto.broadcaster.js';
 import { LotoGateway } from './presentation/loto.gateway.js';
 
 const DECKS = 'LotoDeckRepository';
 const GAMES = 'LotoGameRepository';
+const IMAGES = 'LotoCardImageStore';
 
 @Module({
-  controllers: [DeckController, GameController],
+  controllers: [DeckController, GameController, ImageController],
   providers: [
     LotoGateway,
     LotoBroadcaster,
     { provide: DECKS, useClass: PrismaDeckRepository },
     { provide: GAMES, useClass: PrismaGameRepository },
+    { provide: IMAGES, useClass: PrismaCardImageStore },
     {
       provide: ManageDecksUseCase,
       useFactory: (decks: DeckRepository) => new ManageDecksUseCase(decks),
