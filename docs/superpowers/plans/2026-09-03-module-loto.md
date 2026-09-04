@@ -1278,6 +1278,8 @@ But de l étape : la partie se joue contre une vraie base, en appelant des cas d
 
 Rappel du piège déjà payé : `tenantId` et tout identifiant d utilisateur ou d invité sont des chaînes simples. Les identifiants Better-Auth ne sont pas des UUID, et une colonne `@db.Uuid` produit une erreur P2023 au premier vrai appel.
 
+**Aucune colonne de ce module n est en `@db.Uuid`, y compris les identifiants que le module génère lui-même.** C est une divergence assumée avec `Hello_Greeting.id`, et CLAUDE.md paragraphe 9 autoriserait pourtant `@db.Uuid` ici. Deux raisons de ne pas le faire. D abord `Loto_Card.imageId` et `Loto_GameCard.imageId` contiennent une **empreinte sha256**, pas un UUID : la conversion serait fausse pour ces colonnes, et une règle qui souffre des exceptions dans le même fichier se perd à la première relecture. Ensuite le gain est nul au volume visé, tandis que le coût d une erreur est exactement le P2023 qui a cassé la production le 03/09. Ne pas « corriger » ce point sans une raison nouvelle.
+
 - [ ] **Étape 1 : écrire `prisma/models.prisma`**
 
 Reprendre littéralement la section 6 de la spec. Le fichier complet :
