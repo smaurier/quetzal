@@ -4499,3 +4499,520 @@ git commit -m "feat(module-loto): cas d usage de réclamation
 Le serveur croise la tabla avec ses propres tirages, jamais avec le marquage.
 La triche par marquage falsifié n a pas à être détectée : elle est sans objet."
 ```
+
+### Tâche 26 : Cas d usage — état complet d une partie
+
+Charge utile de l événement `state`, diffusé au socket qui vient de se connecter (spec section 8.4). C est la pièce qui rend la reprise après coupure réseau possible : un téléphone qui se reconnecte reçoit tout ce qu il lui faut pour se réafficher à l identique, sans rejouer l historique.
+
+Deux points de vue sur la même partie : l animatrice voit toutes les équipes et le ruban des cartes sorties ; un joueur voit en plus sa propre tabla, ses marquages et son éventuel blocage. Un seul cas d usage, un paramètre facultatif.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/game-snapshot.use-case.ts`
+- Test : `packages/module-loto/src/application/game-snapshot.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
+import { GameSnapshotUseCase } from './game-snapshot.use-case.js';
+import { FakeGameRepository } from './testing/fake-repositories.js';
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+async function build() {
+  const games = new FakeGameRepository();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings: { ...SETTINGS },
+  });
+  await games.freezeCards(
+    game.id,
+    Array.from({ length: 20 }, (_, i) => ({ rank: i + 1, label: `Carta ${i + 1}`, imageId: null })),
+  );
+  await games.setStatus(game.id, 'open');
+  const useCase = new GameSnapshotUseCase(games);
+  return { games, game, useCase };
+}
+
+describe('GameSnapshotUseCase', () => {
+  it('rend l état de la partie et ses réglages', async () => {
+    const { game, useCase } = await build();
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.game.status).toBe('open');
+    expect(snapshot.game.joinCode).toBe('AAA222');
+    expect(snapshot.game.pattern).toBe('linea');
+    expect(snapshot.game.remainingCardCount).toBe(20);
+  });
+
+  it('rend les cartes tirées dans l ordre du tirage', async () => {
+    const { games, game, useCase } = await build();
+    const frozen = await games.frozenCards(game.id);
+    await games.appendDraw(game.id, 1, frozen[4]!.id);
+    await games.appendDraw(game.id, 2, frozen[0]!.id);
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.draws.map((draw) => draw.label)).toEqual(['Carta 5', 'Carta 1']);
+    expect(snapshot.game.remainingCardCount).toBe(18);
+  });
+
+  it('nomme une équipe d un du nom de son membre', async () => {
+    const { games, game, useCase } = await build();
+    const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: [] });
+    await games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' });
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.teams[0]?.name).toEqual({ kind: 'member', displayName: 'Ana' });
+    expect(snapshot.teams[0]?.memberCount).toBe(1);
+  });
+
+  it('numérote une équipe dès qu elle compte plusieurs membres', async () => {
+    const { games, game, useCase } = await build();
+    const team = await games.createTeam(game.id, { teamIndex: 2, cardIds: [] });
+    await games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' });
+    await games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-2', displayName: 'Beto' });
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.teams[0]?.name).toEqual({ kind: 'numbered', number: 3 });
+    expect(snapshot.teams[0]?.memberCount).toBe(2);
+  });
+
+  it('sans équipe demandée, ne rend aucune tabla', async () => {
+    const { games, game, useCase } = await build();
+    const frozen = await games.frozenCards(game.id);
+    await games.createTeam(game.id, { teamIndex: 0, cardIds: frozen.slice(0, 16).map((c) => c.id) });
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.tabla).toBeNull();
+  });
+
+  it('avec une équipe, rend sa tabla, ses marquages et son blocage', async () => {
+    const { games, game, useCase } = await build();
+    const frozen = await games.frozenCards(game.id);
+    const cardIds = frozen.slice(0, 16).map((card) => card.id);
+    const team = await games.createTeam(game.id, { teamIndex: 0, cardIds });
+    await games.setMarks(team.id, [cardIds[0]!, cardIds[3]!]);
+    await games.blockTeam(team.id, 15);
+
+    const snapshot = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(snapshot.tabla?.cards).toHaveLength(16);
+    expect(snapshot.tabla?.cards[0]?.label).toBe('Carta 1');
+    expect(snapshot.tabla?.markedCardIds).toEqual([cardIds[0], cardIds[3]]);
+    expect(snapshot.tabla?.blockedUntilDraw).toBe(15);
+  });
+
+  it('rend la tabla dans l ordre de la tabla, pas dans celui du jeu', async () => {
+    const { games, game, useCase } = await build();
+    const frozen = await games.frozenCards(game.id);
+    const cardIds = [...frozen.slice(0, 16).map((card) => card.id)].reverse();
+    const team = await games.createTeam(game.id, { teamIndex: 0, cardIds });
+
+    const snapshot = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(snapshot.tabla?.cards.map((card) => card.id)).toEqual(cardIds);
+  });
+
+  it('refuse une équipe inconnue', async () => {
+    const { game, useCase } = await build();
+    await expect(useCase.execute({ gameId: game.id, teamId: 'absent' })).rejects.toBeInstanceOf(TeamNotFoundError);
+  });
+
+  it('refuse une partie inconnue', async () => {
+    const { useCase } = await build();
+    await expect(useCase.execute({ gameId: 'absent' })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/game-snapshot.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './game-snapshot.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
+import type { GameStatus } from '../domain/game-status.js';
+import type { PatternKey } from '../domain/pattern.js';
+import { teamNameFor, type TeamName } from '../domain/team-name.js';
+import type { DeckCard } from '../domain/ports/deck.repository.js';
+import type { GameRepository } from '../domain/ports/game.repository.js';
+
+export interface SnapshotGame {
+  id: string;
+  status: GameStatus;
+  pattern: PatternKey;
+  joinCode: string;
+  maxTeams: number;
+  falseClaimPenaltyDraws: number;
+  lastDrawOrder: number;
+  remainingCardCount: number;
+  wonByTeamId: string | null;
+}
+
+export interface SnapshotTeam {
+  id: string;
+  name: TeamName;
+  memberCount: number;
+  blockedUntilDraw: number;
+}
+
+export interface SnapshotDraw {
+  order: number;
+  cardId: string;
+  label: string;
+}
+
+export interface SnapshotTabla {
+  teamId: string;
+  cards: DeckCard[];
+  markedCardIds: string[];
+  blockedUntilDraw: number;
+}
+
+export interface GameSnapshot {
+  game: SnapshotGame;
+  teams: SnapshotTeam[];
+  draws: SnapshotDraw[];
+  tabla: SnapshotTabla | null;
+}
+
+@Injectable()
+export class GameSnapshotUseCase {
+  constructor(private readonly games: GameRepository) {}
+
+  async execute(input: { gameId: string; teamId?: string }): Promise<GameSnapshot> {
+    const game = await this.games.findById(input.gameId);
+    if (game === null) throw new GameNotFoundError(input.gameId);
+
+    const [frozen, teams, drawnCardIds] = await Promise.all([
+      this.games.frozenCards(game.id),
+      this.games.teams(game.id),
+      this.games.drawnCards(game.id),
+    ]);
+
+    const byId = new Map(frozen.map((card) => [card.id, card]));
+
+    const draws: SnapshotDraw[] = drawnCardIds.map((cardId, index) => ({
+      order: index + 1,
+      cardId,
+      label: byId.get(cardId)?.label ?? '',
+    }));
+
+    let tabla: SnapshotTabla | null = null;
+    if (input.teamId !== undefined) {
+      const team = teams.find((candidate) => candidate.id === input.teamId);
+      if (team === undefined) throw new TeamNotFoundError(input.teamId);
+      tabla = {
+        teamId: team.id,
+        cards: team.cardIds.flatMap((cardId) => {
+          const card = byId.get(cardId);
+          return card === undefined ? [] : [card];
+        }),
+        markedCardIds: team.markedCardIds,
+        blockedUntilDraw: team.blockedUntilDraw,
+      };
+    }
+
+    return {
+      game: {
+        id: game.id,
+        status: game.status,
+        pattern: game.settings.pattern,
+        joinCode: game.joinCode,
+        maxTeams: game.settings.maxTeams,
+        falseClaimPenaltyDraws: game.settings.falseClaimPenaltyDraws,
+        lastDrawOrder: game.lastDrawOrder,
+        remainingCardCount: frozen.length - drawnCardIds.length,
+        wonByTeamId: game.wonByTeamId,
+      },
+      teams: teams.map((team) => ({
+        id: team.id,
+        name: teamNameFor({
+          memberDisplayNames: team.memberDisplayNames,
+          teamIndex: team.teamIndex,
+        }),
+        memberCount: team.memberDisplayNames.length,
+        blockedUntilDraw: team.blockedUntilDraw,
+      })),
+      draws,
+      tabla,
+    };
+  }
+}
+```
+
+`flatMap` plutôt que `map` sur les cartes de la tabla : une carte introuvable dans le jeu figé est impossible par construction, mais `noUncheckedIndexedAccess` oblige à en décider, et laisser un trou dans la grille vaut mieux qu un `!` non justifié.
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/game-snapshot.use-case.spec.ts`
+Attendu : `Tests 9 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/application/game-snapshot.use-case.spec.ts
+git commit -m "test(module-loto): état complet d une partie, deux points de vue"
+git add packages/module-loto/src/application/game-snapshot.use-case.ts
+git commit -m "feat(module-loto): état complet d une partie
+
+Charge utile de l événement state. C est la pièce qui rend la reprise après
+coupure réseau possible : un téléphone qui se reconnecte se réaffiche à
+l identique sans rejouer l historique."
+```
+
+### Tâche 27 : Cas d usage — gestion des jeux de cartes
+
+Quatre actions de l enseignante hors partie : lister, dupliquer, éditer, supprimer. La duplication est celle qui compte : c est par elle qu Elda part de la lotería traditionnelle pour y mettre les photos de son propre jeu.
+
+Le verrou de la décision D5 vit ici : un jeu ne peut pas être modifié tant qu une partie qui l utilise est en cours, et le supprimer emporte l historique des parties qui s y rattachent.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/application/manage-decks.use-case.ts`
+- Test : `packages/module-loto/src/application/manage-decks.use-case.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { DeckLockedError, DeckNotFoundError } from '../domain/errors.js';
+import { ManageDecksUseCase } from './manage-decks.use-case.js';
+import { FakeDeckRepository, deckOf } from './testing/fake-repositories.js';
+
+function build() {
+  const decks = new FakeDeckRepository();
+  const useCase = new ManageDecksUseCase(decks);
+  return { decks, useCase };
+}
+
+describe('ManageDecksUseCase', () => {
+  it('liste les jeux avec leur nombre de cartes', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+
+    const list = await useCase.list();
+
+    expect(list).toHaveLength(1);
+    expect(list[0]?.cardCount).toBe(54);
+  });
+
+  it('duplique un jeu avec toutes ses cartes', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54, { name: 'Lotería tradicional', isTemplate: true }));
+
+    const copy = await useCase.duplicate({ deckId: 'deck-1', name: 'Mi lotería', createdBy: 'u-1' });
+
+    expect(copy.id).not.toBe('deck-1');
+    expect(copy.name).toBe('Mi lotería');
+    expect(copy.cards).toHaveLength(54);
+    expect(copy.cards[0]?.label).toBe('Carta 1');
+  });
+
+  it('une copie n est jamais un modèle, même copiée d un modèle', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54, { isTemplate: true }));
+
+    const copy = await useCase.duplicate({ deckId: 'deck-1', name: 'Mi lotería', createdBy: 'u-1' });
+
+    expect(copy.isTemplate).toBe(false);
+  });
+
+  it('éditer la copie ne touche pas au modèle', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54, { isTemplate: true }));
+    const copy = await useCase.duplicate({ deckId: 'deck-1', name: 'Mi lotería', createdBy: 'u-1' });
+
+    await useCase.editCard({ deckId: copy.id, rank: 1, patch: { label: 'El gallito' } });
+
+    const original = await decks.findById('deck-1');
+    expect(original?.cards[0]?.label).toBe('Carta 1');
+  });
+
+  it('crée un jeu vierge', async () => {
+    const { useCase } = build();
+
+    const deck = await useCase.createBlank({ name: 'Vocabulario', createdBy: 'u-1' });
+
+    expect(deck.name).toBe('Vocabulario');
+    expect(deck.cards).toHaveLength(0);
+    expect(deck.isTemplate).toBe(false);
+  });
+
+  it('renomme un jeu', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(20));
+
+    await useCase.rename({ deckId: 'deck-1', name: 'Autre nom' });
+
+    expect((await decks.findById('deck-1'))?.name).toBe('Autre nom');
+  });
+
+  it('refuse d éditer un jeu qu une partie en cours utilise', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+    decks.unfinished.add('deck-1');
+
+    await expect(
+      useCase.editCard({ deckId: 'deck-1', rank: 1, patch: { label: 'Interdit' } }),
+    ).rejects.toBeInstanceOf(DeckLockedError);
+    await expect(useCase.rename({ deckId: 'deck-1', name: 'Interdit' })).rejects.toBeInstanceOf(DeckLockedError);
+  });
+
+  it('refuse de supprimer un jeu qu une partie en cours utilise', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+    decks.unfinished.add('deck-1');
+
+    await expect(useCase.delete({ deckId: 'deck-1' })).rejects.toBeInstanceOf(DeckLockedError);
+    expect(await decks.findById('deck-1')).not.toBeNull();
+  });
+
+  it('supprime un jeu qu aucune partie en cours n utilise', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+
+    await useCase.delete({ deckId: 'deck-1' });
+
+    expect(await decks.findById('deck-1')).toBeNull();
+  });
+
+  it('refuse de dupliquer un jeu inconnu', async () => {
+    const { useCase } = build();
+    await expect(
+      useCase.duplicate({ deckId: 'absent', name: 'x', createdBy: 'u-1' }),
+    ).rejects.toBeInstanceOf(DeckNotFoundError);
+  });
+
+  it('duplique un jeu même verrouillé : la copie ne touche pas à l original', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+    decks.unfinished.add('deck-1');
+
+    const copy = await useCase.duplicate({ deckId: 'deck-1', name: 'Copie', createdBy: 'u-1' });
+    expect(copy.cards).toHaveLength(54);
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/manage-decks.use-case.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './manage-decks.use-case.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { DeckLockedError, DeckNotFoundError } from '../domain/errors.js';
+import type { Deck, DeckRepository, DeckSummary } from '../domain/ports/deck.repository.js';
+
+@Injectable()
+export class ManageDecksUseCase {
+  constructor(private readonly decks: DeckRepository) {}
+
+  async list(): Promise<DeckSummary[]> {
+    return this.decks.list();
+  }
+
+  async duplicate(input: { deckId: string; name: string; createdBy: string }): Promise<Deck> {
+    const source = await this.require(input.deckId);
+    // Pas de verrou ici : dupliquer ne touche jamais à l original, c est même
+    // le geste qui permet à Elda de repartir d un jeu pendant qu il sert.
+    return this.decks.create({
+      name: input.name,
+      isTemplate: false,
+      createdBy: input.createdBy,
+      cards: source.cards.map((card) => ({
+        rank: card.rank,
+        label: card.label,
+        imageId: card.imageId,
+      })),
+    });
+  }
+
+  async createBlank(input: { name: string; createdBy: string }): Promise<Deck> {
+    return this.decks.create({
+      name: input.name,
+      isTemplate: false,
+      createdBy: input.createdBy,
+      cards: [],
+    });
+  }
+
+  async rename(input: { deckId: string; name: string }): Promise<void> {
+    await this.requireUnlocked(input.deckId);
+    await this.decks.rename(input.deckId, input.name);
+  }
+
+  async editCard(input: {
+    deckId: string;
+    rank: number;
+    patch: { label?: string; imageId?: string | null };
+  }): Promise<void> {
+    await this.requireUnlocked(input.deckId);
+    await this.decks.updateCard(input.deckId, input.rank, input.patch);
+  }
+
+  async delete(input: { deckId: string }): Promise<void> {
+    await this.requireUnlocked(input.deckId);
+    await this.decks.delete(input.deckId);
+  }
+
+  private async require(deckId: string): Promise<Deck> {
+    const deck = await this.decks.findById(deckId);
+    if (deck === null) throw new DeckNotFoundError(deckId);
+    return deck;
+  }
+
+  private async requireUnlocked(deckId: string): Promise<Deck> {
+    const deck = await this.require(deckId);
+    if (await this.decks.hasUnfinishedGame(deckId)) throw new DeckLockedError(deckId);
+    return deck;
+  }
+}
+```
+
+La suppression emporte l historique des parties liées, par la cascade déclarée dans le schéma. L avertissement explicite exigé par la spec est un geste d écran, pas de cas d usage : il vit à la tâche 34.
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/application/manage-decks.use-case.spec.ts`
+Attendu : `Tests 11 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/application/manage-decks.use-case.spec.ts
+git commit -m "test(module-loto): gestion des jeux de cartes et verrou D5"
+git add packages/module-loto/src/application/manage-decks.use-case.ts
+git commit -m "feat(module-loto): cas d usage de gestion des jeux de cartes
+
+Un jeu ne peut être ni renommé, ni édité, ni supprimé tant qu une partie en
+cours l utilise. Dupliquer reste toujours possible : c est le geste qui
+permet de repartir d un jeu pendant qu il sert."
+```
+
+**Fin de l étape 2.** Vérification complète avant de passer au temps réel :
+
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto test`
+      Attendu : environ `Tests 150 passed`. Reporter le nombre réel.
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+      Attendu : `Tests 15 passed`.
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint`
+      Attendu : aucune sortie.
+- [ ] Lancer : `grep -rE "@nestjs|@prisma|react|@quetzal/db" packages/module-loto/src/domain/`
+      Attendu : aucune correspondance. Le domaine est resté pur malgré une couche application entière posée dessus.
+- [ ] Lancer : `grep -rn "markedCardIds" packages/module-loto/src/application/`
+      Attendu : deux fichiers seulement, `toggle-mark.use-case.ts` qui l écrit et `game-snapshot.use-case.ts` qui l affiche. **Si `claim.use-case.ts` apparaît dans cette liste, s arrêter et relire la décision D1.**
