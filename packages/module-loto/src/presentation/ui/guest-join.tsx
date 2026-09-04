@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import type { GuestJoinProps } from '@quetzal/core';
 import { Button, Card, Input, Label } from '@quetzal/ui';
@@ -66,6 +66,22 @@ function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: strin
   const t = useTranslations('module.loto');
   const { snapshot, error, socket } = useGameSocket({ gameId, guestToken });
   const [rejected, setRejected] = useState(false);
+
+  useEffect(() => {
+    const cards = snapshot?.tabla?.cards;
+    if (cards === undefined) return;
+    // Les images d une tabla sont chargées pendant l attente, ce qui étale la
+    // charge sur la durée des connexions au lieu de la concentrer au premier
+    // tirage, quand trente téléphones demandent tout en même temps. La
+    // dépendance porte sur `cards` (stable entre deux marquages) et non sur
+    // `tabla` (recréé à chaque marquage), sous peine de tout recharger à
+    // chaque coche de case.
+    for (const card of cards) {
+      if (card.imageId === null) continue;
+      const image = new Image();
+      image.src = `/api/modules/loto/images/${card.imageId}`;
+    }
+  }, [snapshot?.tabla?.cards]);
 
   if (error !== null) return <p role="alert">{error}</p>;
   if (snapshot === null || snapshot.tabla === null) return <p>{t('player.waiting')}</p>;

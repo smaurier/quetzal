@@ -1,4 +1,5 @@
 'use client';
+import { useState } from 'react';
 
 interface Props {
   label: string;
@@ -24,6 +25,8 @@ const SIZES = {
  */
 export function CardFace({ label, imageId, marked = false, size, onClick }: Props) {
   const Tag = onClick === undefined ? 'div' : 'button';
+  const [imageFailed, setImageFailed] = useState(false);
+  const showImage = imageId !== null && !imageFailed;
   return (
     <Tag
       type={onClick === undefined ? undefined : 'button'}
@@ -33,10 +36,15 @@ export function CardFace({ label, imageId, marked = false, size, onClick }: Prop
         marked ? 'border-primary bg-primary/20' : 'border-border bg-card'
       }`}
     >
-      {imageId === null ? (
+      {!showImage ? (
         <span>{label}</span>
       ) : (
-        <img src={`/api/modules/loto/images/${imageId}`} alt={label} className="max-h-full object-contain" />
+        <img
+          src={`/api/modules/loto/images/${imageId}`}
+          alt={label}
+          onError={() => setImageFailed(true)}
+          className="max-h-full object-contain"
+        />
       )}
     </Tag>
   );
