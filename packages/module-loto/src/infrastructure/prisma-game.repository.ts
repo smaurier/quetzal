@@ -229,10 +229,14 @@ export class PrismaGameRepository implements GameRepository {
     try {
       await this.prisma.loto_Draw.create({ data: { id: newId(), gameId, order, cardId } });
       return true;
-    } catch {
-      // Les deux contraintes d unicité de Loto_Draw rendent un double appui
-      // sans effet plutôt qu erroné. Spec section 6.1.
-      return false;
+    } catch (err) {
+      // P2002 : violation d unicité. Les deux contraintes de Loto_Draw rendent
+      // un double appui simultané sans effet plutôt qu erroné (spec 6.1).
+      // Toute autre erreur est une vraie panne et doit remonter.
+      if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'P2002') {
+        return false;
+      }
+      throw err;
     }
   }
 
