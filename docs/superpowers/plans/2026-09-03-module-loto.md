@@ -6224,3 +6224,644 @@ Aucun message d entrée : un invité est affecté à son équipe à la connexion
 à partir de l identité posée au handshake. L écran joueur n a donc jamais de
 fenêtre pendant laquelle il serait connecté sans tabla."
 ```
+
+### Tâche 32 : Écran animateur
+
+C est l écran projeté au tableau, lu depuis le fond de la salle. Tout y est plus gros que sur un écran de bureau, et rien n y est décoratif.
+
+Première marche : `connectSocket` n accepte aujourd hui qu un jeton invité. L animatrice, elle, est authentifiée et doit dire **quelle** partie elle regarde — un utilisateur n a pas d identifiant de session dans son jeton, contrairement à un invité.
+
+**Fichiers :**
+- Modifier : `packages/core/src/client/socket.ts`
+- Test : `packages/core/src/client/socket.spec.ts`
+- Créer : `packages/module-loto/src/presentation/ui/animator-page.tsx`
+- Créer : `packages/module-loto/src/presentation/ui/components/card-face.tsx`
+- Créer : `packages/module-loto/src/presentation/ui/components/draw-ribbon.tsx`
+- Créer : `packages/module-loto/src/presentation/ui/use-game-socket.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+`packages/core/src/client/socket.spec.ts` :
+
+```ts
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const ioMock = vi.fn(() => ({ on: vi.fn(), emit: vi.fn() }));
+vi.mock('socket.io-client', () => ({ io: ioMock }));
+vi.mock('./api-client.js', () => ({ apiClient: () => ({ getToken: async () => 'jwt-de-test' }) }));
+
+const { connectSocket } = await import('./socket.js');
+
+describe('connectSocket', () => {
+  beforeEach(() => ioMock.mockClear());
+
+  it('transmet une query au handshake, pour dire quelle session on regarde', async () => {
+    await connectSocket('ws/loto', { query: { gameId: 'game-1' } });
+    expect(ioMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ query: { gameId: 'game-1' } }),
+    );
+  });
+
+  it('n envoie aucune query quand il n y en a pas', async () => {
+    await connectSocket('ws/loto');
+    const options = ioMock.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(options['query']).toBeUndefined();
+  });
+
+  it('un jeton invité reste prioritaire sur le JWT', async () => {
+    await connectSocket('ws/loto', { guestToken: 'jeton-invité' });
+    const options = ioMock.mock.calls[0]?.[1] as { auth: Record<string, string> };
+    expect(options.auth['guestToken']).toBe('jeton-invité');
+    expect(options.auth['token']).toBeUndefined();
+  });
+});
+```
+
+Ce fichier emploie `vi.mock` sur `socket.io-client`, que CLAUDE.md paragraphe 11 proscrit. C est ici justifié et doit être signalé dans le corps du commit : ouvrir un vrai socket pour vérifier la forme des options du handshake reviendrait à tester socket.io. Le contrat temps réel réel, lui, est couvert par le test d intégration de la tâche 31 et par l E2E de la tâche 35.
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/core exec vitest run src/client/socket.spec.ts`
+Attendu : ÉCHEC sur la première assertion, `query` absente des options.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { io, type Socket } from 'socket.io-client';
+import { socketUrl } from './api-url.js';
+import { apiClient } from './api-client.js';
+
+export interface ConnectSocketOptions {
+  /** Entrée invité : jeton signé rendu par POST /api/guest-token. */
+  guestToken?: string;
+  /**
+   * Paramètres de souscription passés au handshake. Un invité tient son
+   * identifiant de session de son jeton ; un utilisateur authentifié, non, et
+   * doit donc dire ce qu il regarde. Ce n est pas une revendication d identité :
+   * le cloisonnement par locataire reste seul juge de ce qui est accessible.
+   */
+  query?: Record<string, string>;
+}
+
+/**
+ * Ouvre une connexion socket.io vers le namespace d un module, sur l origine de
+ * l API. L identité est résolue au handshake par l adaptateur de la plateforme :
+ * `auth.token` pour un utilisateur, `auth.guestToken` pour un invité.
+ */
+export async function connectSocket(
+  namespace: string,
+  options: ConnectSocketOptions = {},
+): Promise<Socket> {
+  const auth: Record<string, string> = {};
+  if (options.guestToken) {
+    auth['guestToken'] = options.guestToken;
+  } else {
+    const token = await apiClient().getToken();
+    if (token) auth['token'] = token;
+  }
+  return io(socketUrl(namespace), {
+    auth,
+    transports: ['websocket'],
+    withCredentials: true,
+    ...(options.query === undefined ? {} : { query: options.query }),
+  });
+}
+```
+
+Le commentaire d origine mentionnait `WsJwtGuard` et `WsGuestGuard`, supprimés le 03/09 quand l identité est passée au handshake. Il est corrigé au passage.
+
+- [ ] **Étape 4 : lancer le test, reconstruire, commiter le noyau**
+
+Lancer : `pnpm --filter @quetzal/core exec vitest run src/client/socket.spec.ts && pnpm --filter @quetzal/core build`
+Attendu : `Tests 3 passed`, build silencieux.
+
+```bash
+git add packages/core/src/client/socket.spec.ts
+git commit -m "test(core/client): connectSocket transmet une query de souscription
+
+Emploie vi.mock sur socket.io-client, contre CLAUDE.md paragraphe 11 :
+ouvrir un vrai socket pour vérifier la forme des options reviendrait à tester
+socket.io. Le contrat temps réel est couvert par intégration et E2E."
+git add packages/core/src/client/socket.ts
+git commit -m "feat(core/client): query de souscription au handshake
+
+Un invité tient son identifiant de session de son jeton, un utilisateur non.
+Corrige au passage un commentaire qui citait deux gardes supprimées le 03/09."
+```
+
+- [ ] **Étape 5 : écrire le hook de connexion partagé**
+
+`src/presentation/ui/use-game-socket.ts`, employé par les deux écrans :
+
+```ts
+'use client';
+import { useEffect, useRef, useState } from 'react';
+import { connectSocket } from '@quetzal/core/client';
+import type { Socket } from 'socket.io-client';
+import type { GameSnapshot } from '../../application/game-snapshot.use-case.js';
+
+export interface GameSocketState {
+  snapshot: GameSnapshot | null;
+  error: string | null;
+  socket: Socket | null;
+}
+
+export function useGameSocket(options: { gameId: string; guestToken?: string }): GameSocketState {
+  const [snapshot, setSnapshot] = useState<GameSnapshot | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const [, force] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    let socket: Socket | null = null;
+
+    void (async () => {
+      socket = await connectSocket('ws/loto', {
+        ...(options.guestToken === undefined
+          ? { query: { gameId: options.gameId } }
+          : { guestToken: options.guestToken }),
+      });
+      if (cancelled) {
+        socket.disconnect();
+        return;
+      }
+      socketRef.current = socket;
+      force((n) => n + 1);
+
+      // Un état complet arrive à chaque connexion ET à chaque reconnexion :
+      // c est ce qui rend une coupure wifi invisible pour l élève.
+      socket.on('state', (next: GameSnapshot) => setSnapshot(next));
+      socket.on('join-failed', (payload: { reason: string }) => setError(payload.reason));
+
+      socket.on('game-changed', (game: GameSnapshot['game']) =>
+        setSnapshot((current) => (current === null ? current : { ...current, game })),
+      );
+      socket.on('card-drawn', (draw: { order: number; cardId: string; label: string }) =>
+        setSnapshot((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                draws: [...current.draws, draw],
+                game: {
+                  ...current.game,
+                  lastDrawOrder: draw.order,
+                  remainingCardCount: current.game.remainingCardCount - 1,
+                },
+              },
+        ),
+      );
+      socket.on('team-joined', (team: GameSnapshot['teams'][number]) =>
+        setSnapshot((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                teams: [...current.teams.filter((t) => t.id !== team.id), team],
+              },
+        ),
+      );
+      socket.on('mark-changed', (payload: { cardId: string; marked: boolean }) =>
+        setSnapshot((current) => {
+          if (current === null || current.tabla === null) return current;
+          const without = current.tabla.markedCardIds.filter((id) => id !== payload.cardId);
+          return {
+            ...current,
+            tabla: {
+              ...current.tabla,
+              markedCardIds: payload.marked ? [...without, payload.cardId] : without,
+            },
+          };
+        }),
+      );
+      socket.on('claim-result', (payload: { teamId: string; valid: boolean; blockedUntilDraw: number }) =>
+        setSnapshot((current) => {
+          if (current === null) return current;
+          const tabla =
+            current.tabla !== null && current.tabla.teamId === payload.teamId
+              ? { ...current.tabla, blockedUntilDraw: payload.blockedUntilDraw }
+              : current.tabla;
+          return { ...current, tabla };
+        }),
+      );
+      socket.on('game-finished', (payload: { wonByTeamId: string | null }) =>
+        setSnapshot((current) =>
+          current === null
+            ? current
+            : { ...current, game: { ...current.game, status: 'finished', wonByTeamId: payload.wonByTeamId } },
+        ),
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+      socket?.disconnect();
+      socketRef.current = null;
+    };
+  }, [options.gameId, options.guestToken]);
+
+  return { snapshot, error, socket: socketRef.current };
+}
+```
+
+- [ ] **Étape 6 : écrire les composants d affichage**
+
+`src/presentation/ui/components/card-face.tsx` :
+
+```tsx
+'use client';
+
+interface Props {
+  label: string;
+  imageId: string | null;
+  marked?: boolean;
+  size: 'sm' | 'lg' | 'xl';
+  onClick?: () => void;
+}
+
+const SIZES = {
+  sm: 'text-sm p-1 min-h-16',
+  lg: 'text-2xl p-3 min-h-32',
+  xl: 'text-6xl p-8 min-h-64',
+} as const;
+
+/**
+ * Repli typographique : une carte sans image s affiche en toutes lettres. Le
+ * jeu est donc pleinement jouable avant qu une seule image existe, ce qui rend
+ * le développement indépendant de la production des visuels. Étape 6.
+ */
+export function CardFace({ label, imageId, marked = false, size, onClick }: Props) {
+  const Tag = onClick === undefined ? 'div' : 'button';
+  return (
+    <Tag
+      type={onClick === undefined ? undefined : 'button'}
+      onClick={onClick}
+      aria-pressed={onClick === undefined ? undefined : marked}
+      className={`flex items-center justify-center rounded-lg border-2 text-center font-semibold transition ${SIZES[size]} ${
+        marked ? 'border-primary bg-primary/20' : 'border-border bg-card'
+      }`}
+    >
+      {imageId === null ? (
+        <span>{label}</span>
+      ) : (
+        <img src={`/api/modules/loto/images/${imageId}`} alt={label} className="max-h-full object-contain" />
+      )}
+    </Tag>
+  );
+}
+```
+
+`src/presentation/ui/components/draw-ribbon.tsx` :
+
+```tsx
+'use client';
+import { CardFace } from './card-face.js';
+
+interface Props {
+  draws: { order: number; cardId: string; label: string }[];
+}
+
+export function DrawRibbon({ draws }: Props) {
+  return (
+    <ol className="flex gap-2 overflow-x-auto pb-2" aria-label="Cartes déjà sorties">
+      {draws.map((draw) => (
+        <li key={draw.cardId} className="shrink-0 w-20">
+          <CardFace label={draw.label} imageId={null} size="sm" />
+        </li>
+      ))}
+    </ol>
+  );
+}
+```
+
+- [ ] **Étape 7 : écrire l écran animateur**
+
+`src/presentation/ui/animator-page.tsx` :
+
+```tsx
+'use client';
+import { useTranslations } from 'next-intl';
+import { apiClient } from '@quetzal/core/client';
+import { Button, Card } from '@quetzal/ui';
+import { CardFace } from './components/card-face.js';
+import { DrawRibbon } from './components/draw-ribbon.js';
+import { useGameSocket } from './use-game-socket.js';
+
+interface Props {
+  gameId: string;
+  hostUrl: string;
+}
+
+export default function AnimatorPage({ gameId, hostUrl }: Props) {
+  const t = useTranslations('module.loto');
+  const { snapshot, error } = useGameSocket({ gameId });
+
+  if (error !== null) return <p role="alert">{error}</p>;
+  if (snapshot === null) return <p>{t('game.waiting')}</p>;
+
+  const { game, teams, draws } = snapshot;
+  const lastDraw = draws[draws.length - 1];
+  const joinUrl = `${hostUrl}/j/loto/${game.id}`;
+
+  async function post(path: string): Promise<void> {
+    await apiClient().apiFetch(`/api/modules/loto/games/${gameId}/${path}`, { method: 'POST' });
+  }
+
+  if (game.status === 'draft' || game.status === 'open') {
+    return (
+      <Card className="p-8 space-y-8">
+        <div className="text-center">
+          <p className="text-2xl">{t('game.joinCode')}</p>
+          <p className="text-8xl font-bold tracking-widest" data-testid="join-code">
+            {game.joinCode}
+          </p>
+          <p className="mt-4 break-all text-sm text-muted-foreground">{joinUrl}</p>
+        </div>
+
+        <ul className="flex flex-wrap gap-3" data-testid="teams">
+          {teams.map((team) => (
+            <li key={team.id} className="rounded-lg border px-4 py-2 text-xl">
+              {team.name.kind === 'member' ? team.name.displayName : t('team.numbered', { number: team.name.number })}
+              {team.memberCount > 1 ? ` (${String(team.memberCount)})` : ''}
+            </li>
+          ))}
+        </ul>
+
+        <div className="flex gap-3">
+          {game.status === 'draft' ? (
+            <Button size="lg" onClick={() => void post('open')}>{t('game.open')}</Button>
+          ) : (
+            <Button size="lg" onClick={() => void post('draw')} data-testid="draw">{t('game.draw')}</Button>
+          )}
+          <Button size="lg" variant="outline" onClick={() => void post('finish')}>{t('game.finish')}</Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-8 space-y-6">
+      {lastDraw !== undefined && (
+        <div className="text-center" data-testid="last-draw">
+          <CardFace label={lastDraw.label} imageId={null} size="xl" />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <Button size="lg" disabled={game.status === 'finished'} onClick={() => void post('draw')} data-testid="draw">
+          {t('game.draw')}
+        </Button>
+        <p className="text-xl">{t('game.remaining', { count: game.remainingCardCount })}</p>
+        <Button size="lg" variant="outline" onClick={() => void post('finish')}>{t('game.finish')}</Button>
+      </div>
+
+      <DrawRibbon draws={draws} />
+
+      {game.status === 'finished' && (
+        <p className="text-4xl font-bold text-center" role="status" data-testid="winner">
+          {game.wonByTeamId === null
+            ? t('game.stopped')
+            : t('game.wonBy', {
+                team: nameOf(teams, game.wonByTeamId, t),
+              })}
+        </p>
+      )}
+    </Card>
+  );
+}
+
+function nameOf(
+  teams: { id: string; name: { kind: 'member'; displayName: string } | { kind: 'numbered'; number: number } }[],
+  teamId: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  const team = teams.find((candidate) => candidate.id === teamId);
+  if (team === undefined) return '';
+  return team.name.kind === 'member' ? team.name.displayName : t('team.numbered', { number: team.name.number });
+}
+```
+
+- [ ] **Étape 8 : vérifier**
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint`
+Attendu : aucune sortie. Si ESLint se plaint d une chaîne littérale dans du JSX, c est la règle `react/jsx-no-literals` : la chaîne doit passer par une clé de traduction.
+
+- [ ] **Étape 9 : commit**
+
+```bash
+git add packages/module-loto/src/presentation/ui
+git commit -m "feat(module-loto): écran animateur
+
+Écran projeté, lu depuis le fond de la salle. Le repli typographique de
+CardFace rend le jeu pleinement jouable avant qu une seule image existe.
+
+Exempté du cycle test-first au titre de CLAUDE.md paragraphe 5, couche
+Presentation ; couvert par l E2E de la tâche 35."
+```
+
+### Tâche 33 : Écran joueur
+
+Un téléphone, une colonne, rien d autre. La carte tirée en haut, la tabla dessous, le marquage au doigt, un bouton de réclamation.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/presentation/ui/guest-join.tsx`
+- Créer : `packages/module-loto/src/presentation/ui/components/tabla-grid.tsx`
+
+- [ ] **Étape 1 : écrire la grille**
+
+`src/presentation/ui/components/tabla-grid.tsx` :
+
+```tsx
+'use client';
+import { CardFace } from './card-face.js';
+
+interface Props {
+  cards: { id: string; label: string; imageId: string | null }[];
+  markedCardIds: string[];
+  onToggle: (cardId: string, marked: boolean) => void;
+  disabled: boolean;
+}
+
+export function TablaGrid({ cards, markedCardIds, onToggle, disabled }: Props) {
+  const marked = new Set(markedCardIds);
+  return (
+    <div className="grid grid-cols-4 gap-1.5" data-testid="tabla">
+      {cards.map((card) => {
+        const isMarked = marked.has(card.id);
+        return (
+          <CardFace
+            key={card.id}
+            label={card.label}
+            imageId={card.imageId}
+            marked={isMarked}
+            size="lg"
+            onClick={disabled ? undefined : () => onToggle(card.id, !isMarked)}
+          />
+        );
+      })}
+    </div>
+  );
+}
+```
+
+Quatre colonnes, seize cases : la grille est la tabla, l ordre du tableau est celui de la tabla. Aucun tri ici, sinon la projection en grille du domaine et l affichage divergeraient et une figure validée par le serveur n aurait pas l air gagnante à l écran.
+
+- [ ] **Étape 2 : écrire l écran joueur**
+
+`src/presentation/ui/guest-join.tsx` :
+
+```tsx
+'use client';
+import { useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { Button, Card, Input, Label } from '@quetzal/ui';
+import { TablaGrid } from './components/tabla-grid.js';
+import { CardFace } from './components/card-face.js';
+import { useGameSocket } from './use-game-socket.js';
+
+interface Props {
+  tenantId: string;
+  moduleSlug: string;
+  sessionId: string;
+}
+
+interface TokenResponse {
+  token: string;
+}
+
+export default function GuestJoin({ tenantId, moduleSlug, sessionId }: Props) {
+  const t = useTranslations('module.loto');
+  const tGuest = useTranslations('guest.join');
+  const [displayName, setDisplayName] = useState('');
+  const [guestToken, setGuestToken] = useState<string | undefined>(undefined);
+  const [tokenError, setTokenError] = useState<string | null>(null);
+
+  async function onJoin(event: React.FormEvent) {
+    event.preventDefault();
+    setTokenError(null);
+    const res = await fetch('/api/guest-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenantId, moduleSlug, sessionId, displayName }),
+    });
+    if (!res.ok) {
+      setTokenError(String(res.status));
+      return;
+    }
+    const { token } = (await res.json()) as TokenResponse;
+    setGuestToken(token);
+  }
+
+  if (guestToken === undefined) {
+    return (
+      <Card className="w-full max-w-sm p-6">
+        <h1 className="mb-4 text-xl font-semibold">{t('nav.title')}</h1>
+        <form onSubmit={onJoin} className="space-y-4">
+          <div>
+            <Label htmlFor="displayName">{tGuest('display_name')}</Label>
+            <Input
+              id="displayName"
+              required
+              maxLength={32}
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+            />
+          </div>
+          {tokenError !== null && <p role="alert">{tokenError}</p>}
+          <Button type="submit" className="w-full">{tGuest('join')}</Button>
+        </form>
+      </Card>
+    );
+  }
+
+  return <PlayerBoard gameId={sessionId} guestToken={guestToken} />;
+}
+
+function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: string }) {
+  const t = useTranslations('module.loto');
+  const { snapshot, error, socket } = useGameSocket({ gameId, guestToken });
+  const [rejected, setRejected] = useState(false);
+
+  if (error !== null) return <p role="alert">{error}</p>;
+  if (snapshot === null || snapshot.tabla === null) return <p>{t('player.waiting')}</p>;
+
+  const { game, draws, tabla } = snapshot;
+  const lastDraw = draws[draws.length - 1];
+  const blocked = tabla.blockedUntilDraw > game.lastDrawOrder;
+
+  function toggle(cardId: string, marked: boolean): void {
+    socket?.emit('mark', { cardId, marked });
+  }
+
+  function claim(): void {
+    setRejected(false);
+    socket?.emit('claim');
+    // La réponse arrive par l événement claim-result, jamais par un accusé :
+    // Nest transforme un retour {event, data} en événement.
+    socket?.once('claim-result', (payload: { valid: boolean }) => setRejected(!payload.valid));
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-sm flex-col gap-3 p-3">
+      {lastDraw !== undefined && <CardFace label={lastDraw.label} imageId={null} size="lg" />}
+
+      <TablaGrid
+        cards={tabla.cards}
+        markedCardIds={tabla.markedCardIds}
+        onToggle={toggle}
+        disabled={game.status === 'finished'}
+      />
+
+      <Button
+        size="lg"
+        className="h-16 text-2xl"
+        disabled={blocked || game.status !== 'running'}
+        onClick={claim}
+        data-testid="claim"
+      >
+        {t('player.claim')}
+      </Button>
+
+      {blocked && <p role="status">{t('player.blocked', { draw: tabla.blockedUntilDraw })}</p>}
+      {rejected && !blocked && <p role="alert">{t('player.rejected')}</p>}
+      {game.status === 'finished' && (
+        <p role="status" data-testid="finished">
+          {game.wonByTeamId === tabla.teamId ? t('game.wonBy', { team: '' }) : t('game.stopped')}
+        </p>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Étape 3 : vérifier**
+
+Lancer : `pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint && pnpm --filter @quetzal/module-loto test`
+Attendu : aucune erreur, et le compte de tests unitaires inchangé.
+
+- [ ] **Étape 4 : commit**
+
+```bash
+git add packages/module-loto/src/presentation/ui/guest-join.tsx packages/module-loto/src/presentation/ui/components/tabla-grid.tsx
+git commit -m "feat(module-loto): écran joueur
+
+Une colonne, la carte tirée, la tabla, un bouton. La grille suit l ordre de
+la tabla sans le retrier : sinon la projection du domaine et l affichage
+divergeraient et une figure validée n aurait pas l air gagnante.
+
+Exempté du cycle test-first au titre de CLAUDE.md paragraphe 5, couche
+Presentation ; couvert par l E2E de la tâche 35."
+```
+
+**Fin de l étape 3.**
+
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto typecheck && pnpm --filter @quetzal/module-loto lint`
+      Attendu : aucune sortie.
+- [ ] Lancer : `pnpm --filter @quetzal/module-loto test && pnpm --filter @quetzal/module-loto test:integration`
+      Attendu : tout vert, suite de contrat comprise.
+- [ ] Lancer : `grep -rn "rooms.session\|rooms.subgroup" packages/module-loto/src/ | grep -v spec`
+      Attendu : uniquement `loto.gateway.ts` et `loto.broadcaster.ts`. Aucune chaîne de salon écrite à la main ailleurs.
+- [ ] Lancer : `grep -rn "@nestjs" packages/module-loto/src/presentation/ui/`
+      Attendu : aucune correspondance. Les composants d écran sont bundlés par Next et ne doivent jamais tirer NestJS.
