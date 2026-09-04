@@ -193,4 +193,26 @@ describe('PrismaGameRepository (intégration)', () => {
     const leakedByCode = await inTenant(other.tenantId, other.ownerId, () => games.findByJoinCode('ABC234'));
     expect(leakedByCode).toBeNull();
   });
+
+  it('liste les parties du locataire, la plus récente d abord', async () => {
+    const { tenantId, ownerId, games, deck } = await aGame();
+    await inTenant(tenantId, ownerId, () =>
+      games.create({ deckId: deck.id, createdBy: ownerId, joinCode: 'ZZZ999', settings: { ...SETTINGS } }),
+    );
+
+    const list = await inTenant(tenantId, ownerId, () => games.list());
+
+    expect(list).toHaveLength(2);
+    expect(list[0]?.joinCode).toBe('ZZZ999');
+    expect(list[0]?.createdAt.getTime()).toBeGreaterThanOrEqual(list[1]!.createdAt.getTime());
+  });
+
+  it('ne liste jamais les parties d un autre locataire', async () => {
+    await aGame();
+    const other = await seedTenant();
+    const games = new PrismaGameRepository();
+
+    const list = await inTenant(other.tenantId, other.ownerId, () => games.list());
+    expect(list).toEqual([]);
+  });
 });
