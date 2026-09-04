@@ -109,6 +109,8 @@ Une tabla est une séquence ordonnée de seize identifiants de cartes, sans rép
 
 **Génération** : tirage aléatoire sans remise parmi les cartes du jeu. Deux équipes d'une même partie ont des tablas différentes ; l'unicité est vérifiée à la génération et retentée en cas de collision.
 
+**L'unicité porte sur la séquence ordonnée, jamais sur l'ensemble des cartes.** Avec un jeu de seize cartes exactement, cas explicitement supporté, toute tabla contient les mêmes seize cartes : une comparaison par ensemble collisionnerait à chaque tentative et bouclerait indéfiniment. La séquence, elle, offre seize factorielle arrangements. C'est aussi la bonne règle de jeu : ce qu'un élève voit, c'est la disposition, pas le multiensemble. Le nombre de tentatives est borné et l'épuisement lève une erreur de domaine, pour qu'un défaut futur échoue vite au lieu de figer une classe.
+
 ### 5.2 Figure
 
 Une figure est un prédicat pur sur une grille de seize booléens, indexée ligne par ligne.
@@ -130,6 +132,8 @@ Traitement : projeter la tabla en grille de booléens par appartenance à l'ense
 
 Aucune autre entrée. En particulier, jamais les marquages.
 
+**L'ensemble des cartes tirées porte un type brand.** Une chaîne ne devient un identifiant de carte tirée qu'en passant par une fabrique unique, dont le paramètre nomme sa provenance : le registre des tirages du serveur. Sans cela, D1 ne tiendrait que par la vigilance : dans le dépôt, la tabla d'une équipe et son marquage sont deux tableaux de chaînes voisins, et l'appel catastrophique ne diffère du bon que d'un identifiant. Avec le brand, cet appel ne compile pas. C'est la différence entre un invariant et une convention.
+
 ### 5.4 État d'une partie
 
 `draft` → `open` → `running` → `finished`
@@ -139,8 +143,11 @@ Aucune autre entrée. En particulier, jamais les marquages.
 | `draft` → `open` | l'animateur ouvre la salle | le jeu est figé, le code d'entrée devient actif |
 | `open` → `running` | premier tirage | les entrées sont closes |
 | `running` → `finished` | réclamation valide, ou arrêt par l'animateur | plus aucun tirage ni réclamation |
+| `open` → `finished` | l'animatrice referme une partie que personne n'a jouée | la salle d'attente se vide, aucun tirage n'a eu lieu |
 
 Un élève ne peut rejoindre qu'à l'état `open`. C'est le comportement d'une classe : on attend que tout le monde soit entré, puis on commence.
+
+Le premier tirage porte deux effets qui ne se séparent pas : il enregistre la carte **et** fait basculer la partie de `open` à `running`. Les dissocier produirait une partie qui accumule des tirages en restant `open`, donc où toute réclamation est refusée : un écran parfaitement normal et une partie ingagnable. Le cas d'usage du tirage doit rendre les deux atomiques.
 
 ### 5.5 Deux façons d'entrer, un seul identifiant
 
@@ -437,7 +444,7 @@ Les étapes une à quatre livrent un module utilisable. Les étapes cinq et six 
 | Couche | Approche |
 |---|---|
 | Domaine | Unitaires exhaustifs. Les quatre figures sur grilles construites à la main, y compris les quasi-figures. Génération de tabla : taille, unicité, appartenance au jeu. Validation de réclamation, dont le cas où le client prétend avoir marqué une carte jamais tirée. Machine à états, transitions interdites comprises. |
-| Application | Cas d'usage contre dépôts factices. Répartition en équipes, dont les effectifs inégaux. Pénalité en tours. Verrou d'édition pendant une partie. |
+| Application | Cas d'usage contre dépôts factices. Répartition en équipes, dont les effectifs inégaux. Pénalité en tours. Verrou d'édition pendant une partie. **Le cas adversarial de D1 vit ici et nulle part ailleurs** : une équipe dont le marquage dessine une línea parfaite alors que rien n'a été tiré voit sa réclamation refusée et se fait pénaliser. Le domaine ne peut pas porter ce test, puisqu'il n'accepte aucune entrée de marquage avec laquelle mentir. |
 | Infrastructure | Dépôts Prisma contre un vrai Postgres via testcontainers. Figeage du jeu. Cascade de suppression. Unicité du tirage d'une carte. |
 | Contrat | `runContractSuite` du noyau sur le manifeste. |
 | Passerelle | Intégration sur un vrai serveur socket avec l'adaptateur de la plateforme : refus sans jeton, refus d'un jeton invité émis pour un autre module, message hors matrice refusé. |
