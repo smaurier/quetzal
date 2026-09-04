@@ -5500,6 +5500,8 @@ export const manifest: QuetzalModuleManifest = {
 
 **Rappel de la convention de sécurité WS** posée au sous-projet 1 : tout message WebSocket doit figurer dans `permissions` sous `ws:<event>`, sinon il est refusé pour tout le monde, fail closed. Ajouter un message côté passerelle sans l ajouter ici produit un message qui ne passe jamais, sans erreur visible côté client.
 
+**Composants provisoires.** `client.ts` référence trois écrans que les tâches 32, 33 et 36 écriront. Sous `moduleResolution: "Bundler"`, un `import()` dynamique vers un module absent est une erreur `tsc` dure, pas une vérification différée : `typecheck` ne peut donc pas être vert sans eux. Créer les trois fichiers avec un corps minimal (`'use client'` et `return null`), et **les remplacer** aux tâches concernées plutôt que d en créer de nouveaux.
+
 - [ ] **Étape 6 : écrire l entrée racine**
 
 `src/index.ts` :
@@ -5603,6 +5605,10 @@ function toErrorCode(name: string): string {
     .toLowerCase();
 }
 ```
+
+Le suffixe `Error` est **conservé** dans le code : `DeckLockedError` devient `deck_locked_error`. Le retirer aurait rendu `sample_domain_error` inatteignable depuis `SampleDomainError`, et les écrans des tâches 36 et 37 branchent sur cette forme-là.
+
+Second point payé à l exécution : dans `apps/api`, importer depuis `@quetzal/core/errors` **ne compile pas**. NestJS y impose `moduleResolution: "Node"`, qui ignore les sous-chemins `exports`. Importer `DomainError` depuis `@quetzal/core` tout court, comme le fait déjà `TenantContextMissingError` juste au-dessus. Le sous-chemin reste indispensable dans le domaine du module, où il évite de lier le baril — ce sont deux paquets aux réglages différents, pas une contradiction.
 
 ```ts
     if (exception instanceof DomainError) {
@@ -7293,7 +7299,7 @@ export default function DecksPage() {
     <Card className="space-y-6 p-6">
       <h1 className="text-2xl font-semibold">{t('title')}</h1>
 
-      {error !== null && <p role="alert">{error === 'deck_locked' ? t('locked') : error}</p>}
+      {error !== null && <p role="alert">{error === 'deck_locked_error' ? t('locked') : error}</p>}
 
       {decks.length === 0 && <p>{t('empty')}</p>}
 
@@ -7430,7 +7436,7 @@ export default function DeckEditor({ deckId }: { deckId: string }) {
         </span>
       </div>
 
-      {error !== null && <p role="alert">{error === 'deck_locked' ? t('locked') : error}</p>}
+      {error !== null && <p role="alert">{error === 'deck_locked_error' ? t('locked') : error}</p>}
 
       <ol className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="deck-cards">
         {deck.cards.map((card) => (
