@@ -2070,7 +2070,7 @@ L élargissement `as readonly string[]` est nécessaire parce que `includes` d u
 - [ ] **Étape 4 : lancer les tests et vérifier qu ils passent**
 
 Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/pattern.spec.ts src/domain/game-status.spec.ts`
-Attendu : `Tests 23 passed` sur les deux fichiers réunis, soit dix-neuf existants et quatre nouveaux.
+Attendu : `Tests 32 passed` sur les deux fichiers réunis, soit vingt-huit existants (dix-sept pour les figures, onze pour les états) et quatre nouveaux.
 
 - [ ] **Étape 5 : commit**
 
