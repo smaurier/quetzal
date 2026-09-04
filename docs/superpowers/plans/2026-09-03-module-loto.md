@@ -1460,6 +1460,13 @@ ALTER TABLE "Loto_Game" ADD CONSTRAINT "Loto_Game_penalty_check"
   CHECK ("falseClaimPenaltyDraws" >= 0);
 ```
 
+- [ ] **Étape 4 bis : reconstruire @quetzal/db, sans quoi le cloisonnement ne s applique pas**
+
+Lancer : `pnpm --filter @quetzal/db build`
+Attendu : le registre `src/model-tenant-registry.ts` (généré, gitignoré) contient désormais les neuf modèles `loto_*`.
+
+Ce n est pas une formalité. Le registre dit à l extension de cloisonnement quels modèles portent un `tenantId`. Tant qu il est périmé, les tables du module y sont absentes — et depuis le correctif du 04/09, toute requête sur l une d elles lève `UnknownTenantModelError` au lieu de partir sans filtre. Avant ce correctif, elle partait sans filtre : une lecture rendait les lignes de tous les locataires sans rien signaler.
+
 - [ ] **Étape 5 : rejouer la migration sur une base neuve**
 
 Lancer : `pnpm --filter @quetzal/core test:integration`
