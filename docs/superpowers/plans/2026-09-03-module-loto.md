@@ -1354,7 +1354,7 @@ model Loto_Team {
   id               String
   tenantId         String
   gameId           String
-  name             String  @db.VarChar(60)
+  teamIndex        Int
   cardIds          Json
   markedCardIds    Json
   blockedUntilDraw Int     @default(0)
@@ -1363,6 +1363,7 @@ model Loto_Team {
   members  Loto_Member[]
 
   @@id([id, tenantId])
+  @@unique([gameId, teamIndex, tenantId])
   @@index([tenantId, gameId])
 }
 
@@ -1533,11 +1534,26 @@ export interface GameState {
 
 export interface TeamState {
   id: string;
-  name: string;
+  /**
+   * Rang de création, à partir de zéro. Le nom de l équipe n est pas stocké :
+   * il se dérive de teamIndex et des membres via `teamNameFor` (spec 6.1). Une
+   * équipe d un porte le nom de son membre, au-delà elle porte son numéro — en
+   * stockant le nom, ce passage de un à deux membres deviendrait une transition
+   * à gérer, et un libellé traduit finirait en base.
+   */
+  teamIndex: number;
+  memberDisplayNames: string[];
   cardIds: string[];
+  /**
+   * Décision D2 : état partagé, sans autorité. Ce tableau ne participe JAMAIS à
+   * une décision de jeu. Il est voisin de cardIds et de même type : c est le
+   * point exact où une inattention rouvrirait la triche fermée par D1. La seule
+   * protection structurelle est le brand DrawnCardId, qui rend
+   * `drawnCardIds(team.markedCardIds)` compilable mais absurde à lire, et
+   * `ClaimInput.drawnCardIds = new Set(team.markedCardIds)` impossible à compiler.
+   */
   markedCardIds: string[];
   blockedUntilDraw: number;
-  memberCount: number;
 }
 
 export interface GameRepository {
@@ -1550,8 +1566,9 @@ export interface GameRepository {
   freezeCards(gameId: string, cards: NewDeckCard[]): Promise<void>;
   frozenCards(gameId: string): Promise<DeckCard[]>;
 
+  /** Triées par teamIndex croissant, pour que la répartition soit déterministe. */
   teams(gameId: string): Promise<TeamState[]>;
-  createTeam(gameId: string, input: { name: string; cardIds: string[] }): Promise<TeamState>;
+  createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState>;
   setMarks(teamId: string, markedCardIds: string[]): Promise<void>;
   blockTeam(teamId: string, untilDraw: number): Promise<void>;
 
@@ -1563,7 +1580,13 @@ export interface GameRepository {
    * ce qui rend un double appui sans effet plutôt qu erroné.
    */
   appendDraw(gameId: string, order: number, cardId: string): Promise<boolean>;
-  drawnCardIds(gameId: string): Promise<string[]>;
+  /**
+   * Registre des tirages du serveur, source de vérité de toute réclamation.
+   * Nommé `drawnCards` et non `drawnCardIds` : ce dernier nom appartient à la
+   * fabrique brandée du domaine (`domain/drawn-cards.ts`), et deux symboles
+   * homonymes dont l un seul porte la garantie de provenance seraient un piège.
+   */
+  drawnCards(gameId: string): Promise<string[]>;
 
   recordClaim(input: { gameId: string; teamId: string; atDraw: number; valid: boolean }): Promise<void>;
 }
@@ -1923,4 +1946,696 @@ Couvre le cloisonnement entre locataires, qui est la propriété la plus
 coûteuse à découvrir cassée en production."
 git add packages/module-loto/src/infrastructure/prisma-deck.repository.ts
 git commit -m "feat(module-loto): dépôt Prisma des jeux de cartes"
+```
+
+### Tâche 15 : Typeguards des valeurs contraintes
+
+`Loto_Game.status` et `Loto_Game.pattern` sont des colonnes `String` en base, contraintes par `CHECK`. Le dépôt devra les rendre typées sans écrire `as`, que CLAUDE.md paragraphe 8 interdit sans typeguard préalable. Ces deux fonctions sont donc la frontière que la tâche 17 attend.
+
+Elles ferment aussi un trou discret : `matchesPattern(grid, pattern)` fait `PREDICATES[pattern](grid)`. Un `Record` sur une union finie n est pas élargi par `noUncheckedIndexedAccess`, donc le compilateur ne peut pas prévenir qu une chaîne inattendue y provoquerait un `TypeError` nu.
+
+**Fichiers :**
+- Modifier : `packages/module-loto/src/domain/pattern.ts`
+- Modifier : `packages/module-loto/src/domain/game-status.ts`
+- Test : `packages/module-loto/src/domain/pattern.spec.ts`
+- Test : `packages/module-loto/src/domain/game-status.spec.ts`
+
+- [ ] **Étape 1 : écrire les tests qui échouent**
+
+À ajouter à la fin de `pattern.spec.ts`, en dehors des `describe` existants :
+
+```ts
+describe('isPatternKey', () => {
+  it('accepte les quatre clés', () => {
+    for (const key of PATTERN_KEYS) expect(isPatternKey(key)).toBe(true);
+  });
+
+  it('refuse une chaîne qui n est pas une figure', () => {
+    expect(isPatternKey('carton')).toBe(false);
+    expect(isPatternKey('')).toBe(false);
+    expect(isPatternKey('LINEA')).toBe(false);
+  });
+});
+```
+
+Et l import en tête du même fichier devient :
+
+```ts
+import { matchesPattern, isPatternKey, PATTERN_KEYS, type Grid, type PatternKey } from './pattern.js';
+```
+
+À ajouter à la fin de `game-status.spec.ts` :
+
+```ts
+describe('isGameStatus', () => {
+  it('accepte les quatre états', () => {
+    for (const status of GAME_STATUSES) expect(isGameStatus(status)).toBe(true);
+  });
+
+  it('refuse une chaîne qui n est pas un état', () => {
+    expect(isGameStatus('paused')).toBe(false);
+    expect(isGameStatus('')).toBe(false);
+    expect(isGameStatus('Draft')).toBe(false);
+  });
+});
+```
+
+Et l import en tête devient :
+
+```ts
+import {
+  GAME_STATUSES,
+  assertTransition,
+  canTransition,
+  canJoin,
+  canDraw,
+  canClaim,
+  isGameStatus,
+  type GameStatus,
+} from './game-status.js';
+```
+
+- [ ] **Étape 2 : lancer les tests et vérifier qu ils échouent**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/pattern.spec.ts src/domain/game-status.spec.ts`
+Attendu : ÉCHEC. Le message exact dépend de la version de Vitest, mais il porte sur `isPatternKey` et `isGameStatus` qui ne sont pas des fonctions.
+
+Piège déjà rencontré deux fois dans ce module : quand un symbole importé n existe pas encore, certains matchers dégénèrent en assertion vide et passent par accident. Ici `expect(isPatternKey('carton')).toBe(false)` lève bien, parce qu appeler `undefined` est une erreur. Vérifier tout de même que l échec porte le nom de la fonction manquante et pas autre chose.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+À ajouter à la fin de `pattern.ts` :
+
+```ts
+export function isPatternKey(value: string): value is PatternKey {
+  return (PATTERN_KEYS as readonly string[]).includes(value);
+}
+```
+
+À ajouter à la fin de `game-status.ts` :
+
+```ts
+export function isGameStatus(value: string): value is GameStatus {
+  return (GAME_STATUSES as readonly string[]).includes(value);
+}
+```
+
+L élargissement `as readonly string[]` est nécessaire parce que `includes` d un tableau `as const` n accepte que les membres de l union, ce qui rendrait le typeguard tautologique. C est le seul `as` de ces deux fichiers et il ne porte sur aucune donnée, seulement sur le type du tableau littéral.
+
+- [ ] **Étape 4 : lancer les tests et vérifier qu ils passent**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/pattern.spec.ts src/domain/game-status.spec.ts`
+Attendu : `Tests 23 passed` sur les deux fichiers réunis, soit dix-neuf existants et quatre nouveaux.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/domain/pattern.spec.ts packages/module-loto/src/domain/game-status.spec.ts
+git commit -m "test(module-loto): typeguards des figures et des états"
+git add packages/module-loto/src/domain/pattern.ts packages/module-loto/src/domain/game-status.ts
+git commit -m "feat(module-loto): isPatternKey et isGameStatus
+
+Le dépôt relit deux colonnes String contraintes par CHECK. Ces typeguards
+sont la frontière qui les retype sans le cast que CLAUDE.md paragraphe 8
+interdit, et ferment le TypeError nu que matchesPattern lèverait sur une
+valeur inattendue."
+```
+
+### Tâche 16 : Nom d une équipe
+
+Règle de la spec, section 6.1 : une équipe d un porte le nom d affichage de son membre ; dès qu elle en compte plusieurs, elle porte un nom numéroté. C est une règle de domaine avec une transition dedans, le passage de un à deux membres, et elle n a pas d autre domicile que le domaine.
+
+Le nom numéroté est traduit côté écran. Le domaine ne rend donc pas « Equipo 1 » mais la matière dont l écran fabriquera ce libellé.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/domain/team-name.ts`
+- Test : `packages/module-loto/src/domain/team-name.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { teamNameFor } from './team-name.js';
+
+describe('teamNameFor', () => {
+  it('une équipe d un porte le nom de son membre', () => {
+    expect(teamNameFor({ memberDisplayNames: ['Ana'], teamIndex: 0 })).toEqual({
+      kind: 'member',
+      displayName: 'Ana',
+    });
+  });
+
+  it('dès deux membres, elle porte un numéro', () => {
+    expect(teamNameFor({ memberDisplayNames: ['Ana', 'Beto'], teamIndex: 0 })).toEqual({
+      kind: 'numbered',
+      number: 1,
+    });
+  });
+
+  it('numérote à partir de un, pas de zéro', () => {
+    expect(teamNameFor({ memberDisplayNames: ['Ana', 'Beto'], teamIndex: 4 })).toEqual({
+      kind: 'numbered',
+      number: 5,
+    });
+  });
+
+  it('une équipe vide porte quand même son numéro, elle vient d être créée', () => {
+    expect(teamNameFor({ memberDisplayNames: [], teamIndex: 2 })).toEqual({
+      kind: 'numbered',
+      number: 3,
+    });
+  });
+
+  it('ne rend jamais de libellé traduit, seulement de quoi le fabriquer', () => {
+    const name = teamNameFor({ memberDisplayNames: ['Ana', 'Beto'], teamIndex: 0 });
+    expect(JSON.stringify(name)).not.toContain('Equipo');
+    expect(JSON.stringify(name)).not.toContain('Équipe');
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/team-name.spec.ts`
+Attendu : ÉCHEC, `Cannot find module './team-name.js'`.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+/**
+ * Le domaine ne connaît aucune langue. Il rend de quoi fabriquer le libellé,
+ * l écran applique la traduction. Spec section 6.1.
+ */
+export type TeamName =
+  | { kind: 'member'; displayName: string }
+  | { kind: 'numbered'; number: number };
+
+export function teamNameFor(input: {
+  memberDisplayNames: readonly string[];
+  teamIndex: number;
+}): TeamName {
+  const [only] = input.memberDisplayNames;
+  if (input.memberDisplayNames.length === 1 && only !== undefined) {
+    return { kind: 'member', displayName: only };
+  }
+  return { kind: 'numbered', number: input.teamIndex + 1 };
+}
+```
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto exec vitest run src/domain/team-name.spec.ts`
+Attendu : `Tests 5 passed`.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/domain/team-name.spec.ts
+git commit -m "test(module-loto): nom d équipe, du membre seul au numéro"
+git add packages/module-loto/src/domain/team-name.ts
+git commit -m "feat(module-loto): teamNameFor rend la matière du libellé, pas le libellé
+
+Le domaine ne connaît aucune langue. Le passage d un membre à deux change le
+nom : c est une règle de jeu, pas une décision d affichage."
+```
+
+### Tâche 17 : Dépôt Prisma des parties
+
+Le plus gros adaptateur du module. Testé contre un vrai Postgres, parce que trois propriétés qui comptent ne sont vérifiables que là : le cloisonnement entre locataires, l unicité du tirage d une carte, et la cascade de suppression.
+
+**Fichiers :**
+- Créer : `packages/module-loto/src/infrastructure/prisma-game.repository.ts`
+- Test : `packages/module-loto/src/infrastructure/prisma-game.repository.integration.spec.ts`
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```ts
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
+import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
+import { tenantStore } from '@quetzal/core';
+import { PrismaDeckRepository } from './prisma-deck.repository.js';
+import { PrismaGameRepository } from './prisma-game.repository.js';
+import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from './traditional-deck.js';
+
+function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    tenantStore.run({ tenantId, userId, requestId: 'test' }, () => fn().then(resolve, reject));
+  });
+}
+
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+
+describe('PrismaGameRepository (intégration)', () => {
+  beforeAll(async () => { await ensureTestPostgres(); });
+  beforeEach(async () => { await resetTestDatabase(); });
+
+  async function aGame() {
+    const { tenantId, ownerId } = await seedTenant();
+    const decks = new PrismaDeckRepository();
+    const games = new PrismaGameRepository();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: TRADITIONAL_DECK_NAME, isTemplate: true, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({ deckId: deck.id, createdBy: ownerId, joinCode: 'ABC234', settings: { ...SETTINGS } }),
+    );
+    return { tenantId, ownerId, decks, games, deck, game };
+  }
+
+  it('crée une partie à l état draft et la relit par son code d entrée', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+
+    expect(game.status).toBe('draft');
+    expect(game.lastDrawOrder).toBe(0);
+    expect(game.settings.maxTeams).toBe(6);
+
+    const byCode = await inTenant(tenantId, ownerId, () => games.findByJoinCode('ABC234'));
+    expect(byCode?.id).toBe(game.id);
+  });
+
+  it('retype status et pattern au lieu de rendre des chaînes nues', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    const reloaded = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reloaded?.status).toBe('draft');
+    expect(reloaded?.settings.pattern).toBe('linea');
+  });
+
+  it('fige les cartes du jeu et les relit triées par rang', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+
+    await inTenant(tenantId, ownerId, () =>
+      games.freezeCards(game.id, TRADITIONAL_CARDS.map((c) => ({ rank: c.rank, label: c.label, imageId: null }))),
+    );
+
+    const frozen = await inTenant(tenantId, ownerId, () => games.frozenCards(game.id));
+    expect(frozen).toHaveLength(54);
+    expect(frozen[0]?.rank).toBe(1);
+    expect(frozen[0]?.label).toBe('El gallo');
+    expect(frozen[53]?.rank).toBe(54);
+  });
+
+  it('une carte ne sort qu une fois, et un deuxième appui est sans effet', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    await inTenant(tenantId, ownerId, () =>
+      games.freezeCards(game.id, TRADITIONAL_CARDS.map((c) => ({ rank: c.rank, label: c.label, imageId: null }))),
+    );
+    const frozen = await inTenant(tenantId, ownerId, () => games.frozenCards(game.id));
+    const first = frozen[0]!;
+
+    const ok = await inTenant(tenantId, ownerId, () => games.appendDraw(game.id, 1, first.id));
+    expect(ok).toBe(true);
+
+    const sameRank = await inTenant(tenantId, ownerId, () => games.appendDraw(game.id, 1, frozen[1]!.id));
+    expect(sameRank).toBe(false);
+
+    const sameCard = await inTenant(tenantId, ownerId, () => games.appendDraw(game.id, 2, first.id));
+    expect(sameCard).toBe(false);
+
+    const drawn = await inTenant(tenantId, ownerId, () => games.drawnCards(game.id));
+    expect(drawn).toEqual([first.id]);
+  });
+
+  it('lastDrawOrder suit le dernier tirage', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    await inTenant(tenantId, ownerId, () =>
+      games.freezeCards(game.id, TRADITIONAL_CARDS.map((c) => ({ rank: c.rank, label: c.label, imageId: null }))),
+    );
+    const frozen = await inTenant(tenantId, ownerId, () => games.frozenCards(game.id));
+
+    await inTenant(tenantId, ownerId, () => games.appendDraw(game.id, 1, frozen[0]!.id));
+    await inTenant(tenantId, ownerId, () => games.appendDraw(game.id, 2, frozen[1]!.id));
+
+    const reloaded = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reloaded?.lastDrawOrder).toBe(2);
+  });
+
+  it('crée une équipe, y ajoute un membre et rend les noms des membres', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+
+    const team = await inTenant(tenantId, ownerId, () =>
+      games.createTeam(game.id, { teamIndex: 0, cardIds: ['c1', 'c2'] }),
+    );
+    expect(team.teamIndex).toBe(0);
+    expect(team.memberDisplayNames).toEqual([]);
+    expect(team.cardIds).toEqual(['c1', 'c2']);
+    expect(team.markedCardIds).toEqual([]);
+
+    await inTenant(tenantId, ownerId, () =>
+      games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' }),
+    );
+
+    const teams = await inTenant(tenantId, ownerId, () => games.teams(game.id));
+    expect(teams).toHaveLength(1);
+    expect(teams[0]?.memberDisplayNames).toEqual(['Ana']);
+  });
+
+  it('rend les équipes triées par teamIndex, pas par ordre d insertion', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+
+    await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 2, cardIds: [] }));
+    await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 0, cardIds: [] }));
+    await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 1, cardIds: [] }));
+
+    const teams = await inTenant(tenantId, ownerId, () => games.teams(game.id));
+    expect(teams.map((t) => t.teamIndex)).toEqual([0, 1, 2]);
+  });
+
+  it('retrouve un invité déjà entré, ce qui rend la reconnexion idempotente', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    const team = await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 0, cardIds: [] }));
+    await inTenant(tenantId, ownerId, () =>
+      games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' }),
+    );
+
+    const found = await inTenant(tenantId, ownerId, () => games.findMember(game.id, 'g-1'));
+    expect(found?.teamId).toBe(team.id);
+
+    const absent = await inTenant(tenantId, ownerId, () => games.findMember(game.id, 'g-2'));
+    expect(absent).toBeNull();
+  });
+
+  it('enregistre marquages et blocage sans les confondre', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    const team = await inTenant(tenantId, ownerId, () =>
+      games.createTeam(game.id, { teamIndex: 0, cardIds: ['c1', 'c2', 'c3'] }),
+    );
+
+    await inTenant(tenantId, ownerId, () => games.setMarks(team.id, ['c1', 'c3']));
+    await inTenant(tenantId, ownerId, () => games.blockTeam(team.id, 15));
+
+    const teams = await inTenant(tenantId, ownerId, () => games.teams(game.id));
+    expect(teams[0]?.markedCardIds).toEqual(['c1', 'c3']);
+    expect(teams[0]?.cardIds).toEqual(['c1', 'c2', 'c3']);
+    expect(teams[0]?.blockedUntilDraw).toBe(15);
+  });
+
+  it('bascule le statut et retient l équipe gagnante', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    const team = await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 0, cardIds: [] }));
+
+    await inTenant(tenantId, ownerId, () => games.setStatus(game.id, 'open'));
+    await inTenant(tenantId, ownerId, () => games.setStatus(game.id, 'finished', { wonByTeamId: team.id }));
+
+    const reloaded = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reloaded?.status).toBe('finished');
+    expect(reloaded?.wonByTeamId).toBe(team.id);
+  });
+
+  it('cloisonne les parties entre locataires', async () => {
+    const { game } = await aGame();
+    const other = await seedTenant();
+    const games = new PrismaGameRepository();
+
+    const leaked = await inTenant(other.tenantId, other.ownerId, () => games.findById(game.id));
+    expect(leaked).toBeNull();
+
+    const leakedByCode = await inTenant(other.tenantId, other.ownerId, () => games.findByJoinCode('ABC234'));
+    expect(leakedByCode).toBeNull();
+  });
+});
+```
+
+- [ ] **Étape 2 : lancer le test et vérifier qu il échoue**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : ÉCHEC, `Cannot find module './prisma-game.repository.js'`.
+
+Le premier lancement télécharge l image Postgres du testcontainer et peut prendre plusieurs minutes. C est pour cela que `vitest.integration.config.ts` fixe `hookTimeout` à cent vingt secondes.
+
+- [ ] **Étape 3 : écrire l implémentation minimale**
+
+```ts
+import { Injectable } from '@nestjs/common';
+import { newId } from '@quetzal/db';
+import { getTenantScopedPrisma } from '@quetzal/core';
+import { isGameStatus, type GameStatus } from '../domain/game-status.js';
+import { isPatternKey } from '../domain/pattern.js';
+import type { DeckCard, NewDeckCard } from '../domain/ports/deck.repository.js';
+import type {
+  GameRepository,
+  GameSettings,
+  GameState,
+  TeamState,
+} from '../domain/ports/game.repository.js';
+
+interface GameRow {
+  id: string;
+  deckId: string;
+  status: string;
+  pattern: string;
+  falseClaimPenaltyDraws: number;
+  maxTeams: number;
+  joinCode: string;
+  wonByTeamId: string | null;
+}
+
+interface TeamRow {
+  id: string;
+  teamIndex: number;
+  cardIds: unknown;
+  markedCardIds: unknown;
+  blockedUntilDraw: number;
+}
+
+interface PrismaWithLoto {
+  loto_Game: {
+    create(args: { data: Record<string, unknown> }): Promise<GameRow>;
+    findFirst(args: { where: Record<string, unknown> }): Promise<GameRow | null>;
+    update(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<GameRow>;
+  };
+  loto_GameCard: {
+    createMany(args: { data: Record<string, unknown>[] }): Promise<{ count: number }>;
+    findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown> }): Promise<DeckCard[]>;
+  };
+  loto_Team: {
+    create(args: { data: Record<string, unknown> }): Promise<TeamRow>;
+    findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown> }): Promise<TeamRow[]>;
+    update(args: { where: Record<string, unknown>; data: Record<string, unknown> }): Promise<TeamRow>;
+  };
+  loto_Member: {
+    findFirst(args: { where: Record<string, unknown> }): Promise<{ teamId: string } | null>;
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    findMany(args: {
+      where: Record<string, unknown>;
+      orderBy: Record<string, unknown>;
+    }): Promise<{ teamId: string; displayName: string }[]>;
+  };
+  loto_Draw: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    findMany(args: { where: Record<string, unknown>; orderBy: Record<string, unknown> }): Promise<{ cardId: string; order: number }[]>;
+  };
+  loto_Claim: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  };
+}
+
+/** Un tableau JSON relu de Postgres arrive en `unknown`. Aucun `as` sans garde. */
+function toStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
+@Injectable()
+export class PrismaGameRepository implements GameRepository {
+  private get prisma(): PrismaWithLoto {
+    return getTenantScopedPrisma() as unknown as PrismaWithLoto;
+  }
+
+  private toState(row: GameRow, lastDrawOrder: number): GameState {
+    if (!isGameStatus(row.status)) {
+      throw new Error(`Statut de partie inconnu en base : ${row.status}`);
+    }
+    if (!isPatternKey(row.pattern)) {
+      throw new Error(`Figure de partie inconnue en base : ${row.pattern}`);
+    }
+    return {
+      id: row.id,
+      deckId: row.deckId,
+      status: row.status,
+      joinCode: row.joinCode,
+      settings: {
+        pattern: row.pattern,
+        falseClaimPenaltyDraws: row.falseClaimPenaltyDraws,
+        maxTeams: row.maxTeams,
+      },
+      lastDrawOrder,
+      wonByTeamId: row.wonByTeamId,
+    };
+  }
+
+  private toTeam(row: TeamRow, memberDisplayNames: string[]): TeamState {
+    return {
+      id: row.id,
+      teamIndex: row.teamIndex,
+      memberDisplayNames,
+      cardIds: toStringArray(row.cardIds),
+      markedCardIds: toStringArray(row.markedCardIds),
+      blockedUntilDraw: row.blockedUntilDraw,
+    };
+  }
+
+  private async lastDrawOrder(gameId: string): Promise<number> {
+    const draws = await this.prisma.loto_Draw.findMany({
+      where: { gameId },
+      orderBy: { order: 'desc' },
+    });
+    return draws[0]?.order ?? 0;
+  }
+
+  async create(input: {
+    deckId: string;
+    createdBy: string;
+    joinCode: string;
+    settings: GameSettings;
+  }): Promise<GameState> {
+    const row = await this.prisma.loto_Game.create({
+      data: {
+        id: newId(),
+        deckId: input.deckId,
+        createdBy: input.createdBy,
+        joinCode: input.joinCode,
+        status: 'draft',
+        pattern: input.settings.pattern,
+        falseClaimPenaltyDraws: input.settings.falseClaimPenaltyDraws,
+        maxTeams: input.settings.maxTeams,
+      },
+    });
+    return this.toState(row, 0);
+  }
+
+  async findById(gameId: string): Promise<GameState | null> {
+    const row = await this.prisma.loto_Game.findFirst({ where: { id: gameId } });
+    if (row === null) return null;
+    return this.toState(row, await this.lastDrawOrder(gameId));
+  }
+
+  async findByJoinCode(joinCode: string): Promise<GameState | null> {
+    const row = await this.prisma.loto_Game.findFirst({ where: { joinCode } });
+    if (row === null) return null;
+    return this.toState(row, await this.lastDrawOrder(row.id));
+  }
+
+  async setStatus(gameId: string, status: GameStatus, patch?: { wonByTeamId?: string }): Promise<void> {
+    const data: Record<string, unknown> = { status };
+    if (status === 'running') data['startedAt'] = new Date();
+    if (status === 'finished') data['finishedAt'] = new Date();
+    if (patch?.wonByTeamId !== undefined) data['wonByTeamId'] = patch.wonByTeamId;
+    await this.prisma.loto_Game.update({ where: { id: gameId }, data });
+  }
+
+  async freezeCards(gameId: string, cards: NewDeckCard[]): Promise<void> {
+    if (cards.length === 0) return;
+    await this.prisma.loto_GameCard.createMany({
+      data: cards.map((card) => ({
+        id: newId(),
+        gameId,
+        rank: card.rank,
+        label: card.label,
+        imageId: card.imageId,
+      })),
+    });
+  }
+
+  async frozenCards(gameId: string): Promise<DeckCard[]> {
+    return this.prisma.loto_GameCard.findMany({ where: { gameId }, orderBy: { rank: 'asc' } });
+  }
+
+  async teams(gameId: string): Promise<TeamState[]> {
+    const rows = await this.prisma.loto_Team.findMany({
+      where: { gameId },
+      orderBy: { teamIndex: 'asc' },
+    });
+    const members = await this.prisma.loto_Member.findMany({
+      where: { gameId },
+      orderBy: { joinedAt: 'asc' },
+    });
+    const byTeam = new Map<string, string[]>();
+    for (const member of members) {
+      const names = byTeam.get(member.teamId) ?? [];
+      names.push(member.displayName);
+      byTeam.set(member.teamId, names);
+    }
+    return rows.map((row) => this.toTeam(row, byTeam.get(row.id) ?? []));
+  }
+
+  async createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState> {
+    const row = await this.prisma.loto_Team.create({
+      data: {
+        id: newId(),
+        gameId,
+        teamIndex: input.teamIndex,
+        cardIds: input.cardIds,
+        markedCardIds: [],
+      },
+    });
+    return this.toTeam(row, []);
+  }
+
+  async setMarks(teamId: string, markedCardIds: string[]): Promise<void> {
+    await this.prisma.loto_Team.update({ where: { id: teamId }, data: { markedCardIds } });
+  }
+
+  async blockTeam(teamId: string, untilDraw: number): Promise<void> {
+    await this.prisma.loto_Team.update({ where: { id: teamId }, data: { blockedUntilDraw: untilDraw } });
+  }
+
+  async findMember(gameId: string, guestId: string): Promise<{ teamId: string } | null> {
+    return this.prisma.loto_Member.findFirst({ where: { gameId, guestId } });
+  }
+
+  async addMember(input: {
+    gameId: string;
+    teamId: string;
+    guestId: string;
+    displayName: string;
+  }): Promise<void> {
+    await this.prisma.loto_Member.create({ data: { id: newId(), ...input } });
+  }
+
+  async appendDraw(gameId: string, order: number, cardId: string): Promise<boolean> {
+    try {
+      await this.prisma.loto_Draw.create({ data: { id: newId(), gameId, order, cardId } });
+      return true;
+    } catch {
+      // Les deux contraintes d unicité de Loto_Draw rendent un double appui
+      // sans effet plutôt qu erroné. Spec section 6.1.
+      return false;
+    }
+  }
+
+  async drawnCards(gameId: string): Promise<string[]> {
+    const rows = await this.prisma.loto_Draw.findMany({ where: { gameId }, orderBy: { order: 'asc' } });
+    return rows.map((row) => row.cardId);
+  }
+
+  async recordClaim(input: {
+    gameId: string;
+    teamId: string;
+    atDraw: number;
+    valid: boolean;
+  }): Promise<void> {
+    await this.prisma.loto_Claim.create({ data: { id: newId(), ...input } });
+  }
+}
+```
+
+Note d implémentation : `findFirst` plutôt que `findUnique`, comme dans le dépôt des jeux de cartes. L extension de cloisonnement du noyau injecte le locataire dans le `where`, et `findUnique` sur une clé composite ne lui laisse pas la place de le faire. Ne jamais écrire `tenantId` à la main dans une requête de module.
+
+Le `catch` de `appendDraw` avale volontairement toutes les erreurs, ce qui est trop large. Il est resserré à la tâche 21, quand le cas d usage du tirage a de quoi distinguer une collision d unicité d une panne de base.
+
+- [ ] **Étape 4 : lancer le test et vérifier qu il passe**
+
+Lancer : `pnpm --filter @quetzal/module-loto test:integration`
+Attendu : `Tests 15 passed`, soit les six du dépôt des jeux de cartes et les neuf nouveaux.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add packages/module-loto/src/infrastructure/prisma-game.repository.integration.spec.ts
+git commit -m "test(module-loto): dépôt des parties contre un vrai Postgres
+
+Couvre le cloisonnement entre locataires, l unicité du tirage d une carte et
+le retypage des colonnes contraintes par CHECK."
+git add packages/module-loto/src/infrastructure/prisma-game.repository.ts
+git commit -m "feat(module-loto): dépôt Prisma des parties"
 ```
