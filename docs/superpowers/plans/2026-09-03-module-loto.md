@@ -8350,9 +8350,23 @@ une politesse : une case vide rend la tabla injouable pour cet élève."
 - [ ] Invoquer l agent `correcteur-labs` sur les commits du sous-projet, comme au sous-projet 1 : verdict GO, FIX ou STOP.
 - [ ] Mettre à jour `docs/journal/project-log.md` et la mémoire projet.
 
-## Dette laissée ouverte, à tracer en issues
+## Dette laissée ouverte — **tracée en issues le 05/09/2026**
 
-À ouvrir avant de clore le sous-projet, pour qu aucun de ces points ne vive seulement dans ce document :
+Ces points ne vivent plus dans ce document : chacun a son issue, et c est là qu il faut les suivre.
+
+| Point | Issue |
+|---|---|
+| Ajout d une carte à un jeu vierge | [#26](https://github.com/smaurier/quetzal/issues/26) |
+| Images orphelines | [#27](https://github.com/smaurier/quetzal/issues/27) |
+| Remontée du stockage objet | [#28](https://github.com/smaurier/quetzal/issues/28) |
+| Renommage d équipe | [#29](https://github.com/smaurier/quetzal/issues/29) |
+| Plusieurs figures par partie | [#30](https://github.com/smaurier/quetzal/issues/30) |
+| `typecheck` sans les specs hors module-loto | [#31](https://github.com/smaurier/quetzal/issues/31) |
+| Effectifs au-delà de trente-cinq | [#32](https://github.com/smaurier/quetzal/issues/32) |
+| Cycle TDD écrasé (`e7581d4`), relevé par l audit | [#33](https://github.com/smaurier/quetzal/issues/33) |
+| Diffusion perdue avant la première connexion | [#34](https://github.com/smaurier/quetzal/issues/34) |
+
+Le détail de chacun, tel qu il a été rédigé à la clôture :
 
 1. **Ajout d une carte à un jeu vierge** — `PATCH` ne crée pas un rang inexistant. Route `POST /decks/:id/cards` à écrire si Elda part d un jeu vierge plutôt que d une duplication.
 2. **Images orphelines** — cette version ne supprime jamais une image. Supprimer un jeu laisse ses images en base. Accepté au volume visé ; le nettoyage viendra avec la remontée du stockage au niveau de la plateforme.
