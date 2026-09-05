@@ -1,5 +1,6 @@
 import { rootPrisma, newId } from '@quetzal/db';
 import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from '../src/infrastructure/traditional-deck.js';
+import { manifest } from '../src/manifest.js';
 
 /**
  * Idempotent : relancé sur une base déjà amorcée, il ne crée aucun doublon.
@@ -14,9 +15,24 @@ async function main(): Promise<void> {
   const owner = await rootPrisma.member.findFirst({ where: { organizationId: organization.id } });
   if (owner === null) throw new Error(`Aucun membre dans le locataire ${tenantSlug}`);
 
+  // Le catalogue Module d abord : TenantModule.moduleSlug le référence, et le
+  // seed du noyau n y inscrit que hello, en dur. Sans cette étape, l activation
+  // échoue en P2003 — c est à chaque module de s inscrire lui-même.
+  await rootPrisma.module.upsert({
+    where: { slug: manifest.slug },
+    create: {
+      slug: manifest.slug,
+      version: manifest.version,
+      contractVersion: manifest.contractVersion,
+      enabledByDefault: manifest.enabledByDefault,
+      metadata: { name: manifest.name },
+    },
+    update: { version: manifest.version, contractVersion: manifest.contractVersion },
+  });
+
   await rootPrisma.tenantModule.upsert({
-    where: { tenantId_moduleSlug: { tenantId: organization.id, moduleSlug: 'loto' } },
-    create: { tenantId: organization.id, moduleSlug: 'loto', enabled: true },
+    where: { tenantId_moduleSlug: { tenantId: organization.id, moduleSlug: manifest.slug } },
+    create: { tenantId: organization.id, moduleSlug: manifest.slug, enabled: true },
     update: { enabled: true },
   });
 
