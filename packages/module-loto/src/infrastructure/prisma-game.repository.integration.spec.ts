@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
 import { tenantStore } from '@quetzal/core';
+import { Prisma } from '@prisma/client';
 import { PrismaDeckRepository } from './prisma-deck.repository.js';
 import { PrismaGameRepository } from './prisma-game.repository.js';
 import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from './traditional-deck.js';
@@ -82,6 +83,23 @@ describe('PrismaGameRepository (intégration)', () => {
 
     const drawn = await inTenant(tenantId, ownerId, () => games.drawnCards(game.id));
     expect(drawn).toEqual([first.id]);
+  });
+
+  // Rétroactif (audit correcteur-labs) : le catch de appendDraw ne renvoie
+  // false que sur P2002 (course bénigne, cf. commentaire du repo) et remonte
+  // toute autre erreur. Ce chemin n était exercé nulle part — les tests
+  // existants ne provoquent que des P2002 (rang/carte déjà tirés). Provoque
+  // ici une vraie violation de contrainte contre le vrai Postgres du
+  // conteneur : un gameId qui n existe pas viole la FK composite
+  // (gameId, tenantId) → Loto_Game(id, tenantId), donc P2003, pas P2002.
+  it('remonte une vraie panne Postgres au lieu de l avaler comme une collision bénigne', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const games = new PrismaGameRepository();
+
+    const failure = inTenant(tenantId, ownerId, () => games.appendDraw('jeu-inexistant', 1, 'carte-inexistante'));
+
+    await expect(failure).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+    await expect(failure).rejects.toMatchObject({ code: 'P2003' });
   });
 
   it('lastDrawOrder suit le dernier tirage', async () => {
