@@ -115,4 +115,33 @@ describe('ManageDecksUseCase', () => {
     const copy = await useCase.duplicate({ deckId: 'deck-1', name: 'Copie', createdBy: 'u-1' });
     expect(copy.cards).toHaveLength(54);
   });
+
+  // Rétroactifs (audit correcteur-labs) : findOne existait sans test depuis le
+  // commit "éditeur d un jeu de cartes". Couvre son seul appelant, la route de
+  // lecture GET /decks/:id de deck.controller.ts.
+  it('lit un jeu avec ses cartes', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(3, { name: 'Lotería tradicional' }));
+
+    const deck = await useCase.findOne({ deckId: 'deck-1' });
+
+    expect(deck.name).toBe('Lotería tradicional');
+    expect(deck.cards).toHaveLength(3);
+  });
+
+  it('refuse de lire un jeu inconnu', async () => {
+    const { useCase } = build();
+
+    await expect(useCase.findOne({ deckId: 'absent' })).rejects.toBeInstanceOf(DeckNotFoundError);
+  });
+
+  it('lit un jeu même verrouillé : le verrou D5 ne s applique qu à l écriture', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(54));
+    decks.unfinished.add('deck-1');
+
+    const deck = await useCase.findOne({ deckId: 'deck-1' });
+
+    expect(deck.id).toBe('deck-1');
+  });
 });
