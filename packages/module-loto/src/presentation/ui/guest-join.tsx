@@ -6,6 +6,7 @@ import { Button, Card, Input, Label } from '@quetzal/ui';
 import { TablaGrid } from './components/tabla-grid.js';
 import { CardFace } from './components/card-face.js';
 import { useGameSocket } from './use-game-socket.js';
+import type { GameSnapshot } from '../../application/game-snapshot.use-case.js';
 
 interface TokenResponse {
   token: string;
@@ -127,9 +128,34 @@ function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: strin
       {rejected && !blocked && <p role="alert">{t('player.rejected')}</p>}
       {game.status === 'finished' && (
         <p role="status" data-testid="finished">
-          {game.wonByTeamId === tabla.teamId ? t('game.wonBy', { team: '' }) : t('game.stopped')}
+          {outcome(snapshot, tabla.teamId, t)}
         </p>
       )}
     </div>
   );
+}
+
+/**
+ * Trois issues possibles, et l élève doit pouvoir les distinguer : son équipe
+ * a gagné, une autre a gagné, ou l animatrice a arrêté la partie. Rendre
+ * `game.wonBy` avec un nom vide, comme auparavant, affichait « Victoire de »
+ * suivi de rien — sur le dernier écran que voit l élève.
+ */
+function outcome(
+  snapshot: GameSnapshot,
+  ownTeamId: string,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): string {
+  const { wonByTeamId } = snapshot.game;
+  if (wonByTeamId === null) return t('game.stopped');
+  if (wonByTeamId === ownTeamId) return t('player.youWon');
+
+  const winner = snapshot.teams.find((team) => team.id === wonByTeamId);
+  if (winner === undefined) return t('game.stopped');
+  return t('game.wonBy', {
+    team:
+      winner.name.kind === 'member'
+        ? winner.name.displayName
+        : t('team.numbered', { number: winner.name.number }),
+  });
 }

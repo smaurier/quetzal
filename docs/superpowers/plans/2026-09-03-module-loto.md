@@ -8361,5 +8361,5 @@ une politesse : une case vide rend la tabla injouable pour cet élève."
 5. **Plusieurs figures successives dans une même partie** — hors périmètre assumé. Déclencheur : la demande d enchaîner `linea` puis `llena` sans recréer de partie.
 6. **`typecheck` du reste du dépôt n inclut pas les specs** — `module-loto` a son `tsconfig.typecheck.json`, les autres paquets non. À généraliser au niveau de `packages/config`.
 7. **Effectifs au-delà de trente-cinq** — non mesuré. À constater à la première séance en classe entière.
-8. **Entrées concurrentes** — traité à l étape 4 ter ci-dessus. Tant que ce n est pas fait, ne pas faire scanner trente téléphones en même temps : les faire entrer par vagues.
-9. **Libellé de victoire côté joueur** — quand l équipe qui regarde a gagné, l écran rend `game.wonBy` avec un nom d équipe vide, donc « Victoire de » suivi de rien. Il manque une clé du genre `player.youWon`. Cosmétique, mais c est le dernier écran que voit l élève.
+8. ~~**Entrées concurrentes**~~ — **SOLDÉ** le 04/09 : rejeu borné sur `TeamIndexCollisionError`, avec un test qui échoue contre l ancienne implémentation.
+9. ~~**Libellé de victoire côté joueur**~~ — **SOLDÉ** le 05/09 : trois issues distinctes désormais, `player.youWon`, la victoire d une autre équipe nommée, et l arrêt par l animatrice.

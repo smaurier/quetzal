@@ -39,6 +39,7 @@
       "team": { "numbered": "Team {number}" },
       "player": {
         "claim": "¡Lotería!",
+        "youWon": "You won!",
         "blocked": "Claim blocked until draw {draw}",
         "rejected": "Claim rejected",
         "waiting": "The game is about to start"

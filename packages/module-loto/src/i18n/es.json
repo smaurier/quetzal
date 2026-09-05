@@ -39,6 +39,7 @@
       "team": { "numbered": "Equipo {number}" },
       "player": {
         "claim": "¡Lotería!",
+        "youWon": "¡Ganaste!",
         "blocked": "Lotería bloqueada hasta la carta {draw}",
         "rejected": "Lotería rechazada",
         "waiting": "La partida va a empezar"

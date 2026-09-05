@@ -39,6 +39,7 @@
       "team": { "numbered": "Équipe {number}" },
       "player": {
         "claim": "¡Lotería!",
+        "youWon": "Vous avez gagné !",
         "blocked": "Réclamation bloquée jusqu au tirage {draw}",
         "rejected": "Réclamation refusée",
         "waiting": "La partie va commencer"
