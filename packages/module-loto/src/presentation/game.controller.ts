@@ -64,6 +64,11 @@ export class GameController {
   async draw(@Param('id') id: string) {
     const result = await this.drawCard.execute({ gameId: id });
     if (result.drawn) {
+      // Le premier tirage fait basculer la partie de `open` à `running`. Sans
+      // cette diffusion, l écran du joueur reste sur `open`, son bouton de
+      // réclamation ne s active jamais et la partie devient ingagnable depuis
+      // un téléphone — alors que tout, côté serveur, se déroule normalement.
+      if (result.order === 1) await this.broadcaster.gameChanged(id);
       await this.broadcaster.cardDrawn(id, result.order, result.card);
     }
     return result;

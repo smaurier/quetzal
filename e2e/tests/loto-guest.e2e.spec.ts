@@ -81,22 +81,46 @@ test('une partie entière, de la création à la victoire d un invité', async (
   // L animatrice voit l équipe arriver, en temps réel.
   await expect(page.getByTestId('teams')).toContainText('Ana');
 
-  // Une réclamation prématurée est refusée : rien n a encore été tiré.
+  // Avant le premier tirage la partie est `open`, pas `running` : l écran
+  // désactive la réclamation au lieu de la laisser partir pour se faire
+  // refuser. Le serveur la refuserait de toute façon — c est la ceinture en
+  // plus des bretelles, et c est le bon ordre des deux.
+  await expect(guest.getByTestId('claim')).toBeDisabled();
+
+  // Premier tirage : la partie passe en `running` et le bouton s active. Une
+  // réclamation immédiate ne peut pas gagner — une carte ne fait pas une ligne
+  // — et c est le SERVEUR qui doit la refuser. Le prouver de bout en bout, et
+  // pas seulement en test unitaire, est le seul moyen de savoir que le refus
+  // traverse vraiment la passerelle jusqu à l écran de l élève.
+  await page.getByTestId('draw').click();
+  await expect(guest.getByTestId('claim')).toBeEnabled();
   await guest.getByTestId('claim').click();
   await expect(guest.getByRole('alert')).toBeVisible();
 
-  // Tirer jusqu à la victoire. La boucle réclame à chaque tour plutôt que de
-  // calculer quand la figure est complète : le test ne doit pas réimplémenter
-  // la règle qu il vérifie.
+  // Puis tirer jusqu à la victoire. La boucle réclame à chaque tour plutôt que
+  // de calculer quand la figure est complète : le test ne doit pas
+  // réimplémenter la règle qu il vérifie.
   for (let i = 0; i < 54; i++) {
     if (await page.getByTestId('winner').isVisible()) break;
-    await page.getByTestId('draw').click();
-    await guest.waitForTimeout(60);
-    const claim = guest.getByTestId('claim');
-    if (await claim.isEnabled()) {
-      await claim.click();
-      await guest.waitForTimeout(60);
+    // La partie peut se terminer entre ce contrôle et le clic : le bouton se
+    // désactive alors, et cliquer dessus bloquerait le test quatre-vingt-dix
+    // secondes pour finir sur un message trompeur.
+    // La partie peut se terminer pendant le clic lui-même : le bouton se
+    // désactive alors et Playwright réessaierait quatre-vingt-dix secondes
+    // avant d échouer sur un message trompeur. Un délai court et une sortie
+    // propre valent mieux qu un garde préalable, qui laisse la fenêtre ouverte.
+    try {
+      await page.getByTestId('draw').click({ timeout: 4000 });
+    } catch {
+      break;
     }
+    await guest.waitForTimeout(60);
+    try {
+      await guest.getByTestId('claim').click({ timeout: 2000 });
+    } catch {
+      // Bouton bloqué par une pénalité ou partie finie : rien à faire ce tour.
+    }
+    await guest.waitForTimeout(60);
   }
 
   await expect(page.getByTestId('winner')).toBeVisible();
