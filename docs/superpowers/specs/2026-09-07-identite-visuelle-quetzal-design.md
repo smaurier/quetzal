@@ -131,9 +131,35 @@ Trois états : clair, sombre, système. Le troisième est le défaut.
 
 **Il doit suivre exactement le chemin de la langue.** Une route existe déjà, `/api/user/locale`, et une préférence de langue persistée. Le thème est le même problème — une préférence d'utilisateur, mémorisée, appliquée au rendu — et mérite le même mécanisme plutôt qu'un second inventé à côté.
 
-Conséquence : la préférence est lue **côté serveur** avant le rendu, et la classe `dark` est posée sur l'élément racine dans la réponse initiale. Aucun script en amont, aucun clignotement.
+Concrètement, le chemin existe déjà en entier. `apps/host/src/app/layout.tsx` est un composant serveur qui attend déjà `getLocale()` et porte déjà `suppressHydrationWarning` sur `<html>`. Poser la classe y est un ajout d'une ligne, au bon endroit, avant la première peinture.
 
-Pour l'état « système », le serveur ne peut pas connaître la préférence du système d'exploitation. Ce cas, et lui seul, se résout côté client via `prefers-color-scheme` — sans clignotement visible, parce que la règle CSS s'applique avant la première peinture.
+**Le cookie, pas la session.** La langue est persistée à deux endroits : la colonne `User.locale` et le cookie `NEXT_LOCALE`. Cette redondance n'est pas un doublon, c'est ce qui fait marcher la page d'entrée invité : `/j/[moduleSlug]/[sessionId]` n'a pas de session, la base ne peut rien lui dire, le cookie si. Le thème doit suivre exactement le même partage — cookie pour tout le monde, colonne en base pour retrouver son choix depuis un autre appareil quand on a un compte.
+
+La page invité vit sous la mise en page racine, comme les autres. Une seule modification les couvre toutes.
+
+### L'état « système » ne se résout pas tout seul
+
+La première version de ce document affirmait que ce cas se règle côté client via `prefers-color-scheme`, « parce que la règle CSS s'applique avant la première peinture ». **C'est faux, et la raison est dans notre configuration** : `packages/config/tailwind/preset.js` porte `darkMode: ['class']`. Avec cette stratégie, rien dans le CSS généré ne réagit à la préférence système. Aucune règle n'existe. Le mode système ne rendrait tout simplement jamais sombre.
+
+Il faut donc écrire ce bloc à la main, et le garder :
+
+```css
+@media (prefers-color-scheme: dark) {
+  :root:not(.light):not(.dark) { /* jetons sombres */ }
+}
+```
+
+D'où les **trois** valeurs écrites par le serveur, et pas deux : classe `dark`, classe `light`, ou aucune classe. La classe `light` n'est pas décorative — c'est elle qui empêche la requête média de reprendre la main sur un utilisateur qui a explicitement choisi le mode clair.
+
+Ce bloc duplique la palette sombre. La duplication est réelle et le CSS ne sait pas l'éviter ; c'est le test qui la tient : **il vérifie que les deux blocs sombres sont identiques token par token**. Une palette dupliquée sans test dérive à la première retouche, et elle dérive silencieusement, sur le seul mode que personne ne pense à ouvrir.
+
+### Aucun composant ne branche sur le mode
+
+Corollaire de la même mécanique : un utilitaire `dark:` compile en `.dark &` et ne s'appliquerait donc **pas** en mode système. Un composant qui en porterait un serait correct en mode sombre explicite et cassé en mode système — le pire des symptômes, parce qu'il ne se voit que chez l'utilisateur qui n'a rien réglé, c'est-à-dire la majorité.
+
+La règle : les composants ne connaissent que les jetons, jamais le mode. Le code compte aujourd'hui **zéro** occurrence de `dark:` — la règle ne coûte donc rien à poser, et un test la maintient à zéro.
+
+### Contrôles natifs
 
 `color-scheme` doit être posé en même temps que la classe, sinon les ascenseurs, les cases à cocher et les contrôles natifs restent clairs sur un fond sombre.
 
@@ -180,4 +206,8 @@ Le logo, la refonte de la coquille et l'échelle typographique sont la phase 2. 
 | Contrastes | Test unitaire lisant `globals.css`, calculant les rapports des paires du paragraphe 6, dans les deux modes |
 | Préférence de mode | Test de la persistance et de la relecture, comme pour la langue |
 | Rendu initial | E2E : charger avec une préférence sombre et vérifier que l'élément racine porte `dark` dès la première réponse — c'est le test qui prouve l'absence de clignotement |
+| Mode système | Test unitaire : le bloc `@media (prefers-color-scheme: dark)` existe et déclare **exactement** les mêmes jetons, aux mêmes valeurs, que le bloc `.dark` |
+| Mode clair explicite | Test unitaire : le sélecteur du bloc média exclut `.light`, sans quoi un choix explicite serait écrasé par le système |
+| Page invité | E2E : `/j/[moduleSlug]/[sessionId]` respecte la préférence sans session — c'est le cas que la colonne en base ne couvre pas |
+| Absence de `dark:` | Test parcourant `apps/host/src` et `packages/*/src` : zéro utilitaire `dark:`, puisqu'aucun ne fonctionnerait en mode système |
 | Non-régression | Les E2E existants doivent passer sans modification : aucune structure ne bouge |
