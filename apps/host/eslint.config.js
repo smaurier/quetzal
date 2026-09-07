@@ -22,7 +22,28 @@ function withoutBundledJsxA11y(configs) {
   });
 }
 
+// `next/core-web-vitals` also bundles its own copy of eslint-plugin-react
+// under the plugin key "react", which the shared flat config now also
+// registers (for react/jsx-no-literals) on every *.tsx file — the same
+// "Cannot redefine plugin" class of collision as jsx-a11y above. Unlike
+// jsx-a11y, the shared config doesn't reimplement plugin:react/recommended —
+// it only adds one rule — so Next's react/* rules (react/jsx-key,
+// react/no-unescaped-entities, ...) are worth keeping. Only the duplicate
+// `plugins.react` registration is dropped here; the rule entries that
+// reference it are left in place and resolve fine, since ESLint looks up a
+// plugin key across every config object that matches the linted file, not
+// just the object that declared the rule — the shared config's own `react`
+// registration (further down the array) satisfies the lookup for all of
+// them.
+function withoutBundledReactPlugin(configs) {
+  return configs.map((config) => {
+    if (!config.plugins || !('react' in config.plugins)) return config;
+    const { react: _react, ...plugins } = config.plugins;
+    return { ...config, plugins };
+  });
+}
+
 module.exports = [
-  ...withoutBundledJsxA11y(compat.extends('next/core-web-vitals')),
+  ...withoutBundledReactPlugin(withoutBundledJsxA11y(compat.extends('next/core-web-vitals'))),
   ...sharedConfig,
 ];
