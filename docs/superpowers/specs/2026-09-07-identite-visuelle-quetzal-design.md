@@ -80,7 +80,7 @@ Le cramoisi et l'or reçoivent donc leurs propres tokens, et les tokens shadcn g
   --destructive: 8 72% 48%;
   --destructive-foreground: 40 30% 99%;
   --border: 42 16% 88%;
-  --input: 42 16% 88%;
+  --input: 42 14% 53%;
   --ring: 165 62% 26%;
   --radius: 0.5rem;
 
@@ -113,7 +113,7 @@ Le cramoisi et l'or reçoivent donc leurs propres tokens, et les tokens shadcn g
   --destructive: 8 62% 58%;
   --destructive-foreground: 165 30% 9%;
   --border: 165 14% 20%;
-  --input: 165 14% 20%;
+  --input: 165 12% 39%;
   --ring: 158 52% 56%;
 
   --brand-crimson: 355 60% 62%;
@@ -150,8 +150,20 @@ Ces valeurs ne sont pas négociables. Les paires suivantes doivent être vérifi
 | `destructive-foreground` sur `destructive` | 4.5:1 |
 | `brand-crimson-foreground` sur `brand-crimson` | 4.5:1 |
 | `brand-gold-foreground` sur `brand-gold` | 4.5:1 |
-| `border` sur `background` | 3:1 |
+| `input` sur `background` | 3:1 |
+| `input` sur `card` | 3:1 |
 | `ring` sur `background` | 3:1 |
+| `border` sur `background` | aucun — voir ci-dessous |
+
+**`border` et `input` ne portent pas la même exigence, et la première version de ce document les confondait.**
+
+`--border` dessine des filets de séparation et des contours de cartes : purement décoratifs, ils ne véhiculent aucune information et aucun seuil ne s'applique. Les garder clairs est un choix esthétique légitime.
+
+`--input` dessine la frontière visible d'un champ de saisie. C'est un composant d'interface, donc **3:1 obligatoire**. Les deux tokens doivent par conséquent avoir des valeurs distinctes, alors que shadcn les fixe identiques par défaut.
+
+Valeurs retenues, calculées puis vérifiées : `42 14% 53%` en clair (3,19:1 sur le fond, 3,25:1 sur une carte) et `165 12% 39%` en sombre (3,42:1 et 3,05:1). Les valeurs de la première version — `42 16% 88%` et `165 14% 20%` — atteignaient 1,26:1 et 1,55:1 : très en deçà.
+
+Un champ de saisie repose tantôt sur `background`, tantôt sur `card`. Les deux paires doivent donc passer, et la surface la plus proche du contour est celle qui contraint : en sombre, `card` est plus claire que `background`, elle laisse moins de marge.
 
 La vérification est **automatisée**, pas manuelle : un test lit les tokens et calcule les rapports. Une palette qu'on vérifie une fois à la main dérive à la première retouche.
 
