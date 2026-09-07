@@ -12,7 +12,8 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').cpSync('src/globals.css', 'dist/globals.css')\"",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src"
+    "lint": "eslint src",
+    "test": "vitest run"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
@@ -35,6 +36,7 @@
     "@quetzal/config": "workspace:*",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^3.2.7"
   }
 }
