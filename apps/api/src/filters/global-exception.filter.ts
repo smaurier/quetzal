@@ -1,6 +1,10 @@
 import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
 import * as Sentry from '@sentry/node';
-import { logger, TenantScopeViolationError, TenantContextMissingError } from '@quetzal/core';
+import { logger, TenantScopeViolationError, TenantContextMissingError, DomainError } from '@quetzal/core';
+
+function toErrorCode(name: string): string {
+  return name.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toLowerCase();
+}
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -23,6 +27,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       return response.status(HttpStatus.UNAUTHORIZED).json({
         error: 'tenant_context_missing',
         message: 'No active organization on this session',
+      });
+    }
+
+    if (exception instanceof DomainError) {
+      // Une règle métier violée est une requête invalide, pas une panne : ni
+      // 500, ni Sentry. Le message du domaine est écrit pour être lu.
+      logger.warn({ err: exception, path: request.url }, 'domain rule violated');
+      return response.status(HttpStatus.BAD_REQUEST).json({
+        error: toErrorCode(exception.name),
+        message: exception.message,
       });
     }
 

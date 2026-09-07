@@ -1,0 +1,49 @@
+{
+  "module": {
+    "loto": {
+      "nav": { "title": "Lotería" },
+      "decks": {
+        "title": "Card decks",
+        "empty": "No card deck yet",
+        "cardCount": "{count, plural, one {# card} other {# cards}}",
+        "duplicate": "Duplicate",
+        "createBlank": "Create an empty deck",
+        "addCard": "Add a card",
+        "rename": "Rename",
+        "delete": "Delete",
+        "deleteWarning": "Deleting this deck also erases the history of the games that use it. This cannot be undone.",
+        "locked": "A running game uses this deck, it cannot be edited",
+        "tooSmall": "At least 16 cards are needed to play"
+      },
+      "game": {
+        "create": "New game",
+        "pattern": "Winning pattern",
+        "maxTeams": "Maximum number of teams",
+        "penalty": "False claim penalty, in turns",
+        "open": "Open the room",
+        "draw": "Draw a card",
+        "finish": "Stop the game",
+        "joinCode": "Join code",
+        "waiting": "Waiting for players",
+        "remaining": "{count, plural, one {# card left} other {# cards left}}",
+        "wonBy": "{team} wins",
+        "stopped": "Game stopped",
+        "status": { "draft": "Draft", "open": "Room open", "running": "Running", "finished": "Finished" }
+      },
+      "pattern": {
+        "linea": "Línea",
+        "esquinas": "Cuatro esquinas",
+        "centro": "El centro",
+        "llena": "Lotería llena"
+      },
+      "team": { "numbered": "Team {number}" },
+      "player": {
+        "claim": "¡Lotería!",
+        "youWon": "You won!",
+        "blocked": "Claim blocked until draw {draw}",
+        "rejected": "Claim rejected",
+        "waiting": "The game is about to start"
+      }
+    }
+  }
+}

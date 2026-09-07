@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { TenantContextMissingError } from '@quetzal/core';
+import { TenantContextMissingError, DomainError } from '@quetzal/core';
 import { GlobalExceptionFilter } from './global-exception.filter';
 
 function fakeHost() {
@@ -28,5 +28,30 @@ describe('GlobalExceptionFilter', () => {
     const { host, status } = fakeHost();
     new GlobalExceptionFilter().catch(new Error('boom'), host);
     expect(status).toHaveBeenCalledWith(500);
+  });
+});
+
+class SampleDomainError extends DomainError {
+  constructor() {
+    super('Un jeu de cartes doit contenir au moins 16 cartes');
+  }
+}
+
+describe('erreurs de domaine des modules', () => {
+  it('répond 400 et non 500 : une règle métier violée est une requête invalide', () => {
+    const { host, status, json } = fakeHost();
+    new GlobalExceptionFilter().catch(new SampleDomainError(), host);
+    expect(status).toHaveBeenCalledWith(400);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'sample_domain_error' }),
+    );
+  });
+
+  it('transmet le message du domaine, qui est écrit pour être lu', () => {
+    const { host, json } = fakeHost();
+    new GlobalExceptionFilter().catch(new SampleDomainError(), host);
+    expect(json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('16 cartes') }),
+    );
   });
 });

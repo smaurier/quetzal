@@ -24,8 +24,8 @@ test-results/
 packages/db/prisma/schema.prisma
 packages/db/src/model-tenant-registry.ts
 
-# Generated Next module routes
-apps/host/src/app/modules/
+# Generated Next module loader map (the routes themselves are hand-written and
+# checked in: apps/host/src/app/modules/[slug]/[[...path]]/page.tsx serves every module)
 apps/host/src/lib/module-loaders.generated.ts
 
 # Generated merged i18n catalogues
@@ -39,3 +39,4 @@ packages/i18n/catalogues/merged.*.json
 # OS
 .DS_Store
 Thumbs.db
+.superpowers/

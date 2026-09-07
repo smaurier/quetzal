@@ -32,4 +32,4 @@ services:
       - key: SENTRY_DSN_API
         sync: false
       - key: MODULES
-        value: hello
+        value: hello,loto

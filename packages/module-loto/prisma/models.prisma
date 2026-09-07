@@ -1,0 +1,145 @@
+model Loto_Deck {
+  id          String
+  tenantId    String
+  name        String   @db.VarChar(120)
+  isTemplate  Boolean  @default(false)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  cards       Loto_Card[]
+  games       Loto_Game[]
+
+  @@id([id, tenantId])
+  @@index([tenantId, name])
+}
+
+model Loto_Card {
+  id        String
+  tenantId  String
+  deckId    String
+  rank      Int
+  label     String  @db.VarChar(80)
+  imageId   String?
+
+  deck      Loto_Deck  @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@unique([deckId, rank, tenantId])
+  @@index([tenantId, deckId])
+}
+
+model Loto_CardImage {
+  id          String
+  tenantId    String
+  contentHash String   @db.VarChar(64)
+  mimeType    String   @db.VarChar(40)
+  bytes       Bytes
+  createdAt   DateTime @default(now())
+
+  @@id([id, tenantId])
+  @@unique([contentHash, tenantId])
+}
+
+model Loto_Game {
+  id                     String
+  tenantId               String
+  deckId                 String
+  status                 String   @db.VarChar(16) @default("draft")
+  pattern                String   @db.VarChar(16)
+  falseClaimPenaltyDraws Int      @default(0)
+  maxTeams               Int      @default(6)
+  joinCode               String   @db.VarChar(8)
+  createdBy              String
+  createdAt              DateTime @default(now())
+  startedAt              DateTime?
+  finishedAt             DateTime?
+  wonByTeamId            String?
+
+  deck        Loto_Deck        @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  frozenCards Loto_GameCard[]
+  teams       Loto_Team[]
+  draws       Loto_Draw[]
+  claims      Loto_Claim[]
+
+  @@id([id, tenantId])
+  @@unique([joinCode, tenantId])
+  @@index([tenantId, status, createdAt])
+}
+
+model Loto_GameCard {
+  id        String
+  tenantId  String
+  gameId    String
+  rank      Int
+  label     String  @db.VarChar(80)
+  imageId   String?
+
+  game      Loto_Game @relation(fields: [gameId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@unique([gameId, rank, tenantId])
+}
+
+model Loto_Team {
+  id               String
+  tenantId         String
+  gameId           String
+  teamIndex        Int
+  cardIds          Json
+  markedCardIds    Json
+  blockedUntilDraw Int     @default(0)
+
+  game     Loto_Game     @relation(fields: [gameId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  members  Loto_Member[]
+
+  @@id([id, tenantId])
+  @@unique([gameId, teamIndex, tenantId])
+  @@index([tenantId, gameId])
+}
+
+model Loto_Member {
+  id          String
+  tenantId    String
+  gameId      String
+  teamId      String
+  guestId     String   @db.VarChar(64)
+  displayName String   @db.VarChar(32)
+  joinedAt    DateTime @default(now())
+
+  team  Loto_Team @relation(fields: [teamId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@unique([gameId, guestId, tenantId])
+  @@index([tenantId, teamId])
+}
+
+model Loto_Draw {
+  id        String
+  tenantId  String
+  gameId    String
+  order     Int
+  cardId    String
+  drawnAt   DateTime @default(now())
+
+  game  Loto_Game @relation(fields: [gameId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@unique([gameId, order, tenantId])
+  @@unique([gameId, cardId, tenantId])
+}
+
+model Loto_Claim {
+  id         String
+  tenantId   String
+  gameId     String
+  teamId     String
+  atDraw     Int
+  valid      Boolean
+  claimedAt  DateTime @default(now())
+
+  game  Loto_Game @relation(fields: [gameId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@index([tenantId, gameId, claimedAt])
+}

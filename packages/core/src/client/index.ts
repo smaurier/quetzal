@@ -2,3 +2,4 @@
 export { apiBaseUrl, socketUrl } from './api-url.js';
 export { createApiClient, apiClient, type ApiClient } from './api-client.js';
 export { connectSocket, type ConnectSocketOptions } from './socket.js';
+export { getCurrentTenantId, tenantIdFromToken } from './tenant-claim.js';

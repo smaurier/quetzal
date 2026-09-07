@@ -29,7 +29,8 @@
     "socket.io-client": "^4.8.1",
     "web-vitals": "^4.2.4",
     "zod": "^3.24.1",
-    "@quetzal/module-hello": "workspace:*"
+    "@quetzal/module-hello": "workspace:*",
+    "@quetzal/module-loto": "workspace:*"
   },
   "devDependencies": {
     "@quetzal/config": "workspace:*",

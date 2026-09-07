@@ -121,9 +121,15 @@ La règle « chaque `feat:` a un `test:` précédent » vise les couches où le 
 Ces trois catégories sont **couvertes par intégration ou E2E**, pas ignorées. Un `feat:` dans ces zones sans `test:` préalable N'EST PAS une violation §5 et le correcteur-labs doit le tolérer.
 
 Ce qui reste **non négociable** :
-- Toute logique métier (Domain, Application, use-case, Repository interface) DOIT avoir son test rouge d'abord.
+- Toute logique métier (Domain, Application, use-case) DOIT avoir son test rouge d'abord.
 - Toute correction de bug (`fix:`) qui change un comportement doit soit ajouter un test qui reproduit le bug, soit être flaggée `hotfix-no-tdd` avec issue de dette.
 - Les commits `test:` et `feat:` métier restent séparés (§5 ci-dessus).
+
+**Amendement du 05/09/2026 — les interfaces de Port sortent de la liste.** Cette liste nommait « Repository interface ». Un audit correcteur-labs l'a relevé comme divergence entre CLAUDE.md et un plan qui exemptait ces fichiers ; §16 interdit de laisser une divergence muette, donc elle est tranchée ici plutôt qu'ignorée.
+
+Une interface TypeScript sans implémentation n'a aucun comportement à assertir : un test ne pourrait qu'affirmer qu'elle compile, ce que `tsc` fait déjà, et qu'un objet la satisfait, ce que le mot-clé `implements` fait déjà. Sa correction est prouvée deux fois ailleurs — par les adaptateurs qui l'implémentent, testés contre un vrai Postgres, et par les cas d'usage qui la consomment, testés contre des doublures qui la déclarent `implements`. Ajouter un troisième test à cet endroit n'attraperait rien.
+
+Ce qui reste exigé, et ne bouge pas : **le premier adaptateur d'un Port doit arriver en TDD**. Un Port livré sans qu'aucun adaptateur ne soit testé serait un contrat que rien ne tient.
 
 ### Coverage cibles
 

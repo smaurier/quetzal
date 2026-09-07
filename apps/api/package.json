@@ -31,7 +31,8 @@
     "@quetzal/core": "workspace:*",
     "@quetzal/db": "workspace:*",
     "@quetzal/auth": "workspace:*",
-    "@quetzal/module-hello": "workspace:*"
+    "@quetzal/module-hello": "workspace:*",
+    "@quetzal/module-loto": "workspace:*"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

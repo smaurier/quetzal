@@ -10,3 +10,13 @@ describe('rooms', () => {
     expect(rooms.tenant('loto', 't-A')).toBe('loto:tenant:t-A');
   });
 });
+
+describe('rooms.subgroup', () => {
+  it('dérive un salon plus fin à l intérieur d une session', () => {
+    expect(rooms.subgroup('loto', 'game-1', 'team-2')).toBe('loto:session:game-1:team-2');
+  });
+
+  it('reste préfixé par le salon de session, pour que le module ne puisse pas viser ailleurs', () => {
+    expect(rooms.subgroup('loto', 'game-1', 'team-2')).toContain(rooms.session('loto', 'game-1'));
+  });
+});
