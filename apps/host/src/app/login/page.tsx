@@ -32,7 +32,10 @@ export default function LoginPage() {
           seul écran sans client : s'il tenait au vert, il s'effondrerait chez le
           premier établissement qui impose sa charte. Le vert n'est ici qu'une
           ponctuation — l'écran tient par la grecque, le signe et l'échelle. */}
-      <section className="flex flex-col justify-between gap-12 bg-panel p-8 text-panel-foreground lg:p-14">
+      {/* Le filet de droite n'est pas décoratif : en mode sombre le panneau
+          (165 24% 9%) et le fond de page (165 24% 7%) sont quasi identiques, et
+          la séparation disparaîtrait sans lui. */}
+      <section className="flex flex-col justify-between gap-12 border-border bg-panel p-8 text-panel-foreground lg:border-r lg:p-14">
         <QuetzalWordmark tagline={tCommon('position')} />
 
         <div className="max-w-md">
@@ -40,13 +43,17 @@ export default function LoginPage() {
           <p className="mt-4 text-body-lg text-panel-muted">{tBrand('pitch')}</p>
         </div>
 
-        {/* La grecque, troisième déclinaison : la même marche, à plat, en filet
-            de séparation. Elle n'a pas besoin d'être verte non plus. */}
-        <div aria-hidden className="flex items-end gap-1 text-panel-muted/40">
-          {[8, 14, 20, 26, 20, 14, 8].map((h, i) => (
-            <span key={h + '-' + String(i)} style={{ height: h }} className="w-2 bg-current" />
-          ))}
-        </div>
+        {/* La grecque, troisième déclinaison : la même marche que le signe,
+            mise à plat en filet de séparation de 8 px. Elle n'a pas besoin
+            d'être verte non plus — currentColor suffit. */}
+        <svg aria-hidden width="100%" height="8" className="text-panel-muted/50">
+          <defs>
+            <pattern id="quetzal-marche" width="16" height="8" patternUnits="userSpaceOnUse">
+              <path d="M0 7h4V4h4V1h4v3h4v3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+            </pattern>
+          </defs>
+          <rect width="100%" height="8" fill="url(#quetzal-marche)" />
+        </svg>
       </section>
 
       <section className="flex items-center justify-center p-6 lg:p-14">

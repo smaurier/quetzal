@@ -45,9 +45,16 @@ module.exports = {
       // texte courant, JetBrains Mono les étiquettes et les codes de séance —
       // c'est elle qui rend un code lisible à voix haute sans confondre O et 0.
       fontFamily: {
-        display: ['var(--font-display)', 'Archivo', 'system-ui', 'sans-serif'],
-        sans: ['var(--font-body)', 'Source Sans 3', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'JetBrains Mono', 'ui-monospace', 'monospace'],
+        // « Source Sans 3 » et « JetBrains Mono » DOIVENT rester entre
+        // guillemets dans la valeur CSS : un composant de nom de famille ne
+        // peut pas être un chiffre, donc `Source Sans 3` non quoté invalide la
+        // déclaration ENTIÈRE et le navigateur retombe sur sa serif par
+        // défaut. Le symptôme ne ressemble pas à sa cause : tout paraît chargé,
+        // la variable est bien posée, et le texte s'affiche quand même en
+        // Times.
+        display: ['var(--font-display)', "'Archivo'", 'system-ui', 'sans-serif'],
+        sans: ['var(--font-body)', "'Source Sans 3'", 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', "'JetBrains Mono'", 'ui-monospace', 'monospace'],
       },
       // L'échelle de la maquette, valeur pour valeur. Les corps titres portent
       // un interlettrage négatif qui se resserre à mesure qu'ils grandissent :
