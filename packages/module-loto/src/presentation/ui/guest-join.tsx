@@ -84,7 +84,7 @@ function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: strin
     }
   }, [snapshot?.tabla?.cards]);
 
-  if (error !== null) return <p role="alert">{error}</p>;
+  if (error !== null) return <p role="alert">{joinErrorMessage(error, t)}</p>;
   if (snapshot === null || snapshot.tabla === null) return <p>{t('player.waiting')}</p>;
 
   const { game, draws, tabla } = snapshot;
@@ -158,4 +158,27 @@ function outcome(
         ? winner.name.displayName
         : t('team.numbered', { number: winner.name.number }),
   });
+}
+
+/**
+ * La passerelle envoie le NOM de la classe d erreur, pas une phrase. L afficher
+ * tel quel montrait « GameNotRunningError » à un élève de collège. On traduit
+ * les cas connus et on garde un repli honnête pour les autres — jamais le nom
+ * technique.
+ */
+function joinErrorMessage(
+  reason: string,
+  t: (key: string) => string,
+): string {
+  switch (reason) {
+    case 'GameNotRunningError':
+      return t('player.error.notOpen');
+    case 'GameNotFoundError':
+      return t('player.error.notFound');
+    case 'TablaGenerationExhaustedError':
+    case 'DeckTooSmallError':
+      return t('player.error.deck');
+    default:
+      return t('player.error.generic');
+  }
 }
