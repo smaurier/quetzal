@@ -195,6 +195,34 @@ La vérification est **automatisée**, pas manuelle : un test lit les tokens et 
 
 Si une valeur de ce document ne passe pas son seuil, **c'est la valeur qui cède**, pas le seuil. Le test est l'arbitre.
 
+## 6 bis. Angles morts relevés dans le code existant
+
+Quatre points vérifiés sur le dépôt, qui ne se déduisent pas du document.
+
+### `packages/ui` n'a aucune infrastructure de test
+
+C'est le seul paquet du monorepo, hors `@quetzal/config` qui n'est que de la configuration, sans script `test` ni fichier de test. Or le test de contraste — la pièce maîtresse du § 6 — porte sur `globals.css`, qui vit là. **Il n'a nulle part où atterrir aujourd'hui.**
+
+Le plan doit donc commencer par câbler vitest dans `packages/ui`. La bonne nouvelle est que la CI n'a pas besoin d'être touchée : elle lance `pnpm turbo run test`, qui ramassera le nouveau script tout seul.
+
+### Aucune couleur de navigateur mobile
+
+Rien n'expose `theme-color`. Sur téléphone, la barre d'adresse et la barre d'état resteront claires pendant que la page passe en sombre. Sous Next 15 cela se déclare dans l'export `viewport`, et **avec deux valeurs**, une par `prefers-color-scheme` — sinon on remplace un décalage par un autre.
+
+### Le QR ne doit jamais être mis aux couleurs du thème
+
+`animator-page.tsx` génère le QR via `toDataURL(joinUrl, { margin: 4, width: 512 })`, donc avec les couleurs par défaut de la bibliothèque : modules noirs sur fond blanc **opaque**. C'est correct, et ça doit le rester.
+
+Un lecteur de QR a besoin du contraste des modules et de la zone de silence ; les teinter, ou rendre le fond transparent pour qu'il « s'accorde » à la carte sombre, casse le flashage depuis le fond d'une classe. La règle est donc explicite : **le QR porte son propre fond clair et ne suit pas le thème.** C'est le genre de retouche qu'une bonne intention introduit en phase 2.
+
+### Une variante de composant échappe aux jetons
+
+`packages/ui/src/components/toast.tsx:80` code en dur `text-red-300`, `hover:text-red-50`, `focus:ring-red-400` et `focus:ring-offset-red-600` pour le bouton de fermeture d'un toast destructif. Ce rouge est celui de shadcn, pas le nôtre (`--destructive`).
+
+Le point qui compte n'est pas l'écart de teinte : c'est que **l'anneau de focus** de ce bouton ne suivra pas la palette, donc sa visibilité ne sera pas couverte par le test de contraste. À basculer sur les jetons dans cette phase.
+
+Les seules autres couleurs en dur du dépôt sont les `bg-black/80` des voiles de `dialog.tsx` et `sheet.tsx`. Un voile est noir par nature, dans les deux modes : rien à changer.
+
 ## 7. Hors périmètre
 
 Le logo, la refonte de la coquille et l'échelle typographique sont la phase 2. Le mécanisme de surcharge par locataire est la phase 3. Cette phase ne déplace aucune mise en page et ne touche à aucun composant : elle change des valeurs et ajoute un sélecteur.
@@ -210,4 +238,6 @@ Le logo, la refonte de la coquille et l'échelle typographique sont la phase 2. 
 | Mode clair explicite | Test unitaire : le sélecteur du bloc média exclut `.light`, sans quoi un choix explicite serait écrasé par le système |
 | Page invité | E2E : `/j/[moduleSlug]/[sessionId]` respecte la préférence sans session — c'est le cas que la colonne en base ne couvre pas |
 | Absence de `dark:` | Test parcourant `apps/host/src` et `packages/*/src` : zéro utilitaire `dark:`, puisqu'aucun ne fonctionnerait en mode système |
+| Couleurs en dur | Test parcourant les mêmes sources : aucune classe de couleur Tailwind hors jetons, sauf la liste explicite des voiles `bg-black/80` |
+| Couleur du navigateur mobile | Test du rendu : `theme-color` est déclaré deux fois, une valeur par `prefers-color-scheme` |
 | Non-régression | Les E2E existants doivent passer sans modification : aucune structure ne bouge |
