@@ -25,6 +25,7 @@
         "maxTeams": "Maximum number of teams",
         "penalty": "False claim penalty, in turns",
         "open": "Open the room",
+        "notOpenYet": "Open the room so pupils can join.",
         "draw": "Draw a card",
         "finish": "Stop the game",
         "joinCode": "Join code",
@@ -46,7 +47,8 @@
         "youWon": "You won!",
         "blocked": "Claim blocked until draw {draw}",
         "rejected": "Claim rejected",
-        "waiting": "The game is about to start"
+        "waiting": "The game is about to start",
+        "error": { "notOpen": "This game is not accepting players right now. Wait for your teacher to open the room.", "notFound": "This game does not exist any more.", "deck": "This game's card deck is incomplete. Tell your teacher.", "generic": "Could not join the game. Try again in a moment." }
       }
     }
   }

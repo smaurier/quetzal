@@ -25,6 +25,7 @@
         "maxTeams": "Número máximo de equipos",
         "penalty": "Penalización por falsa lotería, en turnos",
         "open": "Abrir la sala",
+        "notOpenYet": "Abre la sala para que los alumnos puedan entrar.",
         "draw": "Sacar una carta",
         "finish": "Terminar la partida",
         "joinCode": "Código de entrada",
@@ -46,7 +47,8 @@
         "youWon": "¡Ganaste!",
         "blocked": "Lotería bloqueada hasta la carta {draw}",
         "rejected": "Lotería rechazada",
-        "waiting": "La partida va a empezar"
+        "waiting": "La partida va a empezar",
+        "error": { "notOpen": "Esta partida no acepta jugadores ahora mismo. Espera a que tu profesora abra la sala.", "notFound": "Esta partida ya no existe.", "deck": "La baraja de esta partida está incompleta. Avisa a tu profesora.", "generic": "No se ha podido entrar en la partida. Inténtalo dentro de un momento." }
       }
     }
   }

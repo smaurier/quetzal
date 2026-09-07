@@ -25,6 +25,7 @@
         "maxTeams": "Nombre maximum d équipes",
         "penalty": "Pénalité de fausse réclamation, en tours",
         "open": "Ouvrir la salle",
+        "notOpenYet": "Ouvre la salle pour que les élèves puissent entrer.",
         "draw": "Tirer une carte",
         "finish": "Arrêter la partie",
         "joinCode": "Code d entrée",
@@ -46,7 +47,8 @@
         "youWon": "Vous avez gagné !",
         "blocked": "Réclamation bloquée jusqu au tirage {draw}",
         "rejected": "Réclamation refusée",
-        "waiting": "La partie va commencer"
+        "waiting": "La partie va commencer",
+        "error": { "notOpen": "La partie n'accepte pas de nouveaux joueurs pour le moment. Attends que ton professeur ouvre la salle.", "notFound": "Cette partie n'existe pas ou plus.", "deck": "Le jeu de cartes de cette partie est incomplet. Préviens ton professeur.", "generic": "Impossible de rejoindre la partie. Réessaie dans un instant." }
       }
     }
   }

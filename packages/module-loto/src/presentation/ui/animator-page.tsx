@@ -75,6 +75,18 @@ export default function AnimatorPage(props: Props) {
   if (game.status === 'draft' || game.status === 'open') {
     return (
       <Card className="p-8 space-y-8">
+        {/*
+          Le code et le QR n apparaissent qu une fois la salle ouverte. En
+          `draft` on ne peut pas encore rejoindre — canJoin n accepte que
+          `open`, et le jeu de cartes n est figé qu à l ouverture — donc
+          afficher une porte d entrée qui refuse tout le monde n avait qu un
+          effet : envoyer les élèves droit sur une erreur.
+        */}
+        {game.status === 'draft' ? (
+          <p className="text-center text-2xl text-muted-foreground" data-testid="not-open-yet">
+            {t('game.notOpenYet')}
+          </p>
+        ) : (
         <div className="text-center">
           <p className="text-2xl">{t('game.joinCode')}</p>
           <p className="text-8xl font-bold tracking-widest" data-testid="join-code">
@@ -101,6 +113,7 @@ export default function AnimatorPage(props: Props) {
             />
           )}
         </div>
+        )}
 
         <ul className="flex flex-wrap gap-3" data-testid="teams">
           {teams.map((team) => (
