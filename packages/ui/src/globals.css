@@ -25,6 +25,16 @@
     --ring: 165 62% 26%;
     --radius: 0.5rem;
 
+    /* Le panneau d'identité de l'écran de connexion. Encre profonde dans LES
+       DEUX modes, et c'est délibéré : si l'identité tenait au vert, cet écran
+       s'effondrerait chez le premier établissement qui impose sa charte. Le
+       vert n'y est qu'une ponctuation ; l'écran tient par la grecque, le signe
+       et l'échelle typographique. */
+    --panel: 165 24% 9%;
+    --panel-foreground: 40 22% 95%;
+    --panel-muted: 150 10% 68%;
+
+
     /* Signaux de marque — jamais des surfaces. Mettre le cramoisi dans
        --secondary ou l'or dans --accent rendrait tous les boutons secondaires
        rouges et tous les survols dorés : dans shadcn ces deux jetons-là sont
@@ -55,6 +65,16 @@
     --border: 165 14% 20%;
     --input: 165 12% 39%;
     --ring: 158 52% 56%;
+
+    /* Le panneau d'identité de l'écran de connexion. Encre profonde dans LES
+       DEUX modes, et c'est délibéré : si l'identité tenait au vert, cet écran
+       s'effondrerait chez le premier établissement qui impose sa charte. Le
+       vert n'y est qu'une ponctuation ; l'écran tient par la grecque, le signe
+       et l'échelle typographique. */
+    --panel: 165 24% 9%;
+    --panel-foreground: 40 22% 95%;
+    --panel-muted: 150 10% 68%;
+
 
     --brand-crimson: 355 60% 62%;
     --brand-crimson-foreground: 165 30% 9%;
@@ -87,6 +107,16 @@
       --border: 165 14% 20%;
       --input: 165 12% 39%;
       --ring: 158 52% 56%;
+
+    /* Le panneau d'identité de l'écran de connexion. Encre profonde dans LES
+       DEUX modes, et c'est délibéré : si l'identité tenait au vert, cet écran
+       s'effondrerait chez le premier établissement qui impose sa charte. Le
+       vert n'y est qu'une ponctuation ; l'écran tient par la grecque, le signe
+       et l'échelle typographique. */
+    --panel: 165 24% 9%;
+    --panel-foreground: 40 22% 95%;
+    --panel-muted: 150 10% 68%;
+
 
       --brand-crimson: 355 60% 62%;
       --brand-crimson-foreground: 165 30% 9%;

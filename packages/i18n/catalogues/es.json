@@ -27,7 +27,8 @@
       "system": "Sistema"
     },
     "brand": {
-      "name": "Quetzal"
+      "name": "Quetzal",
+      "position": "Plataforma modular"
     }
   },
   "nav": {
@@ -47,7 +48,13 @@
       "title": "Iniciar sesión",
       "email": "Correo electrónico",
       "password": "Contraseña",
-      "submit": "Iniciar sesión"
+      "submit": "Iniciar sesión",
+      "space": "Espacio docente",
+      "forgot": "¿Olvidaste?"
+    },
+    "brand": {
+      "tagline": "Una plataforma, tantos módulos como quieras.",
+      "pitch": "Lotería, cuestionarios, repaso espaciado. Tus clases, una sola cuenta."
     }
   },
   "guest": {
