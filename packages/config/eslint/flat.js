@@ -1,6 +1,20 @@
 const js = require('@eslint/js');
 const tseslint = require('typescript-eslint');
 const globals = require('globals');
+const jsxA11y = require('eslint-plugin-jsx-a11y');
+
+// jsx-a11y/recommended ships every enabled rule as 'error' already; this makes
+// that explicit and keeps it true if a future plugin version downgrades one to
+// 'warn' — a11y violations must fail CI, not just be noted.
+function asErrors(rules) {
+  return Object.fromEntries(
+    Object.entries(rules).map(([name, config]) => {
+      const level = Array.isArray(config) ? config[0] : config;
+      if (level === 'off') return [name, config];
+      return Array.isArray(config) ? [name, ['error', ...config.slice(1)]] : [name, 'error'];
+    }),
+  );
+}
 
 module.exports = tseslint.config(
   {
@@ -44,5 +58,13 @@ module.exports = tseslint.config(
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
     },
+  },
+  {
+    files: ['**/*.tsx'],
+    plugins: { 'jsx-a11y': jsxA11y },
+    languageOptions: {
+      parserOptions: { ecmaFeatures: { jsx: true } },
+    },
+    rules: asErrors(jsxA11y.flatConfigs.recommended.rules),
   },
 );
