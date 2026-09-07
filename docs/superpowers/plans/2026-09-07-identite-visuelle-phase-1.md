@@ -716,7 +716,7 @@ describe('THEME_COOKIE', () => {
 
 - [ ] **Step 2: Lancer le test, vérifier qu'il échoue**
 
-Run: `pnpm --filter @quetzal/host test theme`
+Run: `pnpm --filter quetzal-host test theme`
 Expected: FAIL — `Failed to resolve import "./theme"`.
 
 - [ ] **Step 3: Commit du test rouge**
@@ -759,8 +759,8 @@ export function colorScheme(preference: ThemePreference): string {
 
 - [ ] **Step 5: Lancer le test, vérifier qu'il passe**
 
-Run: `pnpm --filter @quetzal/host test theme`
-Expected: PASS — 11 tests.
+Run: `pnpm --filter quetzal-host test theme`
+Expected: PASS. Reporter le nombre réel.
 
 - [ ] **Step 6: Commit**
 
@@ -858,7 +858,7 @@ describe('createThemePatchHandler', () => {
 
 - [ ] **Step 2: Lancer le test, vérifier qu'il échoue**
 
-Run: `pnpm --filter @quetzal/host test theme-handler`
+Run: `pnpm --filter quetzal-host test theme-handler`
 Expected: FAIL — `Failed to resolve import "./theme-handler"`.
 
 - [ ] **Step 3: Commit du test rouge**
@@ -915,7 +915,7 @@ export function createThemePatchHandler(deps: ThemeHandlerDeps) {
 
 - [ ] **Step 5: Lancer le test, vérifier qu'il passe**
 
-Run: `pnpm --filter @quetzal/host test theme-handler`
+Run: `pnpm --filter quetzal-host test theme-handler`
 Expected: PASS — 4 tests.
 
 - [ ] **Step 6: Commit**
@@ -1197,7 +1197,7 @@ Expected: PASS. Si une occurrence non prévue sort, la corriger avec un jeton �
 
 Ajouter temporairement `<div className="bg-red-500 dark:bg-blue-500" />` dans `apps/host/src/components/shell/topbar.tsx`, puis :
 
-Run: `pnpm --filter @quetzal/host lint`
+Run: `pnpm --filter quetzal-host lint`
 Expected: FAIL, **deux** erreurs sur cette ligne, une par règle. Une règle qu'on n'a pas vue échouer ne prouve rien. Retirer ensuite la ligne et relancer : PASS.
 
 - [ ] **Step 6: Commit**
