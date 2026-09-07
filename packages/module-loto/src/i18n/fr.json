@@ -13,7 +13,11 @@
         "delete": "Supprimer",
         "deleteWarning": "Supprimer ce jeu efface aussi l historique des parties qui s y rattachent. Cette action est définitive.",
         "locked": "Ce jeu est utilisé par une partie en cours, il ne peut pas être modifié",
-        "tooSmall": "Il faut au moins 16 cartes pour jouer"
+        "tooSmall": "Il faut au moins 16 cartes pour jouer",
+        "newDeckName": "Nom du nouveau jeu de cartes",
+        "deckName": "Nom du jeu de cartes",
+        "cardName": "Nom de la carte {rank}",
+        "cardImage": "Choisir une image pour la carte {rank}"
       },
       "game": {
         "create": "Nouvelle partie",

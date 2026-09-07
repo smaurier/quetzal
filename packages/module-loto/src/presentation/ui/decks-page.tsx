@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { apiClient } from '@quetzal/core/client';
-import { Button, Card, Input } from '@quetzal/ui';
+import { Button, Card, Input, Label } from '@quetzal/ui';
 
 interface DeckSummary {
   id: string;
@@ -159,7 +159,15 @@ export default function DecksPage() {
       </ul>
 
       <div className="flex gap-2">
-        <Input value={newName} maxLength={120} onChange={(event) => setNewName(event.target.value)} />
+        <div className="flex-1">
+          <Label htmlFor="new-deck-name">{t('newDeckName')}</Label>
+          <Input
+            id="new-deck-name"
+            value={newName}
+            maxLength={120}
+            onChange={(event) => setNewName(event.target.value)}
+          />
+        </div>
         <Button onClick={() => void createBlank()}>{t('createBlank')}</Button>
       </div>
 

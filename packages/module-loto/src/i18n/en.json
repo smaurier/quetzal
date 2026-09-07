@@ -13,7 +13,11 @@
         "delete": "Delete",
         "deleteWarning": "Deleting this deck also erases the history of the games that use it. This cannot be undone.",
         "locked": "A running game uses this deck, it cannot be edited",
-        "tooSmall": "At least 16 cards are needed to play"
+        "tooSmall": "At least 16 cards are needed to play",
+        "newDeckName": "New deck name",
+        "deckName": "Deck name",
+        "cardName": "Name of card {rank}",
+        "cardImage": "Choose an image for card {rank}"
       },
       "game": {
         "create": "New game",
