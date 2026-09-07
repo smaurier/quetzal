@@ -13,12 +13,27 @@
       "required": "Campo obligatorio",
       "too_long": "Máximo {max} caracteres",
       "network": "Error de red, reintentar"
+    },
+    "locale": {
+      "fr": "Français",
+      "en": "English",
+      "es": "Español"
+    },
+    "brand": {
+      "name": "Quetzal"
     }
   },
   "nav": {
     "dashboard": "Panel",
     "settings": "Ajustes",
     "logout": "Cerrar sesión"
+  },
+  "dashboard": {
+    "description": "Los módulos activados para tu organización aparecen en la barra lateral."
+  },
+  "router": {
+    "module_not_found": "Módulo no encontrado.",
+    "route_not_found": "Página no encontrada."
   },
   "auth": {
     "login": {
@@ -32,7 +47,10 @@
     "join": {
       "title": "Unirse a la sesión",
       "display_name": "Tu apodo",
-      "connecting": "Conectando..."
+      "connecting": "Conectando...",
+      "loading": "Cargando...",
+      "missing_tenant": "Falta tenantId",
+      "connected_as": "Conectado como {name}"
     }
   }
 }

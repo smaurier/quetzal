@@ -2,7 +2,11 @@
   "module": {
     "hello": {
       "nav": { "title": "Hello" },
-      "page": { "welcome": "Bienvenue sur le module Hello" }
+      "page": {
+        "welcome": "Bienvenue sur le module Hello",
+        "title": "Module Hello",
+        "latency": "Latence : {ms}ms"
+      }
     }
   }
 }

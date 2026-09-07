@@ -12,7 +12,7 @@ export async function Sidebar() {
 
   return (
     <aside className="w-56 border-r bg-muted/30 p-4">
-      <div className="text-lg font-semibold mb-6">Quetzal</div>
+      <div className="text-lg font-semibold mb-6">{t('common.brand.name')}</div>
       <nav className="space-y-1">
         {items.map((m) => (
           <Link

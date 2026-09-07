@@ -13,12 +13,27 @@
       "required": "Champ obligatoire",
       "too_long": "Maximum {max} caractères",
       "network": "Erreur réseau, réessayer"
+    },
+    "locale": {
+      "fr": "Français",
+      "en": "English",
+      "es": "Español"
+    },
+    "brand": {
+      "name": "Quetzal"
     }
   },
   "nav": {
     "dashboard": "Tableau de bord",
     "settings": "Paramètres",
     "logout": "Déconnexion"
+  },
+  "dashboard": {
+    "description": "Les modules activés pour votre organisation apparaissent dans la barre latérale."
+  },
+  "router": {
+    "module_not_found": "Module introuvable.",
+    "route_not_found": "Page introuvable."
   },
   "auth": {
     "login": {
@@ -32,7 +47,10 @@
     "join": {
       "title": "Rejoindre la session",
       "display_name": "Ton pseudo",
-      "connecting": "Connexion..."
+      "connecting": "Connexion...",
+      "loading": "Chargement...",
+      "missing_tenant": "tenantId manquant",
+      "connected_as": "Connecté en tant que {name}"
     }
   }
 }

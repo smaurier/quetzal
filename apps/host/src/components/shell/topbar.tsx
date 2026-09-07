@@ -1,11 +1,13 @@
 'use client';
 import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import { Button } from '@quetzal/ui';
 import { LocaleSwitcher } from './locale-switcher';
 
 export function Topbar() {
   const router = useRouter();
+  const t = useTranslations('nav');
 
   async function logout() {
     await authClient.signOut();
@@ -16,7 +18,7 @@ export function Topbar() {
     <header className="flex h-14 items-center justify-end gap-2 border-b px-4">
       <LocaleSwitcher />
       <Button variant="outline" size="sm" onClick={logout}>
-        Logout
+        {t('logout')}
       </Button>
     </header>
   );

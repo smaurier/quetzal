@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { GuestJoinShell } from '@/components/guest-join-shell';
 
 interface Props {
@@ -8,7 +9,10 @@ interface Props {
 export default async function GuestJoinPage({ params, searchParams }: Props) {
   const { moduleSlug, sessionId } = await params;
   const { tenantId } = await searchParams;
-  if (!tenantId) return <p role="alert">Missing tenantId</p>;
+  if (!tenantId) {
+    const t = await getTranslations('guest.join');
+    return <p role="alert">{t('missing_tenant')}</p>;
+  }
   return (
     <main className="flex min-h-screen items-center justify-center p-4">
       <GuestJoinShell moduleSlug={moduleSlug} sessionId={sessionId} tenantId={tenantId} />
