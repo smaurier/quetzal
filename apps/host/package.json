@@ -8,7 +8,7 @@
     "predev": "pnpm --filter @quetzal/i18n merge && pnpm --filter @quetzal/core generate:routes",
     "dev": "next dev --turbopack -p 3000",
     "start": "next start -p 3000",
-    "lint": "next lint",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "pretypecheck": "rimraf .next/types && pnpm --filter @quetzal/i18n merge && pnpm --filter @quetzal/core generate:routes",
     "test": "vitest run"
@@ -33,6 +33,7 @@
     "@quetzal/module-loto": "workspace:*"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
     "@quetzal/config": "workspace:*",
     "@types/node": "^22.10.0",
     "@types/qrcode": "^1.5.5",

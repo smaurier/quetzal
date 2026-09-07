@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc && node -e \"require('fs').cpSync('catalogues', 'dist/catalogues', { recursive: true })\"",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
     "test": "vitest run",
     "merge": "tsx src/merge.ts",
     "prebuild": "pnpm merge"
