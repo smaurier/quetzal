@@ -61,4 +61,37 @@
     --brand-gold: 40 78% 58%;
     --brand-gold-foreground: 165 30% 9%;
   }
+
+  /* Sans ce bloc, le mode « système » ne rendrait jamais sombre : la
+     configuration Tailwind du dépôt est darkMode: ['class'], donc rien dans le
+     CSS généré ne réagit à prefers-color-scheme. Le :not(.light) est ce qui
+     empêche le système d'écraser un choix explicite de l'utilisateur. */
+  @media (prefers-color-scheme: dark) {
+    :root:not(.light):not(.dark) {
+      --background: 165 24% 7%;
+      --foreground: 40 22% 95%;
+      --card: 165 20% 11%;
+      --card-foreground: 40 22% 95%;
+      --popover: 165 20% 11%;
+      --popover-foreground: 40 22% 95%;
+      --primary: 158 52% 56%;
+      --primary-foreground: 165 30% 9%;
+      --secondary: 165 16% 18%;
+      --secondary-foreground: 40 22% 95%;
+      --muted: 165 16% 16%;
+      --muted-foreground: 155 10% 62%;
+      --accent: 165 18% 20%;
+      --accent-foreground: 40 22% 95%;
+      --destructive: 8 62% 58%;
+      --destructive-foreground: 165 30% 9%;
+      --border: 165 14% 20%;
+      --input: 165 12% 39%;
+      --ring: 158 52% 56%;
+
+      --brand-crimson: 355 60% 62%;
+      --brand-crimson-foreground: 165 30% 9%;
+      --brand-gold: 40 78% 58%;
+      --brand-gold-foreground: 165 30% 9%;
+    }
+  }
 }
