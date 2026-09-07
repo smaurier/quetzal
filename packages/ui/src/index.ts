@@ -6,4 +6,5 @@ export * from './components/label.js';
 export * from './components/toast.js';
 export * from './components/sheet.js';
 export * from './components/form.js';
+export * from './components/quetzal-mark.js';
 export { cn } from './lib/utils.js';
