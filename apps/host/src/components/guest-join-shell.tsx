@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type ComponentType } from 'react';
+import { useTranslations } from 'next-intl';
 import { moduleLoaders } from '@/lib/module-loaders.generated';
 
 interface Props {
@@ -15,6 +16,7 @@ interface GuestJoinManifest {
 export function GuestJoinShell({ moduleSlug, sessionId, tenantId }: Props) {
   const [Component, setComponent] = useState<ComponentType<Props> | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const t = useTranslations('guest.join');
 
   useEffect(() => {
     (async () => {
@@ -33,6 +35,6 @@ export function GuestJoinShell({ moduleSlug, sessionId, tenantId }: Props) {
   }, [moduleSlug]);
 
   if (error) return <p role="alert">{error}</p>;
-  if (!Component) return <p>Loading...</p>;
+  if (!Component) return <p>{t('loading')}</p>;
   return <Component moduleSlug={moduleSlug} sessionId={sessionId} tenantId={tenantId} />;
 }

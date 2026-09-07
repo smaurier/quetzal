@@ -8,6 +8,7 @@ interface GreetResponse { msg: string }
 
 export default function HelloPage() {
   const t = useTranslations('common.button');
+  const tPage = useTranslations('module.hello.page');
   const [greetMsg, setGreetMsg] = useState<string | null>(null);
   const [latency, setLatency] = useState<number | null>(null);
 
@@ -30,13 +31,13 @@ export default function HelloPage() {
 
   return (
     <Card className="p-6 space-y-4">
-      <h2 className="text-xl font-semibold">Hello module</h2>
+      <h2 className="text-xl font-semibold">{tPage('title')}</h2>
       <div className="flex gap-2">
         <Button onClick={onGreet}>{t('greet')}</Button>
         <Button variant="outline" onClick={onPing}>{t('ping')}</Button>
       </div>
       {greetMsg && <p data-testid="greet-result">{greetMsg}</p>}
-      {latency !== null && <p data-testid="ping-result">Latency: {latency}ms</p>}
+      {latency !== null && <p data-testid="ping-result">{tPage('latency', { ms: latency })}</p>}
     </Card>
   );
 }

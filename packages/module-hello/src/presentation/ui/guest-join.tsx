@@ -14,6 +14,7 @@ interface TokenResponse { token: string }
 
 export default function GuestJoin({ tenantId, moduleSlug, sessionId }: Props) {
   const t = useTranslations('guest.join');
+  const tCommon = useTranslations('common.button');
   const [displayName, setDisplayName] = useState('');
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +34,7 @@ export default function GuestJoin({ tenantId, moduleSlug, sessionId }: Props) {
   }
 
   if (connected) {
-    return <p data-testid="connected">Connected as {displayName}</p>;
+    return <p data-testid="connected">{t('connected_as', { name: displayName })}</p>;
   }
 
   return (
@@ -45,7 +46,7 @@ export default function GuestJoin({ tenantId, moduleSlug, sessionId }: Props) {
           <Input id="displayName" required maxLength={32} value={displayName} onChange={e => setDisplayName(e.target.value)} />
         </div>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" className="w-full">Join</Button>
+        <Button type="submit" className="w-full">{tCommon('join')}</Button>
       </form>
     </Card>
   );

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, type ComponentType } from 'react';
+import { useTranslations } from 'next-intl';
 import { moduleLoaders } from '@/lib/module-loaders.generated';
 import { matchModuleRoute } from '@/lib/match-module-route';
 
@@ -35,6 +36,7 @@ export default function ModuleRoutePage({
   params: Promise<{ slug: string; path?: string[] }>;
 }) {
   const [state, setState] = useState<PageState>({ status: 'loading' });
+  const t = useTranslations('router');
 
   useEffect(() => {
     let cancelled = false;
@@ -65,8 +67,8 @@ export default function ModuleRoutePage({
   }, [params]);
 
   if (state.status === 'loading') return null;
-  if (state.status === 'unknown-module') return <p role="alert">Module introuvable.</p>;
-  if (state.status === 'no-route') return <p role="alert">Page introuvable.</p>;
+  if (state.status === 'unknown-module') return <p role="alert">{t('module_not_found')}</p>;
+  if (state.status === 'no-route') return <p role="alert">{t('route_not_found')}</p>;
   const { Component, params: routeParams } = state;
   return <Component {...routeParams} />;
 }

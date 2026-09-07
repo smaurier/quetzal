@@ -1,10 +1,11 @@
 'use client';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 
 export function LocaleSwitcher() {
   const locale = useLocale();
   const router = useRouter();
+  const t = useTranslations('common.locale');
 
   async function change(newLocale: string) {
     await fetch('/api/user/locale', {
@@ -22,9 +23,9 @@ export function LocaleSwitcher() {
       className="rounded-md border bg-background px-2 py-1 text-sm"
       aria-label="Language"
     >
-      <option value="fr">Français</option>
-      <option value="en">English</option>
-      <option value="es">Español</option>
+      <option value="fr">{t('fr')}</option>
+      <option value="en">{t('en')}</option>
+      <option value="es">{t('es')}</option>
     </select>
   );
 }

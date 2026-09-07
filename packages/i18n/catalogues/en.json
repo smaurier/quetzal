@@ -13,12 +13,27 @@
       "required": "Required field",
       "too_long": "Maximum {max} characters",
       "network": "Network error, retry"
+    },
+    "locale": {
+      "fr": "Français",
+      "en": "English",
+      "es": "Español"
+    },
+    "brand": {
+      "name": "Quetzal"
     }
   },
   "nav": {
     "dashboard": "Dashboard",
     "settings": "Settings",
     "logout": "Logout"
+  },
+  "dashboard": {
+    "description": "Modules enabled for your tenant appear in the sidebar."
+  },
+  "router": {
+    "module_not_found": "Module not found.",
+    "route_not_found": "Page not found."
   },
   "auth": {
     "login": {
@@ -32,7 +47,10 @@
     "join": {
       "title": "Join session",
       "display_name": "Your nickname",
-      "connecting": "Connecting..."
+      "connecting": "Connecting...",
+      "loading": "Loading...",
+      "missing_tenant": "Missing tenantId",
+      "connected_as": "Connected as {name}"
     }
   }
 }

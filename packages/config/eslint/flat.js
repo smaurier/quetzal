@@ -2,6 +2,7 @@ const js = require('@eslint/js');
 const tseslint = require('typescript-eslint');
 const globals = require('globals');
 const jsxA11y = require('eslint-plugin-jsx-a11y');
+const react = require('eslint-plugin-react');
 
 // jsx-a11y/recommended ships every enabled rule as 'error' already; this makes
 // that explicit and keeps it true if a future plugin version downgrades one to
@@ -39,6 +40,14 @@ module.exports = tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    // Registered unscoped (no `files`) rather than inside the `**/*.tsx`
+    // block below: apps/host merges next/core-web-vitals, which references
+    // `react/*` rules (react/jsx-key, react/display-name, ...) on every JS/TS
+    // file it lints, not just .tsx ones. Its own bundled copy of the plugin
+    // is stripped there to avoid a duplicate-registration error, so this
+    // registration is what those rule references resolve against — scoping
+    // it to .tsx only would leave them dangling on plain .ts files.
+    plugins: { react },
     languageOptions: {
       globals: { ...globals.node, ...globals.browser },
     },
@@ -69,6 +78,28 @@ module.exports = tseslint.config(
     languageOptions: {
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
-    rules: asErrors(jsxA11y.flatConfigs.recommended.rules),
+    rules: {
+      ...asErrors(jsxA11y.flatConfigs.recommended.rules),
+      // noStrings: catches literal strings anywhere in JSX (children AND
+      // ones already wrapped in `{'...'}`), not just bare unwrapped text —
+      // the default (noStrings: false) only requires braces around a
+      // literal, it doesn't flag the literal itself, so a raw string
+      // "smuggled" inside `{}` would pass. ignoreProps: true because prop
+      // values (className, data-testid, href, ...) are plumbing, not
+      // visible copy, and flagging them would bury real i18n misses in
+      // noise unrelated to this rule's purpose. allowedStrings lists exact
+      // punctuation/separator glyphs that can stand alone as a JSX text
+      // node (e.g. a bullet between two translated fragments) — they carry
+      // no words to translate, so listing the literal characters here is
+      // more honest than inventing a translation key for "·".
+      'react/jsx-no-literals': [
+        'error',
+        {
+          noStrings: true,
+          ignoreProps: true,
+          allowedStrings: ['·', '-', '–', '—', '/', ':', '|', '•', '&nbsp;'],
+        },
+      ],
+    },
   },
 );
