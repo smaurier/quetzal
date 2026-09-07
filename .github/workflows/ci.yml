@@ -98,7 +98,6 @@ jobs:
   test-e2e:
     needs: [test-unit, test-integration]
     runs-on: ubuntu-latest
-    continue-on-error: true
     services:
       postgres:
         image: postgres:17
