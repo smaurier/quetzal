@@ -21,7 +21,7 @@ export function LocaleSwitcher() {
       value={locale}
       onChange={e => change(e.target.value)}
       className="rounded-md border bg-background px-2 py-1 text-sm"
-      aria-label="Language"
+      aria-label={t('label')}
     >
       <option value="fr">{t('fr')}</option>
       <option value="en">{t('en')}</option>

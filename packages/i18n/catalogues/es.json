@@ -15,9 +15,16 @@
       "network": "Error de red, reintentar"
     },
     "locale": {
+      "label": "Idioma",
       "fr": "Français",
       "en": "English",
       "es": "Español"
+    },
+    "theme": {
+      "label": "Tema",
+      "light": "Claro",
+      "dark": "Oscuro",
+      "system": "Sistema"
     },
     "brand": {
       "name": "Quetzal"

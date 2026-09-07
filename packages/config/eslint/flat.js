@@ -100,6 +100,20 @@ module.exports = tseslint.config(
           allowedStrings: ['·', '-', '–', '—', '/', ':', '|', '•', '&nbsp;'],
         },
       ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'Literal[value=/(?:^|\\s)dark:/]',
+          message:
+            "Pas d'utilitaire `dark:` : la configuration est darkMode: ['class'], il ne s'appliquerait donc pas en mode système — cassé chez l'utilisateur qui n'a rien réglé. Utiliser les jetons, qui basculent seuls.",
+        },
+        {
+          selector:
+            'Literal[value=/(?:^|\\s)(?:bg|text|border|ring|ring-offset|fill|stroke|from|via|to|decoration|outline|shadow|accent|caret|divide|placeholder)-(?:white|black|slate|gray|grey|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)(?:-\\d{2,3})?(?:\\/\\d{1,3})?(?:$|\\s)/]',
+          message:
+            'Couleur Tailwind en dur : elle échappe au test de contraste de packages/ui. Utiliser un jeton (bg-background, text-foreground, border-input…).',
+        },
+      ],
     },
   },
 );

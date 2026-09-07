@@ -22,6 +22,9 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
+      // Un voile est noir par nature, dans les deux modes : ce n'est pas une
+      // surface de l'interface mais un assombrissement de ce qu'il y a dessous.
+      // eslint-disable-next-line no-restricted-syntax
       'fixed inset-0 z-50 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       className,
     )}
