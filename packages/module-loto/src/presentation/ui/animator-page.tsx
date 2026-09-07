@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
+import { toDataURL } from 'qrcode';
 import { apiClient, getCurrentTenantId } from '@quetzal/core/client';
 import { Button, Card } from '@quetzal/ui';
 import { CardFace } from './components/card-face.js';
@@ -36,16 +37,36 @@ export default function AnimatorPage(props: Props) {
     };
   }, []);
 
+  const joinUrl =
+    tenantId === undefined || tenantId === null || snapshot === null
+      ? null
+      : `${origin}/j/loto/${snapshot.game.id}?tenantId=${tenantId}`;
+
+  // Générée à côté (et non à la place) du code : le QR sert la salle qui
+  // regarde un projecteur, le code sert l élève dont la caméra refuse de
+  // coopérer. Taille et marge grandes exprès : lue depuis le fond d une
+  // classe, une zone de silence trop fine rend le flashage peu fiable.
+  const [joinQrDataUrl, setJoinQrDataUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (joinUrl === null) {
+      setJoinQrDataUrl(null);
+      return;
+    }
+    let cancelled = false;
+    void toDataURL(joinUrl, { margin: 4, width: 512 }).then((dataUrl) => {
+      if (!cancelled) setJoinQrDataUrl(dataUrl);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [joinUrl]);
+
   if (gameId === undefined) return null;
   if (error !== null) return <p role="alert">{error}</p>;
   if (snapshot === null) return <p>{t('game.waiting')}</p>;
 
   const { game, teams, draws } = snapshot;
   const lastDraw = draws[draws.length - 1];
-  const joinUrl =
-    tenantId === undefined || tenantId === null
-      ? null
-      : `${origin}/j/loto/${game.id}?tenantId=${tenantId}`;
 
   async function post(path: string): Promise<void> {
     await apiClient().apiFetch(`/api/modules/loto/games/${gameId}/${path}`, { method: 'POST' });
@@ -63,6 +84,21 @@ export default function AnimatorPage(props: Props) {
             <p className="mt-4 break-all text-sm text-muted-foreground" data-testid="join-url">
               {joinUrl}
             </p>
+          )}
+          {joinQrDataUrl !== null && (
+            <img
+              src={joinQrDataUrl}
+              // Vide et non descriptif : l URL exacte qu il encode est déjà
+              // affichée juste au-dessus et lisible par tout lecteur d écran,
+              // donc le QR n apporte rien de plus à qui ne peut pas viser une
+              // caméra dessus. alt="" le déclare décoratif pour ne pas faire
+              // annoncer deux fois la même adresse.
+              alt=""
+              width={512}
+              height={512}
+              className="mx-auto mt-4 h-64 w-64"
+              data-testid="join-qr"
+            />
           )}
         </div>
 

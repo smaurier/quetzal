@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { apiClient } from '@quetzal/core/client';
-import { Button, Card, Input } from '@quetzal/ui';
+import { Button, Card, Input, Label } from '@quetzal/ui';
 
 interface DeckCard {
   id: string;
@@ -79,11 +79,15 @@ export default function DeckEditor(props: Props) {
   return (
     <Card className="space-y-6 p-6">
       <div className="flex items-center gap-3">
-        <Input
-          defaultValue={deck.name}
-          maxLength={120}
-          onBlur={(event) => void patch({ name: event.target.value })}
-        />
+        <div className="flex-1">
+          <Label htmlFor="deck-name">{t('deckName')}</Label>
+          <Input
+            id="deck-name"
+            defaultValue={deck.name}
+            maxLength={120}
+            onBlur={(event) => void patch({ name: event.target.value })}
+          />
+        </div>
         <span className={deck.cards.length < MIN_PLAYABLE ? 'text-destructive' : undefined}>
           {t('cardCount', { count: deck.cards.length })}
           {deck.cards.length < MIN_PLAYABLE ? ` · ${t('tooSmall')}` : ''}
@@ -96,12 +100,20 @@ export default function DeckEditor(props: Props) {
         {deck.cards.map((card) => (
           <li key={card.id} className="space-y-2 rounded-lg border p-2">
             <span className="text-xs text-muted-foreground">{card.rank}</span>
+            <Label htmlFor={`card-name-${card.id}`} className="sr-only">
+              {t('cardName', { rank: card.rank })}
+            </Label>
             <Input
+              id={`card-name-${card.id}`}
               defaultValue={card.label}
               maxLength={80}
               onBlur={(event) => void patch({ card: { rank: card.rank, label: event.target.value } })}
             />
+            <Label htmlFor={`card-image-${card.id}`} className="sr-only">
+              {t('cardImage', { rank: card.rank })}
+            </Label>
             <input
+              id={`card-image-${card.id}`}
               type="file"
               accept="image/*"
               capture="environment"

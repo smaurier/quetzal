@@ -13,7 +13,11 @@
         "delete": "Eliminar",
         "deleteWarning": "Eliminar esta baraja borra también el historial de las partidas asociadas. Esta acción es definitiva.",
         "locked": "Una partida en curso usa esta baraja, no se puede modificar",
-        "tooSmall": "Hacen falta al menos 16 cartas para jugar"
+        "tooSmall": "Hacen falta al menos 16 cartas para jugar",
+        "newDeckName": "Nombre de la nueva baraja",
+        "deckName": "Nombre de la baraja",
+        "cardName": "Nombre de la carta {rank}",
+        "cardImage": "Elegir una imagen para la carta {rank}"
       },
       "game": {
         "create": "Nueva partida",

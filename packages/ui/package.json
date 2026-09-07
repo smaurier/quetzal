@@ -11,7 +11,8 @@
   },
   "scripts": {
     "build": "tsc && node -e \"require('fs').cpSync('src/globals.css', 'dist/globals.css')\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.4",
