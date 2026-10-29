@@ -20,16 +20,16 @@
     "seed": "node --env-file-if-exists=../../.env.local --import tsx scripts/seed.ts"
   },
   "dependencies": {
-    "better-auth": "^1.7.2",
-    "nanostores": "^1.5.2",
-    "@quetzal/db": "workspace:*"
+    "@quetzal/db": "workspace:*",
+    "better-auth": "^1.7.14",
+    "nanostores": "^1.5.2"
   },
   "devDependencies": {
     "@quetzal/config": "workspace:*",
+    "@quetzal/core": "workspace:*",
+    "auth": "^1.7.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^3.2.7",
-    "@quetzal/core": "workspace:*",
-    "auth": "^1.7.2"
+    "vitest": "^3.2.7"
   }
 }
