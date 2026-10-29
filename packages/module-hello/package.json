@@ -35,7 +35,7 @@
     "@quetzal/config": "workspace:*",
     "@types/react": "^19.0.2",
     "typescript": "^5.7.2",
-    "vitest": "^3.2.7",
+    "vitest": "^4.1.12",
     "@nestjs/testing": "^10.4.15",
     "@nestjs/platform-express": "^10.4.15"
   }

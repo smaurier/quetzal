@@ -20,11 +20,22 @@ const validManifest: QuetzalModuleManifest = {
   permissions: {},
 };
 
+// Vitest 4 refuse `describe()` appele depuis un `it()` : « Calling the suite
+// function inside test function is not allowed ». Or runContractSuite enregistre
+// une suite, c'est tout son objet. L'appel vit donc au niveau de la suite, qui
+// est un contexte autorise, et l'echec eventuel est capture pour rester
+// assertable dans un `it` : le test garde son intention, « enregistrer une suite
+// ne jette pas », sans violer la regle du nouveau majeur.
 describe('runContractSuite', () => {
+  let erreurDEnregistrement: unknown;
+  try {
+    runContractSuite(validManifest, { moduleRoot: process.cwd() });
+  } catch (erreur) {
+    erreurDEnregistrement = erreur;
+  }
+
   it('registers a suite scoped to the module slug without throwing', () => {
-    expect(() =>
-      runContractSuite(validManifest, { moduleRoot: process.cwd() })
-    ).not.toThrow();
+    expect(erreurDEnregistrement).toBeUndefined();
   });
 });
 
