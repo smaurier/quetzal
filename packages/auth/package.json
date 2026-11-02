@@ -20,7 +20,7 @@
     "seed": "node --env-file-if-exists=../../.env.local --import tsx scripts/seed.ts"
   },
   "dependencies": {
-    "better-auth": "^1.7.2",
+    "better-auth": "^1.7.7",
     "nanostores": "^1.5.2",
     "@quetzal/db": "workspace:*"
   },
