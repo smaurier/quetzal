@@ -24,6 +24,7 @@
     "@quetzal/config": "workspace:*",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
+    "vite": "^7.3.7",
     "vitest": "^4.1.12"
   }
 }
