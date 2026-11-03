@@ -20,7 +20,7 @@
     "@quetzal/i18n": "workspace:*",
     "@quetzal/ui": "workspace:*",
     "@sentry/nextjs": "^8.42.0",
-    "better-auth": "^1.7.2",
+    "better-auth": "^1.7.7",
     "next": "^15.5.28",
     "next-intl": "^3.26.3",
     "qrcode": "^1.5.4",
@@ -46,6 +46,7 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.7.2",
+    "vite": "^7.3.7",
     "vitest": "^4.1.12",
     "rimraf": "^6.0.1"
   }

@@ -53,18 +53,9 @@ jobs:
   test-integration:
     needs: quality
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:17
-        env:
-          POSTGRES_DB: quetzal_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd pg_isready --health-interval 2s --health-timeout 5s --health-retries 20
-    env:
-      DATABASE_URL: postgresql://test:test@localhost:5432/quetzal_test
+    # Pas de service postgres ici : les suites d integration demarrent leur propre
+    # conteneur (testcontainers, CLAUDE.md §11). Un service en plus donnait deux bases
+    # dans le meme job, et le nettoyage tronquait celle que personne ne lisait.
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -77,7 +68,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @quetzal/db schema:merge
       - run: pnpm --filter @quetzal/db generate:tenant-registry
-      - run: pnpm --filter @quetzal/db prisma:migrate:deploy
       - run: pnpm --filter @quetzal/db prisma:generate
       - run: pnpm turbo run test:integration
 

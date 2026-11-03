@@ -59,11 +59,15 @@ model Account {
   createdAt             DateTime
   updatedAt             DateTime
 
-  issuer String
+  // Nullable depuis better-auth 1.7.3 : l'identite d'un compte est portee par
+  // (providerId, accountId), comme en 1.6. Les versions 1.7.0-1.7.2 exigeaient
+  // cette colonne et son index unique ; les versions suivantes ne l'ecrivent
+  // plus, donc la garder NOT NULL fait echouer toute creation de compte.
+  // Colonne conservee (et non supprimee) pour ne perdre aucune donnee.
+  issuer String?
 
   @@map("account")
   @@index([userId])
-  @@unique([issuer, accountId], map: "account_issuer_accountId_uidx")
 }
 
 model Verification {

@@ -17,12 +17,16 @@ describe('Better-Auth scaffold (integration)', () => {
     expect(session).toBeNull();
   });
 
-  it('signs a user up and creates a credential account with the 1.7 issuer', async () => {
+  it('signs a user up and identifies the credential account by providerId and accountId', async () => {
     await auth.api.signUpEmail({ body: { email, password, name: 'Elda' } });
     const user = await rootPrisma.user.findUniqueOrThrow({ where: { email } });
     const account = await rootPrisma.account.findFirstOrThrow({ where: { userId: user.id } });
     expect(account.providerId).toBe('credential');
-    expect(account.issuer).toBe('local:credential');
+    expect(account.accountId).toBe(user.id);
+    // `issuer` existait pour porter l'identite du compte en 1.7.0-1.7.2 ; depuis
+    // 1.7.3 c'est (providerId, accountId) qui la porte et better-auth n'ecrit
+    // plus cette colonne du tout. La garder NOT NULL faisait echouer l'insertion.
+    expect(account.issuer).toBeNull();
   });
 
   it('a new session gets the user first organization as active organization', async () => {
