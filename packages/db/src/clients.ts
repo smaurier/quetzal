@@ -62,3 +62,15 @@ export function createTenantScopedClient(root: RootPrismaClient, tenantId: strin
   cache.set(tenantId, { client, lastUsed: now });
   return client;
 }
+
+/**
+ * Drop the memoized root client (and the tenant-scoped clients derived from it)
+ * so the next access rebinds to the current DATABASE_URL. Integration suites move
+ * DATABASE_URL to their own container after the client may already be bound.
+ */
+export async function resetRootPrismaClient(): Promise<void> {
+  cache.clear();
+  const previous = _rootClient;
+  _rootClient = null;
+  if (previous) await previous.$disconnect();
+}
