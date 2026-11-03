@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 import { readFile, writeFile, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { injectBackRelations, injectMemberUnique } from '../src/schema-merge.js';
+import { injectAccountUnique, injectBackRelations, injectMemberUnique } from '../src/schema-merge.js';
 
 const ROOT = resolve(import.meta.dirname, '../../..');
 const OUT = resolve(import.meta.dirname, '../prisma/schema.prisma');
@@ -50,7 +50,7 @@ async function discoverModulePrismas(): Promise<string[]> {
 async function main() {
   const parts = [HEADER];
   parts.push(`// --- @quetzal/auth (Better-Auth generated + injected back-relations) ---\n`);
-  parts.push(injectMemberUnique(injectBackRelations(await readIfExists(AUTH))));
+  parts.push(injectAccountUnique(injectMemberUnique(injectBackRelations(await readIfExists(AUTH)))));
   parts.push(`\n\n// --- @quetzal/db core ---\n`);
   parts.push(await readIfExists(CORE));
 

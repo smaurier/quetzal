@@ -35,3 +35,20 @@ export function injectMemberUnique(authSchema: string): string {
   const patched = memberModel[0].replace(/\n\}$/, `\n  ${MEMBER_UNIQUE}\n}`);
   return authSchema.replace(memberModel[0], patched);
 }
+
+const ACCOUNT_UNIQUE = '@@unique([providerId, accountId])';
+
+/**
+ * Inject @@unique([providerId, accountId]) into the Better-Auth Account model.
+ * Better-Auth 1.7.3 reverted `issuer` and dropped the only unique key its CLI used
+ * to emit on Account (account_issuer_accountId_uidx), leaving nothing to stop two
+ * rows for the same account at the same provider. (providerId, accountId) is the
+ * pair Better-Auth itself resolves an account by since 1.6.
+ * https://www.better-auth.com/docs/guides/1-7-upgrade-guide
+ */
+export function injectAccountUnique(authSchema: string): string {
+  const accountModel = /model\s+Account\s*\{[^}]*\}/s.exec(authSchema);
+  if (!accountModel || accountModel[0].includes(ACCOUNT_UNIQUE)) return authSchema;
+  const patched = accountModel[0].replace(/\n\}$/, `\n  ${ACCOUNT_UNIQUE}\n}`);
+  return authSchema.replace(accountModel[0], patched);
+}
