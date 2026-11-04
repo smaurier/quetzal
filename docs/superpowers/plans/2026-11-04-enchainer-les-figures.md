@@ -860,9 +860,10 @@ Les deux nouvelles méthodes :
   async advancePattern(gameId: string, depuisIndex: number): Promise<boolean> {
     // La condition est dans le WHERE : c est Postgres qui arbitre la course,
     // pas nous. `updateMany` rend le nombre de lignes touchées.
-    // ⚠️ Pas de `as` ici (§8) : dans l interface `LotoPrisma`, declarer
-    // `updateMany(args: unknown): Promise<{ count: number }>` pour `loto_Game`
-    // plutot que `Promise<unknown>`. Le typage de la frontiere remplace le cast.
+    // ⚠️ Pas de `as` ici (§8) : si `PrismaWithLoto` ne declare pas encore
+    // `updateMany` sur `loto_Game`, l y ajouter en le typant
+    // `Promise<{ count: number }>`, jamais `Promise<unknown>` suivi d un cast.
+    // Cette interface disparait entierement a la tache 5b.
     const result = await this.prisma.loto_Game.updateMany({
       where: { id: gameId, patternIndex: depuisIndex },
       data: { patternIndex: depuisIndex + 1 },
