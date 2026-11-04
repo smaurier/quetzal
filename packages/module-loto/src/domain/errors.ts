@@ -110,3 +110,15 @@ export class PatternIndexOutOfRangeError extends Error {
     this.name = this.constructor.name;
   }
 }
+
+export class UnknownGameStatusError extends Error {
+  /**
+   * Une colonne `status` corrompue en base n'est pas une violation de règle
+   * métier, c'est une donnée cassée : 500 + Sentry, pour la même raison que
+   * InvalidPatternListError.
+   */
+  constructor(raw: string) {
+    super(`statut de partie inconnu en base : ${raw}`);
+    this.name = this.constructor.name;
+  }
+}
