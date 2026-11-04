@@ -20,6 +20,7 @@ interface GameRow {
   pattern: string;
   falseClaimPenaltyDraws: number;
   maxTeams: number;
+  guestLocale: string | null;
   joinCode: string;
   createdAt: Date;
   wonByTeamId: string | null;
@@ -99,8 +100,7 @@ export class PrismaGameRepository implements GameRepository {
         pattern: row.pattern,
         falseClaimPenaltyDraws: row.falseClaimPenaltyDraws,
         maxTeams: row.maxTeams,
-        // Bouchon assume : la tache 5 lit la vraie colonne, en TDD strict.
-        guestLocale: null,
+        guestLocale: row.guestLocale,
       },
       lastDrawOrder,
       wonByTeamId: row.wonByTeamId,
@@ -142,6 +142,7 @@ export class PrismaGameRepository implements GameRepository {
         pattern: input.settings.pattern,
         falseClaimPenaltyDraws: input.settings.falseClaimPenaltyDraws,
         maxTeams: input.settings.maxTeams,
+        guestLocale: input.settings.guestLocale,
       },
     });
     return this.toState(row, 0);
