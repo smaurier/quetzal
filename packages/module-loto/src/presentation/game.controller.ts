@@ -44,6 +44,8 @@ export class GameController {
         pattern: parsed.data.pattern,
         maxTeams: parsed.data.maxTeams,
         falseClaimPenaltyDraws: parsed.data.falseClaimPenaltyDraws,
+        // Bouchon assume : la tache 6 valide et transmet le champ.
+        guestLocale: null,
       },
     });
   }

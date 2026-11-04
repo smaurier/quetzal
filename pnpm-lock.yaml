@@ -535,6 +535,9 @@ importers:
       '@quetzal/db':
         specifier: workspace:*
         version: link:../db
+      '@quetzal/i18n':
+        specifier: workspace:*
+        version: link:../i18n
       '@quetzal/ui':
         specifier: workspace:*
         version: link:../ui

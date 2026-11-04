@@ -4,7 +4,7 @@ import { DeckNotFoundError, GameNotFoundError, InvalidGameTransitionError } from
 import { OpenGameUseCase } from './open-game.use-case.js';
 import { FakeDeckRepository, FakeGameRepository, RecordingEventBus, deckOf } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 async function build() {
   const decks = new FakeDeckRepository();

@@ -10,7 +10,7 @@ import { JOIN_CODE_LENGTH } from '../domain/join-code.js';
 import { CreateGameUseCase } from './create-game.use-case.js';
 import { FakeDeckRepository, FakeGameRepository, RecordingEventBus, deckOf } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 function build(random: () => number = Math.random) {
   const decks = new FakeDeckRepository();

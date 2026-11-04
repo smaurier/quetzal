@@ -6,6 +6,13 @@ export interface GameSettings {
   pattern: PatternKey;
   falseClaimPenaltyDraws: number;
   maxTeams: number;
+  /**
+   * Langue imposée à tous les écrans invités, résolue UNE FOIS à la création
+   * depuis celle de l'animatrice. `null` quand l'option est décochée : chaque
+   * appareil garde alors la sienne. Jamais relue en direct — sinon une
+   * animatrice changeant sa langue ferait basculer toute la classe.
+   */
+  guestLocale: string | null;
 }
 
 export interface GameState {

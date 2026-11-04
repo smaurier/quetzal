@@ -99,6 +99,8 @@ export class PrismaGameRepository implements GameRepository {
         pattern: row.pattern,
         falseClaimPenaltyDraws: row.falseClaimPenaltyDraws,
         maxTeams: row.maxTeams,
+        // Bouchon assume : la tache 5 lit la vraie colonne, en TDD strict.
+        guestLocale: null,
       },
       lastDrawOrder,
       wonByTeamId: row.wonByTeamId,

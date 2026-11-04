@@ -9,7 +9,7 @@ import {
 import { ClaimUseCase } from './claim.use-case.js';
 import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 const TABLA = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'];
 
 async function build(penalty = 3) {

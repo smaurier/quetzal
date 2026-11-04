@@ -13,7 +13,7 @@ function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Pr
   });
 }
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 describe('PrismaGameRepository (intégration)', () => {
   beforeAll(async () => { await ensureTestPostgres(); });

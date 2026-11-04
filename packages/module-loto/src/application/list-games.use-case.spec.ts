@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ListGamesUseCase } from './list-games.use-case.js';
 import { FakeDeckRepository, FakeGameRepository, deckOf } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 describe('ListGamesUseCase', () => {
   it('joint le nom du jeu de cartes à chaque partie', async () => {

@@ -3,7 +3,7 @@ import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
 import { GameSnapshotUseCase } from './game-snapshot.use-case.js';
 import { FakeGameRepository } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 async function build() {
   const games = new FakeGameRepository();
