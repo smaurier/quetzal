@@ -1,7 +1,7 @@
 import { type PatternKey } from './pattern.js';
 import { describe, it, expect } from 'vitest';
-import { parsePatternList, serializePatternList, isValidPatternList } from './pattern-list.js';
-import { InvalidPatternListError } from './errors.js';
+import { parsePatternList, serializePatternList, isValidPatternList, patternAt, isLastPattern, patternProgress } from './pattern-list.js';
+import { InvalidPatternListError, PatternIndexOutOfRangeError } from './errors.js';
 
 describe('parsePatternList', () => {
   it('lit une liste de la base', () => {
@@ -102,5 +102,47 @@ describe('la raison diagnostique', () => {
     expect(() => serializePatternList(['linea', 'linea'] as unknown as PatternKey[])).toThrow(
       /doublon\) en ecriture/,
     );
+  });
+});
+
+describe('patternAt', () => {
+  it('rend la figure en cours', () => {
+    expect(patternAt(['linea', 'llena'], 0)).toBe('linea');
+    expect(patternAt(['linea', 'llena'], 1)).toBe('llena');
+  });
+
+  it('leve plutot que de rendre undefined sur un index hors liste', () => {
+    // `noUncheckedIndexedAccess` est actif : un acces nu rendrait
+    // `PatternKey | undefined` et polluerait tous les appelants.
+    expect(() => patternAt(['linea'], 1)).toThrow(PatternIndexOutOfRangeError);
+    expect(() => patternAt(['linea'], -1)).toThrow(PatternIndexOutOfRangeError);
+  });
+});
+
+describe('isLastPattern', () => {
+  it('reconnait la derniere figure : la partie se terminera', () => {
+    expect(isLastPattern(['linea', 'llena'], 1)).toBe(true);
+  });
+
+  it('reconnait une figure intermediaire : la partie continuera', () => {
+    expect(isLastPattern(['linea', 'llena'], 0)).toBe(false);
+  });
+
+  it('une liste a une figure est toujours a sa derniere', () => {
+    expect(isLastPattern(['linea'], 0)).toBe(true);
+  });
+});
+
+describe('patternProgress', () => {
+  it('dit ou on en est, pour l ecran de l animatrice', () => {
+    expect(patternProgress(['linea', 'esquinas', 'llena'], 1)).toEqual({
+      current: 'esquinas',
+      position: 2,
+      total: 3,
+    });
+  });
+
+  it('compte a partir de un, pas de zero : c est lu par un humain', () => {
+    expect(patternProgress(['linea'], 0).position).toBe(1);
   });
 });

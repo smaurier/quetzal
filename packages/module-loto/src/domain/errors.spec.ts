@@ -16,6 +16,7 @@ import {
   TeamNotFoundError,
   TeamIndexCollisionError,
   InvalidPatternListError,
+  PatternIndexOutOfRangeError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -88,5 +89,9 @@ describe('erreurs d infrastructure', () => {
     const err = new InvalidPatternListError('lecture', '""', 'liste vide');
     expect(err).not.toBeInstanceOf(DomainError);
     expect(err.name).toBe('InvalidPatternListError');
+  });
+
+  it('ne descend PAS de DomainError, pour que le filtre la traite en panne', () => {
+    expect(new PatternIndexOutOfRangeError(1, 1)).not.toBeInstanceOf(DomainError);
   });
 });
