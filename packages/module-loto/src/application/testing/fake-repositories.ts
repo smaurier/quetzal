@@ -14,6 +14,8 @@ import type {
 } from '../../domain/ports/game.repository.js';
 import type { GameStatus } from '../../domain/game-status.js';
 import { TeamIndexCollisionError } from '../../domain/errors.js';
+import { patternAt } from '../../domain/pattern-list.js';
+import type { PatternKey } from '../../domain/pattern.js';
 
 let counter = 0;
 // `-gen-` distingue les ids générés des ids de convention posés par les
@@ -124,7 +126,13 @@ export class FakeGameRepository implements GameRepository {
   readonly teamsByGame = new Map<string, TeamState[]>();
   readonly members = new Map<string, { gameId: string; teamId: string; displayName: string }>();
   readonly draws = new Map<string, { order: number; cardId: string }[]>();
-  readonly claims: { gameId: string; teamId: string; atDraw: number; valid: boolean }[] = [];
+  readonly claims: {
+    gameId: string;
+    teamId: string;
+    atDraw: number;
+    valid: boolean;
+    pattern: PatternKey;
+  }[] = [];
 
   async create(input: {
     deckId: string;
@@ -139,6 +147,7 @@ export class FakeGameRepository implements GameRepository {
       joinCode: input.joinCode,
       settings: input.settings,
       lastDrawOrder: 0,
+      patternIndex: 0,
       wonByTeamId: null,
     };
     this.games.set(game.id, game);
@@ -172,7 +181,7 @@ export class FakeGameRepository implements GameRepository {
         id: game.id,
         deckId: game.deckId,
         status: game.status,
-        pattern: game.settings.pattern,
+        pattern: patternAt(game.settings.patterns, game.patternIndex),
         joinCode: game.joinCode,
         createdAt: this.createdAt.get(game.id) ?? new Date(0),
         wonByTeamId: game.wonByTeamId,
@@ -301,8 +310,27 @@ export class FakeGameRepository implements GameRepository {
     teamId: string;
     atDraw: number;
     valid: boolean;
+    pattern: PatternKey;
   }): Promise<void> {
     this.claims.push(input);
+  }
+
+  async advancePattern(gameId: string, depuisIndex: number): Promise<boolean> {
+    const game = this.games.get(gameId);
+    if (game === undefined || game.patternIndex !== depuisIndex) return false;
+    this.games.set(gameId, { ...game, patternIndex: depuisIndex + 1 });
+    return true;
+  }
+
+  async setWinner(gameId: string, teamId: string): Promise<void> {
+    const game = this.games.get(gameId);
+    if (game !== undefined) this.games.set(gameId, { ...game, wonByTeamId: teamId });
+  }
+
+  async hasValidClaimAt(gameId: string, atDraw: number): Promise<boolean> {
+    return this.claims.some(
+      (claim) => claim.gameId === gameId && claim.atDraw === atDraw && claim.valid,
+    );
   }
 }
 

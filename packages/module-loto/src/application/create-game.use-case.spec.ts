@@ -9,8 +9,9 @@ import {
 import { JOIN_CODE_LENGTH } from '../domain/join-code.js';
 import { CreateGameUseCase } from './create-game.use-case.js';
 import { FakeDeckRepository, FakeGameRepository, RecordingEventBus, deckOf } from './testing/fake-repositories.js';
+import type { GameSettings } from '../domain/ports/game.repository.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS: GameSettings = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
 
 function build(random: () => number = Math.random) {
   const decks = new FakeDeckRepository();

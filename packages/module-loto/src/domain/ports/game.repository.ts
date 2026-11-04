@@ -3,7 +3,12 @@ import type { PatternKey } from '../pattern.js';
 import type { DeckCard, NewDeckCard } from './deck.repository.js';
 
 export interface GameSettings {
-  pattern: PatternKey;
+  /**
+   * Les figures à enchaîner, dans l ordre voulu par l animatrice. De une à
+   * quatre, sans doublon. Une liste à une entrée est le cas de toutes les
+   * parties créées avant cette fonctionnalité.
+   */
+  patterns: PatternKey[];
   falseClaimPenaltyDraws: number;
   maxTeams: number;
   /**
@@ -23,6 +28,8 @@ export interface GameState {
   settings: GameSettings;
   /** Rang du dernier tirage. Zéro quand rien n a encore été tiré. */
   lastDrawOrder: number;
+  /** Où en est la partie dans sa liste de figures. Zéro à la création. */
+  patternIndex: number;
   wonByTeamId: string | null;
 }
 
@@ -103,5 +110,38 @@ export interface GameRepository {
    */
   drawnCards(gameId: string): Promise<string[]>;
 
-  recordClaim(input: { gameId: string; teamId: string; atDraw: number; valid: boolean }): Promise<void>;
+  recordClaim(input: {
+    gameId: string;
+    teamId: string;
+    atDraw: number;
+    valid: boolean;
+    pattern: PatternKey;
+  }): Promise<void>;
+
+  /**
+   * Avance d une figure, et seulement si l index vaut encore `depuisIndex`.
+   * Rend `false` quand quelqu un a avancé entre-temps.
+   *
+   * ⭐ Compare-and-set et NON incrémentation : deux téléphones réclamant au
+   * même tirage lisent tous deux le même index, sont tous deux valides, et
+   * appelleraient tous deux cette méthode. Un `++` ferait sauter une figure.
+   * La condition vit dans le `WHERE`, donc Postgres arbitre, pas nous.
+   */
+  advancePattern(gameId: string, depuisIndex: number): Promise<boolean>;
+
+  /**
+   * Vrai si une réclamation valide est déjà enregistrée à ce tirage. Sert le
+   * garde-fou D5 : au tirage où une figure vient d être gagnée, une
+   * réclamation ratée ne bloque personne : elle avait raison une seconde trop
+   * tard, et la punir mécaniquement serait injuste.
+   */
+  hasValidClaimAt(gameId: string, atDraw: number): Promise<boolean>;
+
+  /**
+   * Écrit la gagnante sans toucher au statut. `setStatus` ne peut pas servir
+   * ici : `ALLOWED.running` vaut `['finished']`, donc la transition
+   * `running → running` est refusée, et à raison : le statut ne change pas,
+   * il n a donc rien à faire dans ce geste.
+   */
+  setWinner(gameId: string, teamId: string): Promise<void>;
 }

@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
 import { GameSnapshotUseCase } from './game-snapshot.use-case.js';
 import { FakeGameRepository } from './testing/fake-repositories.js';
+import type { GameSettings } from '../domain/ports/game.repository.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS: GameSettings = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
 
 async function build() {
   const games = new FakeGameRepository();

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { EventBus } from '@quetzal/core';
 import { GameNotFoundError } from '../domain/errors.js';
 import { assertTransition } from '../domain/game-status.js';
+import { patternAt } from '../domain/pattern-list.js';
 import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
 
 @Injectable()
@@ -20,7 +21,7 @@ export class FinishGameUseCase {
     await this.eventBus.emit('loto.game.finished', {
       gameId: game.id,
       wonByTeamId: null,
-      pattern: game.settings.pattern,
+      pattern: patternAt(game.settings.patterns, game.patternIndex),
       drawCount: game.lastDrawOrder,
     });
 

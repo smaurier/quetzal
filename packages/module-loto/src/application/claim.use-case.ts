@@ -5,6 +5,7 @@ import { drawnCardIds } from '../domain/drawn-cards.js';
 import { GameNotFoundError, GameNotRunningError, TeamBlockedError, TeamNotFoundError } from '../domain/errors.js';
 import { canClaim } from '../domain/game-status.js';
 import { blockUntil, isBlocked } from '../domain/penalty.js';
+import { patternAt } from '../domain/pattern-list.js';
 import type { GameRepository } from '../domain/ports/game.repository.js';
 
 export interface ClaimResult {
@@ -36,11 +37,12 @@ export class ClaimUseCase {
     // pas lu. Le brand DrawnCardId fait que le confondre avec ceci ne compile
     // pas : c est la seule protection structurelle de cet invariant.
     const drawn = drawnCardIds(await this.games.drawnCards(game.id));
+    const pattern = patternAt(game.settings.patterns, game.patternIndex);
 
     const valid = isWinningClaim({
       tablaCardIds: team.cardIds,
       drawnCardIds: drawn,
-      pattern: game.settings.pattern,
+      pattern,
     });
 
     await this.games.recordClaim({
@@ -48,6 +50,7 @@ export class ClaimUseCase {
       teamId: team.id,
       atDraw: game.lastDrawOrder,
       valid,
+      pattern,
     });
 
     if (valid) {
@@ -55,7 +58,7 @@ export class ClaimUseCase {
       await this.eventBus.emit('loto.game.finished', {
         gameId: game.id,
         wonByTeamId: team.id,
-        pattern: game.settings.pattern,
+        pattern,
         drawCount: game.lastDrawOrder,
       });
       return { valid: true, atDraw: game.lastDrawOrder, blockedUntilDraw: team.blockedUntilDraw };

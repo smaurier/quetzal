@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
 import type { GameStatus } from '../domain/game-status.js';
 import type { PatternKey } from '../domain/pattern.js';
+import { patternAt } from '../domain/pattern-list.js';
 import { teamNameFor, type TeamName } from '../domain/team-name.js';
 import type { DeckCard } from '../domain/ports/deck.repository.js';
 import type { GameRepository } from '../domain/ports/game.repository.js';
@@ -89,7 +90,7 @@ export class GameSnapshotUseCase {
       game: {
         id: game.id,
         status: game.status,
-        pattern: game.settings.pattern,
+        pattern: patternAt(game.settings.patterns, game.patternIndex),
         joinCode: game.joinCode,
         maxTeams: game.settings.maxTeams,
         guestLocale: game.settings.guestLocale,
