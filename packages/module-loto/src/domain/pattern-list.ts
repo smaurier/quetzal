@@ -1,8 +1,6 @@
 import { PATTERN_KEYS, isPatternKey, type PatternKey } from './pattern.js';
 import { InvalidPatternListError } from './errors.js';
 
-const MAX = PATTERN_KEYS.length;
-
 /**
  * La base stocke une chaine (`CLAUDE.md` §9 : pas d enum Postgres, et un
  * tableau Postgres serait disproportionne pour quatre cles courtes). Le port
@@ -28,7 +26,7 @@ export function parsePatternList(raw: string): PatternKey[] {
     throw new InvalidPatternListError(raw, 'cle inconnue');
   }
   
-  // Vérifier validité (doublon, longueur, etc.)
+  // Vérifier validité (doublon, etc.)
   if (!isValidPatternList(list)) {
     throw new InvalidPatternListError(raw, 'doublon');
   }
@@ -41,7 +39,7 @@ export function serializePatternList(list: readonly PatternKey[]): string {
 }
 
 export function isValidPatternList(list: readonly string[]): boolean {
-  if (list.length === 0 || list.length > MAX) return false;
+  if (list.length === 0) return false;
   if (new Set(list).size !== list.length) return false;
   return list.every(isPatternKey);
 }
