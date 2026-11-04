@@ -38,7 +38,7 @@ export interface SnapshotDraw {
 export interface SnapshotTabla {
   teamId: string;
   cards: DeckCard[];
-  markedCardIds: string[];
+  markedCardIds: readonly string[];
   blockedUntilDraw: number;
 }
 

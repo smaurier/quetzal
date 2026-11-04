@@ -8,7 +8,7 @@ export interface GameSettings {
    * quatre, sans doublon. Une liste à une entrée est le cas de toutes les
    * parties créées avant cette fonctionnalité.
    */
-  patterns: PatternKey[];
+  patterns: readonly PatternKey[];
   falseClaimPenaltyDraws: number;
   maxTeams: number;
   /**
@@ -43,8 +43,8 @@ export interface TeamState {
    * à gérer, et un libellé traduit finirait en base.
    */
   teamIndex: number;
-  memberDisplayNames: string[];
-  cardIds: string[];
+  memberDisplayNames: readonly string[];
+  cardIds: readonly string[];
   /**
    * Décision D2 : état partagé, sans autorité. Ce tableau ne participe JAMAIS à
    * une décision de jeu. Il est voisin de cardIds et de même type : c est le
@@ -53,7 +53,7 @@ export interface TeamState {
    * `drawnCardIds(team.markedCardIds)` compilable mais absurde à lire, et
    * `ClaimInput.drawnCardIds = new Set(team.markedCardIds)` impossible à compiler.
    */
-  markedCardIds: string[];
+  markedCardIds: readonly string[];
   blockedUntilDraw: number;
 }
 
@@ -90,8 +90,8 @@ export interface GameRepository {
    * l affectation : deux entrées concurrentes lisent la même liste avant que
    * l une ou l autre n ait créé sa ligne, et visent donc le même index.
    */
-  createTeam(gameId: string, input: { teamIndex: number; cardIds: string[] }): Promise<TeamState>;
-  setMarks(teamId: string, markedCardIds: string[]): Promise<void>;
+  createTeam(gameId: string, input: { teamIndex: number; cardIds: readonly string[] }): Promise<TeamState>;
+  setMarks(teamId: string, markedCardIds: readonly string[]): Promise<void>;
   blockTeam(teamId: string, untilDraw: number): Promise<void>;
 
   findMember(gameId: string, guestId: string): Promise<{ teamId: string } | null>;
@@ -120,7 +120,11 @@ export interface GameRepository {
 
   /**
    * Avance d une figure, et seulement si l index vaut encore `depuisIndex`.
-   * Rend `false` quand quelqu un a avancé entre-temps.
+   * Rend `false` pour deux causes, et seulement ces deux : l index a déjà
+   * avancé (quelqu un a été plus rapide), ou la partie n existe pas. Lever
+   * sur partie absente est interdit ici : contrairement aux autres méthodes
+   * du port, celle-ci ne distingue pas les deux causes pour l appelant,
+   * qui a déjà vérifié l existence de la partie avant d appeler ce geste.
    *
    * ⭐ Compare-and-set et NON incrémentation : deux téléphones réclamant au
    * même tirage lisent tous deux le même index, sont tous deux valides, et
