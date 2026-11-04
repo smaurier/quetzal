@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --project tsconfig.typecheck.json",
     "lint": "eslint src",
     "test": "vitest run",
     "generate:routes": "tsx scripts/generate-module-routes.ts",
