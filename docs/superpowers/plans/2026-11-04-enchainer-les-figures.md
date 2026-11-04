@@ -646,33 +646,50 @@ git commit -m "feat(loto): le port porte la liste, l index et le compare-and-set
 
 ### Task 5: La persistance (TDD strict)
 
-⚠️ **Trois dettes à solder ici, relevées aux tâches 3 et 4, et c'est le bon moment : cette tâche
-réécrit précisément ce mappage.** Plus deux étapes remontées de la tâche 10, voir en fin de tâche.
+⚠️ **Cette tâche a été réécrite le 04/11 après mesure. Elle disait deux choses incompatibles** :
+son en-tête demandait de supprimer `GameRow`, `TeamRow` et `PrismaWithLoto`, et son étape 4
+demandait de les modifier. Elle nommait aussi l'interface `LotoPrisma`, alors qu'elle s'appelle
+`PrismaWithLoto`.
 
-**0. La double écriture et le repli de lecture, conséquences du motif *expand / contract*** (tâche 3,
-corrections du 04/11, issue #52). Tant que `pattern` existe et que `patterns` est nullable :
+Le retrait du double cast est donc sorti d'ici : **c'est la tâche 5b**, un refactor pur, protégé par
+la suite d'intégration que cette tâche-ci rend verte. Mesuré le 04/11 : retirer le cast produit onze
+erreurs nouvelles, quatorze en tout dans l'adaptateur. Mêler ça à un changement de comportement en
+TDD aurait rendu impossible de dire laquelle des deux moitiés casse quoi.
 
-- **à l'écriture**, renseigner les deux : `patterns` sérialisée, et `pattern` égale à sa première
-  entrée, pour que l'ancienne instance sache encore lire les parties que la nouvelle crée. Prendre
-  cette première entrée avec `patternAt(patterns, 0)` de la tâche 1, jamais `patterns[0]` :
-  `noUncheckedIndexedAccess` rendrait `PatternKey | undefined`, et le port garantit la liste non vide.
-- **à la lecture**, `patterns` peut être NULL sur une ligne écrite par l'ancien code. Replier sur
-  `pattern` dans ce cas, et ne jamais laisser un NULL atteindre `parsePatternList`.
+**Ce qui reste ici, en plus du changement de persistance :**
 
-Ces deux points partent à l'issue #52, au déploiement suivant. Ils sont du ressort de l'adaptateur
-seul : ni le port, ni les cas d'usage, ni les écrans ne savent que `pattern` existe encore.
+**1. La double écriture et le repli de lecture** (motif *expand / contract*, tâche 3, issue #52).
+Tant que `Loto_Game.pattern` existe et que `patterns` est nullable :
 
-**1. Le double cast ligne 84 doit disparaître.** `getTenantScopedPrisma() as unknown as PrismaWithLoto`
-jette un `PrismaClient` exact pour un stub en `Record<string, unknown>`. Supprimer `GameRow`,
-`TeamRow` et `PrismaWithLoto`, et consommer le client tel qu'il est rendu. La règle ESLint
-`packages/config/eslint/module.js` n'interdit que la *valeur* `PrismaClient` (`importNames:
-['PrismaClient']`) : rien n'est importé ici, le type vient de la valeur de retour. Attendre une
-volée d'erreurs `tsc` au retrait : c'est le but, elles disent où le code mentait.
+- **à l'écriture**, renseigner les deux : `patterns` sérialisée, et `pattern` égale à la première
+  entrée de la liste, pour que l'ancienne instance sache encore lire les parties que la nouvelle
+  crée. Prendre cette entrée avec `patternAt(patterns, 0)`, jamais `patterns[0]` :
+  `noUncheckedIndexedAccess` rendrait `PatternKey | undefined`.
+- **à la lecture**, `row.patterns` est `string | null` : il vaut NULL sur une ligne écrite par
+  l'ancien code. Replier sur `row.pattern`, et ne jamais laisser un NULL atteindre
+  `parsePatternList`. Cette règle vit dans une fonction pure et testée (étape 0), pas en ligne dans
+  l'adaptateur : c'est la seule façon de la couvrir sans insérer une ligne NULL à la main en base.
 
-**2. Les deux `throw new Error(...)` de `toState`** (statut inconnu, figure inconnue) violent le §14.
-Classes typées, comme partout ailleurs dans le module.
+**2. Un seul `throw new Error` à remplacer, pas deux.** `toState` en a deux et le §14 les interdit,
+mais celui sur la figure disparaît tout seul : après migration la figure n'est plus lue en direct,
+elle sort de `parsePatternList`, qui lève déjà `InvalidPatternListError('lecture', brut, probleme)`.
+Reste celui du statut, qui demande une classe neuve.
 
-Le commentaire « Aucun `as` sans garde » juste au-dessus du double cast reste, lui, parfaitement juste.
+Elle étend `Error` et **non** `DomainError`, comme `InvalidPatternListError` et
+`PatternIndexOutOfRangeError` posées à la tâche 2, et pour la même raison : un statut corrompu en
+base n'est pas une règle métier violée par la requête, c'est une donnée cassée qui doit faire 500 et
+partir dans Sentry. ⚠️ `errors.spec.ts` affirme que toutes ses classes descendent de `DomainError` :
+ce choix doit être tenu par un test dans ce fichier, sinon le prochain passage « corrigera »
+l'anomalie et éteindra Sentry.
+
+```ts
+export class UnknownGameStatusError extends Error {
+  constructor(raw: string) {
+    super(`statut de partie inconnu en base : ${raw}`);
+    this.name = this.constructor.name;
+  }
+}
+```
 
 **Files:**
 - Modify: `packages/module-loto/src/infrastructure/prisma-game.repository.ts`
@@ -681,6 +698,43 @@ Le commentaire « Aucun `as` sans garde » juste au-dessus du double cast reste,
 - Modify: `packages/module-loto/src/presentation/game.controller.ts` *(remonté de la tâche 10)*
 - Test: `packages/module-loto/src/presentation/loto.gateway.integration.spec.ts` *(une doublure à
   réparer, ligne 89 : un littéral `settings: { pattern: 'linea', ... }`)*
+
+- [ ] **Step 0: La règle de lecture, pure et testée d'abord**
+
+Dans `packages/module-loto/src/domain/pattern-list.ts`, ajouter :
+
+```ts
+/**
+ * Lit la liste d une ligne de partie pendant la bascule expand / contract
+ * (issue #52). `patterns` vaut NULL sur une ligne ecrite par l ancien code,
+ * qui ne connaissait que la figure unique : on replie dessus.
+ */
+export function patternsDeLaLigne(patterns: string | null, pattern: string): readonly PatternKey[] {
+  return parsePatternList(patterns ?? pattern);
+}
+```
+
+Le test, dans `pattern-list.spec.ts`, AVANT l'implémentation :
+
+```ts
+  describe('patternsDeLaLigne', () => {
+    it('lit la liste quand la colonne est remplie', () => {
+      expect(patternsDeLaLigne('linea,llena', 'linea')).toEqual(['linea', 'llena']);
+    });
+
+    it('replie sur la figure unique quand la liste est NULL', () => {
+      // Une partie creee par l ancienne instance pendant la bascule.
+      expect(patternsDeLaLigne(null, 'llena')).toEqual(['llena']);
+    });
+
+    it('leve si les deux colonnes sont inexploitables', () => {
+      expect(() => patternsDeLaLigne(null, 'inexistante')).toThrow(InvalidPatternListError);
+    });
+  });
+```
+
+Run: `pnpm --filter @quetzal/module-loto test` → les trois doivent être ROUGES d'abord. Commits
+séparés : `test(loto):` puis `feat(loto):`.
 
 - [ ] **Step 1: Écrire le test rouge**
 
@@ -764,20 +818,40 @@ git commit -m "test(loto): la liste en base, et le compare-and-set de l index"
 
 - [ ] **Step 4: Implémenter**
 
-Dans `GameRow`, remplacer `pattern: string;` par `patterns: string;` et ajouter `patternIndex: number;`. Dans l'interface `LotoPrisma`, `loto_Game` gagne `updateMany` s'il ne l'a pas déjà, et `loto_Claim` gagne `count`.
+Dans `GameRow`, **garder** `pattern: string;` (la bascule s'appuie dessus) et ajouter
+`patterns: string | null;` et `patternIndex: number;`. Dans l'interface `PrismaWithLoto` — c'est son
+vrai nom, le plan disait `LotoPrisma` à tort — `loto_Game` gagne `updateMany` s'il ne l'a pas déjà,
+et `loto_Claim` gagne `count`.
 
-Dans `toState`, traduire :
+Dans `toState`, le garde du statut devient une erreur typée, et la figure unique cesse d'être lue
+directement :
 
 ```ts
-        patterns: parsePatternList(row.patterns),
+    if (!isGameStatus(row.status)) {
+      throw new UnknownGameStatusError(row.status);
+    }
+```
+
+Le second `throw new Error`, celui sur `isPatternKey(row.pattern)`, **disparaît** : il est remplacé
+par la lecture de la liste, qui porte déjà sa propre erreur typée.
+
+```ts
+        patterns: [...patternsDeLaLigne(row.patterns, row.pattern)],
 ```
 
 et au niveau de l'état, `patternIndex: row.patternIndex`.
 
-Dans `create`, écrire :
+⚠️ Le spread est nécessaire : `patternsDeLaLigne` rend un `readonly PatternKey[]` et
+`GameSettings.patterns` est passé `readonly` à la tâche 4 — vérifier lequel des deux le typecheck
+exige, et ne pas ajouter de spread si les deux sont déjà `readonly`.
+
+Dans `create`, écrire **les deux colonnes**, c'est la double écriture de la bascule :
 
 ```ts
         patterns: serializePatternList(input.settings.patterns),
+        // Issue #52 : l ancienne instance lit encore cette colonne pendant
+        // la bascule. Retiree au deploiement suivant.
+        pattern: patternAt(input.settings.patterns, 0),
 ```
 
 Les deux nouvelles méthodes :
@@ -860,6 +934,84 @@ elle est à corriger ici, pas à reporter.
 Run: `pnpm --filter @quetzal/module-loto test:integration`
 Expected: **tout vert.** Cette suite était à 16 échecs sur 33 depuis la tâche 3 ; c'est elle, et non
 le typecheck, qui a tenu le filet sur cette couche pendant tout ce temps.
+
+---
+
+### Task 5b: Retirer le double cast (refactor pur)
+
+Sortie de la tâche 5 le 04/11, après mesure. **Aucun changement de comportement** : la suite
+d'intégration verte de la tâche 5 est le filet, et elle doit rester verte à l'identique.
+
+**Le défaut.** `prisma-game.repository.ts` ligne 84 fait
+`getTenantScopedPrisma() as unknown as PrismaWithLoto`. Or `getTenantScopedPrisma()` rend déjà un
+`PrismaClient` complet et entièrement typé : `TenantScopedPrismaClient` vaut
+`ReturnType<typeof createTenantScopedClient>`, et cette fonction rend `PrismaClient`. Le cast ne
+comble donc aucun manque, il **remplace** un type exact par un stub écrit à la main où chaque
+`where` et chaque `data` est un `Record<string, unknown>`. Résultat mesuré à la tâche 3 : aucun nom
+de colonne n'est vérifié nulle part dans la persistance du module, et `tsc` est resté vert alors que
+sept sites lisaient une colonne supprimée.
+
+**Files:**
+- Modify: `packages/module-loto/src/infrastructure/prisma-game.repository.ts`
+
+- [ ] **Step 1: Retirer le cast et les types écrits à la main**
+
+Supprimer les interfaces `GameRow`, `TeamRow` et `PrismaWithLoto`, et écrire :
+
+```ts
+  private get prisma() {
+    return getTenantScopedPrisma();
+  }
+```
+
+La règle ESLint `packages/config/eslint/module.js` n'interdit que la *valeur* `PrismaClient`
+(`importNames: ['PrismaClient']`) : rien n'est importé ici, le type vient de la valeur de retour.
+Pour les types de lignes, utiliser ceux que le client expose, jamais un type réécrit.
+
+- [ ] **Step 2: Lancer le typecheck et lire ce qu'il dit**
+
+Run: `pnpm --filter @quetzal/module-loto typecheck`
+
+Expected: **onze erreurs nouvelles, quatorze en tout dans ce fichier.** Mesuré le 04/11 en retirant
+le seul cast, types écrits à la main laissés en place. Elles ne sont pas du bruit, elles disent où le
+code mentait. Les trois familles observées :
+
+| erreur | ce qu'elle révèle |
+|---|---|
+| `GameRow` n'accepte pas la vraie ligne (lignes 148, 154, 160) | le type écrit à la main ne correspond pas au schéma |
+| `createMany` refuse `{ id, gameId, rank, label, imageId }[]` (ligne 192) | la forme attendue par Prisma est plus précise |
+| `createTeam` refuse `cardIds: string[]`, `markedCardIds: never[]` (ligne 227) | un tableau JSON ne se passe pas comme un tableau nu |
+
+⛔ **Ne pas faire taire une erreur par un `as`** : ce serait reproduire exactement le défaut qu'on
+retire. Le §8 l'interdit, et chaque erreur a une vraie correction.
+
+- [ ] **Step 3: Corriger jusqu'à zéro**
+
+Run: `pnpm --filter @quetzal/module-loto typecheck` → **PASS, zéro erreur.**
+
+- [ ] **Step 4: Prouver qu'aucun comportement n'a bougé**
+
+Run: `pnpm --filter @quetzal/module-loto test:integration`
+
+Expected: **exactement le même compte qu'à la fin de la tâche 5**, au test près. C'est tout ce que ce
+refactor doit prouver. Un test qui change de verdict signifie que le comportement a bougé, donc que
+ce n'est plus un refactor : s'arrêter et le dire.
+
+- [ ] **Step 5: Vérifier que le compilateur mord enfin**
+
+La preuve que ce refactor sert à quelque chose, et elle prend une commande. Renommer temporairement
+`patterns` en `patternsX` dans un `where` de l'adaptateur, lancer le typecheck, constater l'erreur,
+puis remettre. Avant ce refactor, cette mutation passait au vert.
+
+Rapporter la sortie réelle des deux états.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add packages/module-loto/src/infrastructure
+git commit -m "refactor(loto): le depot consomme le client Prisma type"
+```
+
 ---
 
 ### Task 6: La réclamation avance ou termine (TDD strict)
