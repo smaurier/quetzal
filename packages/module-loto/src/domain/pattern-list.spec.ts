@@ -1,3 +1,4 @@
+import { type PatternKey } from './pattern.js';
 import { describe, it, expect } from 'vitest';
 import { parsePatternList, serializePatternList, isValidPatternList } from './pattern-list.js';
 import { InvalidPatternListError } from './errors.js';
@@ -41,8 +42,8 @@ describe('parsePatternList', () => {
   });
 
   it('rejette un doublon venu de la base', () => {
-    // Rejouer la meme figure deux fois de suite n a pas de sens, la seconde
-    // serait gagnee au tirage suivant par la meme equipe.
+    // Décision D8 : rejouer la meme figure deux fois de suite n a pas de sens,
+    // la seconde serait gagnee au tirage suivant par la meme equipe.
     expect(() => parsePatternList('linea,linea')).toThrow(InvalidPatternListError);
     expect(() => parsePatternList('linea,esquinas,centro,llena,linea')).toThrow(InvalidPatternListError);
   });
@@ -88,5 +89,18 @@ describe('isValidPatternList', () => {
 
   it('refuse une cle inconnue', () => {
     expect(isValidPatternList(['linea', 'inconnue'])).toBe(false);
+  });
+});
+
+describe('la raison diagnostique', () => {
+  it('nomme la raison et le sens de la traduction', () => {
+    expect(() => parsePatternList('linea,inconnue')).toThrow(/cle inconnue\) en lecture/);
+    expect(() => parsePatternList('linea,linea')).toThrow(/doublon\) en lecture/);
+    expect(() => serializePatternList(['inconnue'] as unknown as PatternKey[])).toThrow(
+      /cle inconnue\) en ecriture/,
+    );
+    expect(() => serializePatternList(['linea', 'linea'] as unknown as PatternKey[])).toThrow(
+      /doublon\) en ecriture/,
+    );
   });
 });
