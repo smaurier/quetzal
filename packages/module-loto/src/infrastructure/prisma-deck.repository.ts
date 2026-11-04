@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { getTenantScopedPrisma } from '@quetzal/core';
 import { newId } from '@quetzal/db';
 import type {
-  Deck, DeckRepository, DeckSummary, NewDeckCard,
+  Deck, DeckCard, DeckRepository, DeckSummary, NewDeckCard,
 } from '../domain/ports/deck.repository.js';
 
 interface DeckRow { id: string; name: string; isTemplate: boolean }
@@ -81,6 +81,17 @@ export class PrismaDeckRepository implements DeckRepository {
 
   async updateCard(deckId: string, rank: number, patch: { label?: string; imageId?: string | null }): Promise<void> {
     await this.prisma.loto_Card.updateMany({ where: { deckId, rank }, data: patch });
+  }
+
+  async addCard(deckId: string, card: NewDeckCard): Promise<DeckCard> {
+    // `createMany` et non `create` : l extension de cloisonnement fusionne
+    // `tenantId` a plat dans les variantes *Many, comme pour les cartes d un
+    // jeu neuf. L id est genere ici, donc la carte est rendue sans relire.
+    const id = newId();
+    await this.prisma.loto_Card.createMany({
+      data: [{ id, deckId, rank: card.rank, label: card.label, imageId: card.imageId }],
+    });
+    return { id, rank: card.rank, label: card.label, imageId: card.imageId };
   }
 
   async delete(deckId: string): Promise<void> {

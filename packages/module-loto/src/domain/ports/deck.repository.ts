@@ -28,6 +28,9 @@ export interface DeckRepository {
   create(input: { name: string; isTemplate: boolean; createdBy: string; cards: NewDeckCard[] }): Promise<Deck>;
   rename(deckId: string, name: string): Promise<void>;
   updateCard(deckId: string, rank: number, patch: { label?: string; imageId?: string | null }): Promise<void>;
+  /** Insere une carte. Le rang est decide par l appelant : le cas d usage tient
+   *  deja le jeu, donc il le calcule sans aller en base. Issue #26. */
+  addCard(deckId: string, card: NewDeckCard): Promise<DeckCard>;
   delete(deckId: string): Promise<void>;
   /** Vrai si une partie non terminée s appuie sur ce jeu. Verrou de la décision D5. */
   hasUnfinishedGame(deckId: string): Promise<boolean>;

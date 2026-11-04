@@ -18,6 +18,14 @@ export const patchDeckSchema = z.object({
     .optional(),
 });
 
+// Le rang n est PAS dans le corps : le serveur l attribue (cas d usage
+// addCard), sinon le client devrait connaitre le prochain rang libre et
+// pourrait se heurter a @@unique([deckId, rank, tenantId]). Issue #26.
+export const addCardSchema = z.object({
+  label: z.string().min(1).max(80),
+  imageId: z.string().min(1).nullable().optional(),
+});
+
 export const createGameSchema = z.object({
   deckId: z.string().min(1),
   pattern: z.enum(PATTERN_KEYS),
@@ -33,6 +41,7 @@ export const uploadImageSchema = z.object({
 
 export type CreateDeckBody = z.infer<typeof createDeckSchema>;
 export type PatchDeckBody = z.infer<typeof patchDeckSchema>;
+export type AddCardBody = z.infer<typeof addCardSchema>;
 export type CreateGameBody = z.infer<typeof createGameSchema>;
 export type UploadImageBody = z.infer<typeof uploadImageSchema>;
 
