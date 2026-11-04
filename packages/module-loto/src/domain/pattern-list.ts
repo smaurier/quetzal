@@ -49,7 +49,11 @@ export function patternAt(list: readonly PatternKey[], index: number): PatternKe
 }
 
 export function isLastPattern(list: readonly PatternKey[], index: number): boolean {
-  return index >= list.length - 1;
+  // Appel à patternAt pour l'effet de bord : lever si l'index est hors liste.
+  // Même si on ignore le résultat ici, cet appel garantit que l'index est valide.
+  // Sans lui, la borne serait testée dans patternAt et pas dans isLastPattern.
+  patternAt(list, index);
+  return index === list.length - 1;
 }
 
 export interface PatternProgress {
