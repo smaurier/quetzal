@@ -593,7 +593,7 @@ Dans `GameState`, après `lastDrawOrder` :
 
 - [ ] **Step 4: Réparer ce que le port casse**
 
-Étendre le port casse tout ce qui construit un `GameSettings` ou un `GameState`. Dix specs partagent la constante `SETTINGS` : y remplacer `pattern: 'linea'` par `patterns: ['linea']`. La doublure `fake-repositories.ts` reçoit `patternIndex: 0` à la création, plus les deux nouvelles méthodes :
+Étendre le port casse tout ce qui construit un `GameSettings` ou un `GameState`. **Neuf** specs de `src/application/` partagent la constante `SETTINGS` : y remplacer `pattern: 'linea'` par `patterns: ['linea']`, et la typer `GameSettings` plutôt qu'en `as const`, sinon le tableau devient un tuple `readonly` incompatible avec `PatternKey[]`. Quatre cas d'usage (`claim`, `draw-card`, `finish-game`, `game-snapshot`) lisent aussi `game.settings.pattern` hors de tout objet de réglages : les traduire en `patternAt(game.settings.patterns, game.patternIndex)`. La doublure `fake-repositories.ts` reçoit `patternIndex: 0` à la création, plus les **trois** nouvelles méthodes, et son `list()` recalcule la figure courante de la même façon :
 
 ```ts
   async advancePattern(gameId: string, depuisIndex: number): Promise<boolean> {
