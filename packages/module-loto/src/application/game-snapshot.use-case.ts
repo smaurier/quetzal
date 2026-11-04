@@ -13,6 +13,9 @@ export interface SnapshotGame {
   joinCode: string;
   maxTeams: number;
   falseClaimPenaltyDraws: number;
+  /** Aplatie comme ses voisines : SnapshotGame n a pas d objet `settings`.
+   *  L ecran de l animatrice en a besoin pour mettre `&lang=` sur le lien. */
+  guestLocale: string | null;
   lastDrawOrder: number;
   remainingCardCount: number;
   wonByTeamId: string | null;
@@ -89,6 +92,7 @@ export class GameSnapshotUseCase {
         pattern: game.settings.pattern,
         joinCode: game.joinCode,
         maxTeams: game.settings.maxTeams,
+        guestLocale: game.settings.guestLocale,
         falseClaimPenaltyDraws: game.settings.falseClaimPenaltyDraws,
         lastDrawOrder: game.lastDrawOrder,
         remainingCardCount: frozen.length - drawnCardIds.length,

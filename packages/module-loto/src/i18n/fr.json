@@ -1,7 +1,9 @@
 {
   "module": {
     "loto": {
-      "nav": { "title": "Lotería" },
+      "nav": {
+        "title": "Lotería"
+      },
       "decks": {
         "title": "Jeux de cartes",
         "empty": "Aucun jeu de cartes pour l instant",
@@ -23,6 +25,7 @@
         "create": "Nouvelle partie",
         "pattern": "Figure gagnante",
         "maxTeams": "Nombre maximum d équipes",
+        "forceLocale": "Tous les participants voient la partie dans ma langue",
         "penalty": "Pénalité de fausse réclamation, en tours",
         "open": "Ouvrir la salle",
         "notOpenYet": "Ouvre la salle pour que les élèves puissent entrer.",
@@ -33,7 +36,12 @@
         "remaining": "{count, plural, one {# carte restante} other {# cartes restantes}}",
         "wonBy": "Victoire de {team}",
         "stopped": "Partie arrêtée",
-        "status": { "draft": "Brouillon", "open": "Salle ouverte", "running": "En cours", "finished": "Terminée" }
+        "status": {
+          "draft": "Brouillon",
+          "open": "Salle ouverte",
+          "running": "En cours",
+          "finished": "Terminée"
+        }
       },
       "pattern": {
         "linea": "Línea",
@@ -41,14 +49,21 @@
         "centro": "El centro",
         "llena": "Lotería llena"
       },
-      "team": { "numbered": "Équipe {number}" },
+      "team": {
+        "numbered": "Équipe {number}"
+      },
       "player": {
         "claim": "¡Lotería!",
         "youWon": "Vous avez gagné !",
         "blocked": "Réclamation bloquée jusqu au tirage {draw}",
         "rejected": "Réclamation refusée",
         "waiting": "La partie va commencer",
-        "error": { "notOpen": "La partie n'accepte pas de nouveaux joueurs pour le moment. Attends que ton professeur ouvre la salle.", "notFound": "Cette partie n'existe pas ou plus.", "deck": "Le jeu de cartes de cette partie est incomplet. Préviens ton professeur.", "generic": "Impossible de rejoindre la partie. Réessaie dans un instant." }
+        "error": {
+          "notOpen": "La partie n'accepte pas de nouveaux joueurs pour le moment. Attends que ton professeur ouvre la salle.",
+          "notFound": "Cette partie n'existe pas ou plus.",
+          "deck": "Le jeu de cartes de cette partie est incomplet. Préviens ton professeur.",
+          "generic": "Impossible de rejoindre la partie. Réessaie dans un instant."
+        }
       }
     }
   }

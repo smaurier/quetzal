@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 import { apiClient } from '@quetzal/core/client';
 import { Button, Card, Input, Label } from '@quetzal/ui';
 
@@ -40,6 +40,8 @@ export default function DecksPage() {
   const [pattern, setPattern] = useState<PatternKey>('linea');
   const [maxTeams, setMaxTeams] = useState(6);
   const [penalty, setPenalty] = useState(0);
+  const locale = useLocale();
+  const [forceLocale, setForceLocale] = useState(false);
 
   const reload = useCallback(async () => {
     const res = await apiClient().apiFetch('/api/modules/loto/decks');
@@ -117,6 +119,10 @@ export default function DecksPage() {
         // Pénalité à zéro par défaut : c est ce dont dépend la boucle de
         // réclamation systématique de l E2E invité (tâche 35).
         falseClaimPenaltyDraws: penalty,
+        // La langue de l animatrice telle qu elle la voit MAINTENANT. L API
+        // ne recoit pas son cookie, et sa langue enregistree en base peut
+        // differer de celle de son ecran.
+        guestLocale: forceLocale ? locale : null,
       }),
     });
     if (!res.ok) {
@@ -212,6 +218,18 @@ export default function DecksPage() {
             value={penalty}
             onChange={(event) => setPenalty(Number(event.target.value))}
           />
+          {/* L etiquette enveloppe la case : l association est structurelle,
+              sans `id` a tenir synchronise. C est ce que getByLabel sait lire,
+              et c est ce qui manquait aux cinq champs de la PR 35. */}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={forceLocale}
+              onChange={(event) => setForceLocale(event.target.checked)}
+              data-testid="force-locale"
+            />
+            {tGame('forceLocale')}
+          </label>
           <Button disabled={gameDeckId === ''} onClick={() => void createGame()} data-testid="create-game">
             {tGame('create')}
           </Button>

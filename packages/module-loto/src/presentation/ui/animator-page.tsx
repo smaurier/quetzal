@@ -40,7 +40,12 @@ export default function AnimatorPage(props: Props) {
   const joinUrl =
     tenantId === undefined || tenantId === null || snapshot === null
       ? null
-      : `${origin}/j/loto/${snapshot.game.id}?tenantId=${tenantId}`;
+      : `${origin}/j/loto/${snapshot.game.id}?tenantId=${tenantId}` +
+        // Le lien transporte la langue gelee sur la partie : c est lui que les
+        // telephones suivent, et le QR en decoule sans changer de forme.
+        (snapshot.game.guestLocale === null
+          ? ''
+          : `&lang=${snapshot.game.guestLocale}`);
 
   // Générée à côté (et non à la place) du code : le QR sert la salle qui
   // regarde un projecteur, le code sert l élève dont la caméra refuse de

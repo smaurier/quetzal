@@ -1,7 +1,9 @@
 {
   "module": {
     "loto": {
-      "nav": { "title": "Lotería" },
+      "nav": {
+        "title": "Lotería"
+      },
       "decks": {
         "title": "Barajas",
         "empty": "Todavía no hay ninguna baraja",
@@ -23,6 +25,7 @@
         "create": "Nueva partida",
         "pattern": "Figura ganadora",
         "maxTeams": "Número máximo de equipos",
+        "forceLocale": "Todos ven la partida en mi idioma",
         "penalty": "Penalización por falsa lotería, en turnos",
         "open": "Abrir la sala",
         "notOpenYet": "Abre la sala para que los alumnos puedan entrar.",
@@ -33,7 +36,12 @@
         "remaining": "{count, plural, one {# carta restante} other {# cartas restantes}}",
         "wonBy": "Gana {team}",
         "stopped": "Partida terminada",
-        "status": { "draft": "Borrador", "open": "Sala abierta", "running": "En curso", "finished": "Terminada" }
+        "status": {
+          "draft": "Borrador",
+          "open": "Sala abierta",
+          "running": "En curso",
+          "finished": "Terminada"
+        }
       },
       "pattern": {
         "linea": "Línea",
@@ -41,14 +49,21 @@
         "centro": "El centro",
         "llena": "Lotería llena"
       },
-      "team": { "numbered": "Equipo {number}" },
+      "team": {
+        "numbered": "Equipo {number}"
+      },
       "player": {
         "claim": "¡Lotería!",
         "youWon": "¡Ganaste!",
         "blocked": "Lotería bloqueada hasta la carta {draw}",
         "rejected": "Lotería rechazada",
         "waiting": "La partida va a empezar",
-        "error": { "notOpen": "Esta partida no acepta jugadores ahora mismo. Espera a que tu profesora abra la sala.", "notFound": "Esta partida ya no existe.", "deck": "La baraja de esta partida está incompleta. Avisa a tu profesora.", "generic": "No se ha podido entrar en la partida. Inténtalo dentro de un momento." }
+        "error": {
+          "notOpen": "Esta partida no acepta jugadores ahora mismo. Espera a que tu profesora abra la sala.",
+          "notFound": "Esta partida ya no existe.",
+          "deck": "La baraja de esta partida está incompleta. Avisa a tu profesora.",
+          "generic": "No se ha podido entrar en la partida. Inténtalo dentro de un momento."
+        }
       }
     }
   }
