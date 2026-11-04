@@ -591,7 +591,22 @@ Dans `GameState`, après `lastDrawOrder` :
 ⚠️ La doublure de `recordClaim` doit aussi mémoriser `pattern`, sinon `hasValidClaimAt` tiendra mais les tests de la tâche 6 ne pourront pas vérifier la figure enregistrée.
 
 Run: `pnpm --filter @quetzal/module-loto typecheck`
-Expected: PASS. Rapporter la liste des fichiers qu'il a fallu toucher.
+
+Expected: **ÉCHEC, confiné à `prisma-game.repository.ts`.** Corrigé le 04/11 : cette étape attendait
+d'abord un PASS, ce qui était impossible. Changer le port fait disparaître `GameSettings.pattern`,
+donc la ligne `pattern: input.settings.pattern` de l'adaptateur ne compile plus, et `toState` doit
+désormais rendre un `patternIndex` qu'il ne produit pas. Ces deux corrections sont le cœur de la
+tâche 5 et s'y font en TDD strict : les faire ici court-circuiterait le test rouge.
+
+Noter que c'est le SEUL endroit où `tsc` mord sur cette couche, et seulement parce que les types
+viennent du port. Tout ce qui passe par le client Prisma reste invisible au compilateur jusqu'au
+retrait du double cast en tâche 5 (voir tâche 3, étape 7).
+
+⛔ **Ne touche pas à l'adaptateur.** Rapporte la liste exacte des erreurs, et vérifie qu'elles sont
+toutes dans ce fichier : une erreur ailleurs voudrait dire que le port a cassé autre chose, et il
+faut alors le dire.
+
+Rapporter aussi la liste des fichiers qu'il a fallu toucher.
 
 - [ ] **Step 5: Commit**
 
