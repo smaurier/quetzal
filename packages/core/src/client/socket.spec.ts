@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const ioMock = vi.fn(() => ({ on: vi.fn(), emit: vi.fn() }));
+// La vraie signature de `io(url, options)` : sans elle les appels enregistres
+// sont des tuples vides, et lire `calls[0][1]` ne compile pas.
+const ioMock = vi.fn((_url: string, _options?: Record<string, unknown>) => ({
+  on: vi.fn(),
+  emit: vi.fn(),
+}));
 vi.mock('socket.io-client', () => ({ io: ioMock }));
 vi.mock('./api-client.js', () => ({ apiClient: () => ({ getToken: async () => 'jwt-de-test' }) }));
 
@@ -19,14 +24,14 @@ describe('connectSocket', () => {
 
   it('n envoie aucune query quand il n y en a pas', async () => {
     await connectSocket('ws/loto');
-    const options = ioMock.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(options['query']).toBeUndefined();
+    const options = ioMock.mock.calls[0]?.[1];
+    expect(options?.['query']).toBeUndefined();
   });
 
   it('un jeton invité reste prioritaire sur le JWT', async () => {
     await connectSocket('ws/loto', { guestToken: 'jeton-invité' });
-    const options = ioMock.mock.calls[0]?.[1] as { auth: Record<string, string> };
-    expect(options.auth['guestToken']).toBe('jeton-invité');
-    expect(options.auth['token']).toBeUndefined();
+    const auth = ioMock.mock.calls[0]?.[1]?.['auth'] as Record<string, string> | undefined;
+    expect(auth?.['guestToken']).toBe('jeton-invité');
+    expect(auth?.['token']).toBeUndefined();
   });
 });

@@ -8,7 +8,9 @@ describe('createApiClient', () => {
   beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(now); });
 
   function fetchStub(token = 'jwt-1', exp = Math.floor(now / 1000) + 3600) {
-    return vi.fn(async (input: string | URL | Request) => {
+    // La vraie signature, `init` compris : sans lui les appels enregistres
+    // sont des tuples de longueur 1 et `const [, init]` ne compile pas.
+    return vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
       if (url.endsWith('/api/auth/token')) return new Response(JSON.stringify({ token, exp }), { status: 200 });
       return new Response('{}', { status: 200 });
@@ -36,7 +38,8 @@ describe('createApiClient', () => {
   });
 
   it('sends no Authorization header when the token endpoint fails', async () => {
-    const fetchFn = vi.fn(async () => new Response('', { status: 401 }));
+    const fetchFn = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      new Response('', { status: 401 }));
     const client = createApiClient({ fetch: fetchFn });
     await client.apiFetch('/a');
     const [, init] = fetchFn.mock.calls[1]!;

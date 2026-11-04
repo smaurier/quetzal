@@ -24,7 +24,8 @@ describe('mergeCatalogues', () => {
     const modA: Catalogue = { module: { hello: { title: 'A' } } };
     const modB: Catalogue = { module: { hello: { title: 'B' } } };
     const merged = mergeCatalogues(core, [modA, modB]);
-    expect((merged.module as Record<string, Record<string, string>>).hello.title).toBe('B');
+    const modules = merged.module as Record<string, Record<string, string>>;
+    expect(modules['hello']?.['title']).toBe('B');
   });
 
   it('does not mutate the core catalogue', () => {

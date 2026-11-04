@@ -7,9 +7,12 @@ const makeFakeRepo = (): GreetingRepository & { save: ReturnType<typeof vi.fn> }
   save: vi.fn(async (input: { userId: string; message: string }) => ({ id: 'g1', ...input })),
 });
 
-const makeFakeBus = (): EventBus & { emit: ReturnType<typeof vi.fn>; on: ReturnType<typeof vi.fn> } => ({
+// `on` n est asserte par aucun test : il doit seulement satisfaire le contrat
+// d EventBus. Un `vi.fn()` nu ne porte pas sa signature generique, donc
+// l intersection ne tenait pas une fois les tests typecheckes (issue #31).
+const makeFakeBus = (): EventBus & { emit: ReturnType<typeof vi.fn> } => ({
   emit: vi.fn(async () => {}),
-  on: vi.fn(),
+  on: () => {},
 });
 
 describe('GreetUseCase', () => {
