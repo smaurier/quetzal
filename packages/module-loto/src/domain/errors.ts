@@ -103,3 +103,10 @@ export class InvalidPatternListError extends Error {
     this.name = this.constructor.name;
   }
 }
+
+export class PatternIndexOutOfRangeError extends Error {
+  constructor(index: number, length: number) {
+    super(`index de figure hors liste : ${index} sur ${length}`);
+    this.name = this.constructor.name;
+  }
+}

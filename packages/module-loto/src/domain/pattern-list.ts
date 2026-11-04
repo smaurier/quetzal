@@ -1,5 +1,5 @@
 import { isPatternKey, type PatternKey } from './pattern.js';
-import { InvalidPatternListError } from './errors.js';
+import { InvalidPatternListError, PatternIndexOutOfRangeError } from './errors.js';
 
 export type PatternListProblem =
   | 'aucun' | 'liste vide' | 'separateur degenere' | 'doublon' | 'cle inconnue';
@@ -34,4 +34,31 @@ export function serializePatternList(list: readonly PatternKey[]): string {
     throw new InvalidPatternListError('ecriture', JSON.stringify(list), patternListProblem(list));
   }
   return list.join(',');
+}
+
+export function patternAt(list: readonly PatternKey[], index: number): PatternKey {
+  const key = list[index];
+  if (key === undefined) {
+    // Pas un `Error` nu : §14. Et pas un `DomainError` non plus, pour la même
+    // raison qu `InvalidPatternListError` : un index hors liste veut dire une
+    // ligne desynchronisee en base, donc une panne a regarder, pas une regle
+    // metier violee par la requete.
+    throw new PatternIndexOutOfRangeError(index, list.length);
+  }
+  return key;
+}
+
+export function isLastPattern(list: readonly PatternKey[], index: number): boolean {
+  return index >= list.length - 1;
+}
+
+export interface PatternProgress {
+  current: PatternKey;
+  /** A partir de un : ce chiffre est lu par un humain. */
+  position: number;
+  total: number;
+}
+
+export function patternProgress(list: readonly PatternKey[], index: number): PatternProgress {
+  return { current: patternAt(list, index), position: index + 1, total: list.length };
 }
