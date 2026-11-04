@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LOCALES } from '@quetzal/i18n';
 import { GAME_STATUSES } from '../../domain/game-status.js';
 import { PATTERN_KEYS } from '../../domain/pattern.js';
 
@@ -28,6 +29,9 @@ export const addCardSchema = z.object({
 
 export const createGameSchema = z.object({
   deckId: z.string().min(1),
+  // Validee ici AUSSI, et pas seulement dans le middleware : celui-ci
+  // protege l affichage, pas ce qu on ecrit en base.
+  guestLocale: z.enum(LOCALES).nullish(),
   pattern: z.enum(PATTERN_KEYS),
   maxTeams: z.number().int().min(1).max(20),
   falseClaimPenaltyDraws: z.number().int().min(0).max(99),
