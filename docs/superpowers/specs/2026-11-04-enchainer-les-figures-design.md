@@ -36,23 +36,90 @@ Une réclamation valide fait désormais **soit** avancer `patternIndex`, **soit*
 
 C'est la décision qui contient le chantier. `GAME_STATUSES` et `canTransition` ne sont pas touchés.
 
+**Mais `setStatus` ne sait pas faire ça.** Le port gagne une méthode dédiée,
+`advancePattern(gameId): Promise<void>`, qui incrémente l'index sans toucher au statut. Toute la
+défense de cette décision repose sur elle : sans méthode propre, l'avance se ferait en détournant
+`setStatus`, et le statut redeviendrait porteur d'une information qu'il ne décrit pas.
+
+**Et une figure gagnée en cours de partie doit s'annoncer.** `loto.game.finished` ne convient pas,
+la partie n'est pas finie. Le manifeste publie donc un événement de plus, `loto.pattern.won`
+(`LotoPatternWonEvent` dans `@quetzal/core/events/loto`), avec la figure, l'équipe et le tirage.
+C'est un contrat public inter-module, au même titre que les quatre autres.
+
 ### D4 : l'historique vit dans `Loto_Claim`, pas dans une table dédiée
 
 `Loto_Claim` enregistre déjà `teamId`, `atDraw`, `valid` et `claimedAt`. Il ne manque que la figure : une colonne `pattern`.
 
 **Pourquoi pas une table `Loto_Win`** : ce serait un modèle, une migration, un port, une doublure et des tests de plus pour une information qu'une table existante porte aux trois quarts. Et `Loto_Claim` donne en prime les réclamations **ratées** par figure, c'est-à-dire qui a crié trop tôt sur la `linea`, ce qu'une table de victoires ne dirait pas.
 
-`game.wonByTeamId` garde un sens net : la gagnante de la **dernière** figure, donc de la partie.
+`game.wonByTeamId` signifie la gagnante de la **dernière figure effectivement gagnée**.
+
+⚠️ **Et il ne suffit pas à lui seul.** Si l'animatrice termine la partie pendant la figure 2, il
+reste `null` alors que la `linea` avait une gagnante. Ce champ ne répond donc pas à « qui a gagné
+quoi » : c'est `Loto_Claim` qui y répond, et lui seul. `wonByTeamId` reste ce qu'il est, un
+raccourci vers la dernière victoire, jamais l'historique.
 
 **Dénormalisation assumée** : `pattern` sur une réclamation duplique ce que disaient la liste et l'index à cet instant. C'est voulu : l'index de la partie avance, donc la réclamation doit se souvenir de quelle figure elle parlait. Ici c'est juste, pas un symptôme.
 
-### D5 : une chaîne de caractères, pas un tableau Postgres
+### D5 : une réclamation ratée ne coûte rien au tirage où une figure vient d'être gagnée
+
+**Le défaut que l'enchaînement introduit, et qu'il faut nommer.** Aujourd'hui une réclamation
+valide termine la partie, donc une seconde réclamation arrivant juste après est rejetée par
+`canClaim(status)`. Avec l'enchaînement la partie reste `running` et l'index avance : une
+réclamation envoyée au même tirage, portant sur la figure qui vient d'être gagnée, serait évaluée
+contre la **suivante**, échouerait, et vaudrait une pénalité à une équipe qui avait raison.
+
+En classe, deux équipes qui crient en même temps est la situation normale, pas le cas limite.
+
+**La règle retenue** : au tirage où une réclamation valide a déjà été enregistrée, une réclamation
+ratée ne bloque personne. L'équipe ne gagne pas la figure, la première a crié la première et c'est
+le jeu, mais elle n'est pas punie pour avoir eu raison une seconde trop tard.
+
+**Pourquoi pas faire porter la figure par la réclamation du client** : ce serait faire du client la
+source d'une donnée de jugement, la surface exacte que `readForcedLocale` sert à supprimer
+ailleurs. Et deux gagnantes pour une même figure est une notion que `wonByTeamId` au singulier ne
+sait pas dire.
+
+**Et ça ne demande aucune donnée nouvelle** : `Loto_Claim` enregistre déjà `atDraw` et `valid`. Le
+garde-fou est une lecture, `hasValidClaimAt(gameId, atDraw)`, sur la table que D4 utilise déjà.
+
+**Conséquence assumée, héritée de D2** : la pénalité d'une fausse réclamation prise à la fin d'une
+figure déborde sur la suivante, puisque les tirages s'accumulent. C'est cohérent avec la
+continuité, et aucune remise à zéro n'est faite.
+
+### D6 : une chaîne de caractères, pas un tableau Postgres
 
 `patterns String` porte les clés séparées par une virgule (`"linea,llena"`), et `patternIndex Int @default(0)` dit où l'on en est.
 
 **La base stocke une chaîne, le port expose un tableau.** `GameSettings.patterns` est un `PatternKey[]` et c'est le dépôt Prisma qui traduit dans les deux sens, comme il retype déjà `status` et `pattern` au lieu de rendre des chaînes nues. Le domaine et l'application ne voient jamais la chaîne.
 
 `CLAUDE.md` §9 interdit les enums Postgres et préfère String avec validation Zod. Une liste de une à quatre clés courtes ne mérite pas davantage, et la validation à l'entrée reste la seule garantie qui compte.
+
+### D7 : la migration a un ordre imposé, et une étape de remplissage
+
+⛔ **C'est le piège rencontré le 04/11 sur `account.issuer`** : une colonne `NOT NULL` sans valeur
+par défaut fait échouer le déploiement sur les lignes existantes. `Loto_Claim.pattern` est
+exactement ce cas, les réclamations déjà en base n'ayant pas de figure.
+
+L'ordre est donc contraint, en une seule migration :
+
+1. ajouter `Loto_Claim.pattern` **nullable** ;
+2. le remplir depuis `Loto_Game.pattern`, par jointure sur `gameId` et `tenantId` ;
+3. le passer en `NOT NULL` ;
+4. ajouter `Loto_Game.patterns` et `patternIndex`, remplir `patterns` depuis `pattern` ;
+5. retirer `Loto_Game.pattern`.
+
+Inverser 2 et 5 détruirait la donnée qui sert à remplir. Le SQL généré sera lu avant d'être écrit,
+et la migration créée contre un Postgres **local**, jamais Neon.
+
+### D8 : la liste est bornée, ordonnée, et sans doublon
+
+De une à quatre figures, l'ordre est celui que l'animatrice a coché, et une même figure ne peut y
+figurer qu'une fois. Rejouer la même figure deux fois de suite n'a pas de sens : la seconde serait
+gagnée au tirage suivant par la même équipe.
+
+`patterns String @db.VarChar(64)`, borné comme `pattern` l'était en `VarChar(16)` : quatre clés et
+leurs virgules tiennent largement, et une colonne non bornée irait contre le style du fichier.
 
 ## 3. Ce que ça change pour chaque écran
 
@@ -66,11 +133,14 @@ C'est la décision qui contient le chantier. `GAME_STATUSES` et `canTransition` 
 
 | Fichier | Changement |
 |---|---|
-| `packages/module-loto/prisma/models.prisma` | `Loto_Game` : `patterns String`, `patternIndex Int @default(0)`, retrait de `pattern` · `Loto_Claim` : `pattern String @db.VarChar(16)` |
+| `packages/module-loto/prisma/models.prisma` | `Loto_Game` : `patterns String @db.VarChar(64)`, `patternIndex Int @default(0)`, retrait de `pattern` · `Loto_Claim` : `pattern String @db.VarChar(16)` |
 | migration Prisma | transforme `pattern` en `patterns` à une seule entrée |
 | `src/domain/pattern.ts` | une fonction pure pour lire et écrire la liste |
 | `src/domain/ports/game.repository.ts` | `GameSettings.patterns: PatternKey[]`, `GameState.patternIndex: number` |
-| `src/application/claim.use-case.ts` | avance l'index ou termine la partie |
+| `src/domain/ports/game.repository.ts` | `advancePattern(gameId)` et `hasValidClaimAt(gameId, atDraw)` |
+| `src/application/claim.use-case.ts` | avance l'index ou termine la partie, et ne pénalise pas au tirage d'une victoire |
+| `packages/core/src/events/loto.ts` | `LotoPatternWonEvent` |
+| `src/manifest.ts` | `loto.pattern.won` dans `eventsPublished` |
 | `src/application/game-snapshot.use-case.ts` | la figure courante et la progression |
 | `src/presentation/dto/loto.dto.ts` | validation de la liste |
 | `src/presentation/game.controller.ts` | passe la liste |
@@ -95,5 +165,11 @@ C'est la décision qui contient le chantier. `GAME_STATUSES` et `canTransition` 
 **Intégration** : l'aller-retour en base de la liste et de l'index, et la colonne `pattern` d'une réclamation.
 
 **Le cas limite à prouver** : une tabla déjà complète au moment où la `linea` est gagnée doit pouvoir réclamer la `llena` au tirage suivant, sans que l'enchaînement sourcille.
+
+**Le cas de la course, à prouver** : deux réclamations au même tirage sur la figure qui vient
+d'être gagnée. La seconde ne gagne pas et **n'est pas bloquée**.
+
+**La migration, à prouver sur des données existantes** : une partie et une réclamation posées
+avant migration doivent se relire après, avec la figure remplie et non nulle.
 
 **E2E** : une partie à deux figures, menée jusqu'à la seconde, avec la progression lisible à l'écran de l'animatrice.
