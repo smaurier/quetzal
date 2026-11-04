@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parsePatternList, serializePatternList, isValidPatternList } from './pattern-list.js';
+import { InvalidPatternListError } from './errors.js';
 
 describe('parsePatternList', () => {
   it('lit une liste de la base', () => {
@@ -18,16 +19,19 @@ describe('parsePatternList', () => {
     // La valeur vient de la base, donc d un ecrit passe qui peut etre
     // anterieur a une suppression de figure. Mieux vaut lever ici que rendre
     // une cle que `matchesPattern` ne saurait pas honorer.
-    expect(() => parsePatternList('linea,inconnue')).toThrow();
-    expect(() => parsePatternList('')).toThrow();
+    expect(() => parsePatternList('linea,inconnue')).toThrow(InvalidPatternListError);
   });
 
-  it('rejette aussi un doublon et une liste trop longue', () => {
+  it('rejette une liste vide', () => {
+    expect(() => parsePatternList('')).toThrow(InvalidPatternListError);
+  });
+
+  it('rejette aussi un doublon venu de la base', () => {
     // `parsePatternList` garantit une liste valide, c est elle qui lit la
     // base : elle refuse donc tout ce que `isValidPatternList` refuse, pas
     // seulement les cles inconnues.
-    expect(() => parsePatternList('linea,linea')).toThrow();
-    expect(() => parsePatternList('linea,esquinas,centro,llena,linea')).toThrow();
+    expect(() => parsePatternList('linea,linea')).toThrow(InvalidPatternListError);
+    expect(() => parsePatternList('linea,esquinas,centro,llena,linea')).toThrow(InvalidPatternListError);
   });
 });
 
@@ -55,8 +59,6 @@ describe('isValidPatternList', () => {
     expect(isValidPatternList([])).toBe(false);
   });
 
-  // Decision D8 : rejouer la meme figure deux fois de suite n a pas de sens,
-  // la seconde serait gagnee au tirage suivant par la meme equipe.
   it('refuse un doublon', () => {
     expect(isValidPatternList(['linea', 'linea'])).toBe(false);
   });
