@@ -21,6 +21,14 @@ describe('parsePatternList', () => {
     expect(() => parsePatternList('linea,inconnue')).toThrow();
     expect(() => parsePatternList('')).toThrow();
   });
+
+  it('rejette aussi un doublon et une liste trop longue', () => {
+    // `parsePatternList` garantit une liste valide, c est elle qui lit la
+    // base : elle refuse donc tout ce que `isValidPatternList` refuse, pas
+    // seulement les cles inconnues.
+    expect(() => parsePatternList('linea,linea')).toThrow();
+    expect(() => parsePatternList('linea,esquinas,centro,llena,linea')).toThrow();
+  });
 });
 
 describe('serializePatternList', () => {
