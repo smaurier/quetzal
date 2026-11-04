@@ -85,13 +85,16 @@ describe('erreurs des cas d usage', () => {
 });
 
 describe('erreurs d infrastructure', () => {
-  it('ne descend PAS de DomainError, pour que le filtre global la traite en panne et non en regle metier', () => {
+  it('InvalidPatternListError ne descend PAS de DomainError, pour que le filtre global la traite en panne et non en regle metier', () => {
     const err = new InvalidPatternListError('lecture', '""', 'liste vide');
     expect(err).not.toBeInstanceOf(DomainError);
     expect(err.name).toBe('InvalidPatternListError');
   });
 
-  it('ne descend PAS de DomainError, pour que le filtre la traite en panne', () => {
-    expect(new PatternIndexOutOfRangeError(1, 1)).not.toBeInstanceOf(DomainError);
+  it('PatternIndexOutOfRangeError ne descend PAS de DomainError, pour que le filtre la traite en panne', () => {
+    const err = new PatternIndexOutOfRangeError(5, 3);
+    expect(err).not.toBeInstanceOf(DomainError);
+    expect(err.name).toBe('PatternIndexOutOfRangeError');
+    expect(err.message).toMatch(/5 sur 3/);
   });
 });

@@ -150,4 +150,9 @@ describe('patternProgress', () => {
   it('compte a partir de un, pas de zero : c est lu par un humain', () => {
     expect(patternProgress(['linea'], 0).position).toBe(1);
   });
+
+  it('leve aussi sur un index hors liste, comme patternAt', () => {
+    expect(() => patternProgress([], 0)).toThrow(PatternIndexOutOfRangeError);
+    expect(() => patternProgress(['linea'], 1)).toThrow(PatternIndexOutOfRangeError);
+  });
 });
