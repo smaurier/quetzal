@@ -2,8 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { newId } from '@quetzal/db';
 import { getTenantScopedPrisma } from '@quetzal/core';
 import { isGameStatus, type GameStatus } from '../domain/game-status.js';
-import { isPatternKey } from '../domain/pattern.js';
-import { TeamIndexCollisionError } from '../domain/errors.js';
+import { isPatternKey, type PatternKey } from '../domain/pattern.js';
+import { TeamIndexCollisionError, UnknownGameStatusError } from '../domain/errors.js';
+import { patternAt, patternsDeLaLigne, serializePatternList } from '../domain/pattern-list.js';
 import type { DeckCard, NewDeckCard } from '../domain/ports/deck.repository.js';
 import type {
   GameRepository,
@@ -17,7 +18,11 @@ interface GameRow {
   id: string;
   deckId: string;
   status: string;
+  // Obsolete : conservee le temps d un deploiement (issue #52). Toujours la
+  // premiere figure de `patterns`, jamais la figure en cours.
   pattern: string;
+  patterns: string | null;
+  patternIndex: number;
   falseClaimPenaltyDraws: number;
   maxTeams: number;
   guestLocale: string | null;
@@ -64,6 +69,7 @@ interface PrismaWithLoto {
   };
   loto_Claim: {
     create(args: { data: Record<string, unknown> }): Promise<unknown>;
+    count(args: { where: Record<string, unknown> }): Promise<number>;
   };
 }
 
@@ -86,10 +92,7 @@ export class PrismaGameRepository implements GameRepository {
 
   private toState(row: GameRow, lastDrawOrder: number): GameState {
     if (!isGameStatus(row.status)) {
-      throw new Error(`Statut de partie inconnu en base : ${row.status}`);
-    }
-    if (!isPatternKey(row.pattern)) {
-      throw new Error(`Figure de partie inconnue en base : ${row.pattern}`);
+      throw new UnknownGameStatusError(row.status);
     }
     return {
       id: row.id,
@@ -97,12 +100,13 @@ export class PrismaGameRepository implements GameRepository {
       status: row.status,
       joinCode: row.joinCode,
       settings: {
-        pattern: row.pattern,
+        patterns: patternsDeLaLigne(row.patterns, row.pattern),
         falseClaimPenaltyDraws: row.falseClaimPenaltyDraws,
         maxTeams: row.maxTeams,
         guestLocale: row.guestLocale,
       },
       lastDrawOrder,
+      patternIndex: row.patternIndex,
       wonByTeamId: row.wonByTeamId,
     };
   }
@@ -139,7 +143,10 @@ export class PrismaGameRepository implements GameRepository {
         createdBy: input.createdBy,
         joinCode: input.joinCode,
         status: 'draft',
-        pattern: input.settings.pattern,
+        patterns: serializePatternList(input.settings.patterns),
+        // Issue #52 : l ancienne instance lit encore cette colonne pendant
+        // la bascule. Retiree au deploiement suivant.
+        pattern: patternAt(input.settings.patterns, 0),
         falseClaimPenaltyDraws: input.settings.falseClaimPenaltyDraws,
         maxTeams: input.settings.maxTeams,
         guestLocale: input.settings.guestLocale,
@@ -287,7 +294,26 @@ export class PrismaGameRepository implements GameRepository {
     teamId: string;
     atDraw: number;
     valid: boolean;
+    pattern: PatternKey;
   }): Promise<void> {
     await this.prisma.loto_Claim.create({ data: { id: newId(), ...input } });
+  }
+
+  async advancePattern(gameId: string, depuisIndex: number): Promise<boolean> {
+    // La condition est dans le WHERE : c est Postgres qui arbitre la course,
+    // pas nous. `updateMany` rend le nombre de lignes touchées.
+    const result = await this.prisma.loto_Game.updateMany({
+      where: { id: gameId, patternIndex: depuisIndex },
+      data: { patternIndex: depuisIndex + 1 },
+    });
+    return result.count === 1;
+  }
+
+  async hasValidClaimAt(gameId: string, atDraw: number): Promise<boolean> {
+    return (await this.prisma.loto_Claim.count({ where: { gameId, atDraw, valid: true } })) > 0;
+  }
+
+  async setWinner(gameId: string, teamId: string): Promise<void> {
+    await this.prisma.loto_Game.updateMany({ where: { id: gameId }, data: { wonByTeamId: teamId } });
   }
 }
