@@ -440,9 +440,36 @@ ALTER TABLE "Loto_Game" ADD COLUMN "patternIndex" INTEGER NOT NULL DEFAULT 0;
 UPDATE "Loto_Game" SET "patterns" = "pattern";
 ALTER TABLE "Loto_Game" ALTER COLUMN "patterns" SET NOT NULL;
 
--- 5. la figure unique disparait, remplacee par une liste a une entree
-ALTER TABLE "Loto_Game" DROP COLUMN "pattern";
+-- 5. la figure unique NE disparait PAS ici, et c'est delibere. Voir ci-dessous.
+
+-- 6. les deux CHECK, la liste comme la figure unique
+ALTER TABLE "Loto_Claim" ADD CONSTRAINT "Loto_Claim_pattern_check"
+  CHECK ("pattern" IN ('linea', 'esquinas', 'centro', 'llena'));
+ALTER TABLE "Loto_Game" ADD CONSTRAINT "Loto_Game_patterns_check"
+  CHECK ("patterns" ~ '^(linea|esquinas|centro|llena)(,(linea|esquinas|centro|llena)){0,3}$');
 ```
+
+⚠️ **Deux corrections du 04/11, après relecture de qualité. Elles changent le sens de la tâche.**
+
+**1. Les deux CHECK ci-dessus manquaient.** La migration d'origine du module
+(`20260904063920_add_module_loto/migration.sql`, lignes 183-191) posait quatre contraintes sur
+`Loto_Game`, dont `CHECK ("pattern" IN (...))`. Les retirer sans les remplacer perdait une garantie
+au niveau base, ce que `CLAUDE.md` §9 interdit. Mon premier contrôle était mauvais : j'avais cherché
+`@@index` et `@@unique` dans le modèle Prisma, où les CHECK n'apparaissent pas. Elles se lisent dans
+le SQL ou dans `pg_constraint`.
+
+**2. `patterns` reste nullable et `pattern` reste en place.** Motif *expand / contract*. La base est
+migrée pendant que l'ancienne instance sert encore le trafic, et il faut une concession par
+direction :
+
+| direction | ce que l'ancien code fait | la concession |
+|---|---|---|
+| lecture | lit `Loto_Game.pattern` | `pattern` reste, et reste `NOT NULL` |
+| écriture | crée des parties sans `patterns` | `patterns` reste **nullable** |
+
+Sans la seconde, une création de partie par l'ancienne instance échouerait sur une colonne `NOT NULL`
+sans défaut. Sans la première, `isPatternKey(undefined)` serait faux et `toState` lèverait sur
+**toute** lecture de partie. Le second temps est tracé dans l'**issue #52**.
 
 - [ ] **Step 5: Comparer avec ce que Prisma attend**
 
@@ -621,6 +648,19 @@ git commit -m "feat(loto): le port porte la liste, l index et le compare-and-set
 
 ⚠️ **Deux dettes à solder ici, relevées à la tâche 3, et c'est le bon moment : cette tâche réécrit
 précisément ce mappage.**
+
+**0. La double écriture et le repli de lecture, conséquences du motif *expand / contract*** (tâche 3,
+corrections du 04/11, issue #52). Tant que `pattern` existe et que `patterns` est nullable :
+
+- **à l'écriture**, renseigner les deux : `patterns` sérialisée, et `pattern` égale à sa première
+  entrée, pour que l'ancienne instance sache encore lire les parties que la nouvelle crée. Prendre
+  cette première entrée avec `patternAt(patterns, 0)` de la tâche 1, jamais `patterns[0]` :
+  `noUncheckedIndexedAccess` rendrait `PatternKey | undefined`, et le port garantit la liste non vide.
+- **à la lecture**, `patterns` peut être NULL sur une ligne écrite par l'ancien code. Replier sur
+  `pattern` dans ce cas, et ne jamais laisser un NULL atteindre `parsePatternList`.
+
+Ces deux points partent à l'issue #52, au déploiement suivant. Ils sont du ressort de l'adaptateur
+seul : ni le port, ni les cas d'usage, ni les écrans ne savent que `pattern` existe encore.
 
 **1. Le double cast ligne 84 doit disparaître.** `getTenantScopedPrisma() as unknown as PrismaWithLoto`
 jette un `PrismaClient` exact pour un stub en `Record<string, unknown>`. Supprimer `GameRow`,
@@ -1367,3 +1407,9 @@ git commit -m "test(e2e): une partie enchaine deux figures sans etre recreee"
 - [ ] `pnpm audit --prod --audit-level high` → attendu 0 high, sortie 0
 - [ ] `pnpm --filter @quetzal/auth generate && git diff --exit-code -- packages/auth/prisma/auth.prisma` → aucune dérive
 - [ ] **Avant de fusionner** : compter les lignes que la migration a remplies en production, comme pour la migration d'unicité du 03/11. Une réclamation sans figure après migration serait un remplissage manqué.
+- [ ] ⛔ **Les onze tâches partent en UNE SEULE pull request squashée.** La migration de la tâche 3
+      et l'adaptateur de la tâche 5 doivent arriver en production dans le même déploiement. Déployer
+      la migration seule casserait toute création et toute lecture de partie : c'est mesuré, la suite
+      d'intégration tombe à 16 échecs sur 33 dans cet état intermédiaire.
+- [ ] **Après le déploiement**, ouvrir le second temps : issue #52 (`patterns` en `NOT NULL`, retrait de
+      `Loto_Game.pattern`, de la double écriture et du repli de lecture).
