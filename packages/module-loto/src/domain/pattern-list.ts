@@ -48,6 +48,15 @@ export function patternAt(list: readonly PatternKey[], index: number): PatternKe
   return key;
 }
 
+/**
+ * Lit la liste d une ligne de partie pendant la bascule expand / contract
+ * (issue #52). `patterns` vaut NULL sur une ligne ecrite par l ancien code,
+ * qui ne connaissait que la figure unique : on replie dessus.
+ */
+export function patternsDeLaLigne(patterns: string | null, pattern: string): readonly PatternKey[] {
+  return parsePatternList(patterns ?? pattern);
+}
+
 export interface PatternProgress {
   current: PatternKey;
   /** A partir de un : ce chiffre est lu par un humain. */
