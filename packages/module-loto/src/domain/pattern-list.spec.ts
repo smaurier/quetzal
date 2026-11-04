@@ -1,6 +1,13 @@
 import { type PatternKey } from './pattern.js';
 import { describe, it, expect } from 'vitest';
-import { parsePatternList, serializePatternList, isValidPatternList, patternAt, isLastPattern, patternProgress } from './pattern-list.js';
+import {
+  parsePatternList,
+  serializePatternList,
+  isValidPatternList,
+  patternAt,
+  isLastPattern,
+  patternProgress,
+} from './pattern-list.js';
 import { InvalidPatternListError, PatternIndexOutOfRangeError } from './errors.js';
 
 describe('parsePatternList', () => {

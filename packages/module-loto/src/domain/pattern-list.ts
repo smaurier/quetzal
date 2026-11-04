@@ -39,7 +39,7 @@ export function serializePatternList(list: readonly PatternKey[]): string {
 export function patternAt(list: readonly PatternKey[], index: number): PatternKey {
   const key = list[index];
   if (key === undefined) {
-    // Pas un `Error` nu : §14. Et pas un `DomainError` non plus, pour la même
+    // Pas un `Error` nu : §14. Et pas un `DomainError` non plus, pour la meme
     // raison qu `InvalidPatternListError` : un index hors liste veut dire une
     // ligne desynchronisee en base, donc une panne a regarder, pas une regle
     // metier violee par la requete.
