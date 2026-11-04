@@ -233,47 +233,47 @@ describe('PrismaGameRepository (intégration)', () => {
     const list = await inTenant(other.tenantId, other.ownerId, () => games.list());
     expect(list).toEqual([]);
   });
-
-  // Issue #40, tache 5 du plan. La langue est resolue UNE FOIS a la creation
-  // et gelee sur la partie : elle doit donc survivre a un aller-retour en
-  // base, sinon chaque ecran invite retomberait sur la sienne.
-  it('ecrit et relit la langue imposee', async () => {
-    const { tenantId, ownerId, decks, games } = await aGame();
-    const deck = await inTenant(tenantId, ownerId, () =>
-      decks.create({ name: 'Jeu langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
-    );
-
-    const game = await inTenant(tenantId, ownerId, () =>
-      games.create({
-        deckId: deck.id,
-        createdBy: ownerId,
-        joinCode: 'LANG01',
-        settings: { pattern: 'linea', falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: 'es' },
-      }),
-    );
-
-    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
-    expect(reread?.settings.guestLocale).toBe('es');
-  });
-
-  // Le defaut, et le seul cas qui existe pour toutes les parties deja en
-  // base : la migration ajoute une colonne nullable, pas une valeur.
-  it('laisse la langue a null quand l option est decochee', async () => {
-    const { tenantId, ownerId, decks, games } = await aGame();
-    const deck = await inTenant(tenantId, ownerId, () =>
-      decks.create({ name: 'Jeu sans langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
-    );
-
-    const game = await inTenant(tenantId, ownerId, () =>
-      games.create({
-        deckId: deck.id,
-        createdBy: ownerId,
-        joinCode: 'LANG02',
-        settings: { pattern: 'linea', falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
-      }),
-    );
-
-    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
-    expect(reread?.settings.guestLocale).toBeNull();
-  });
+
+  // Issue #40, tache 5 du plan. La langue est resolue UNE FOIS a la creation
+  // et gelee sur la partie : elle doit donc survivre a un aller-retour en
+  // base, sinon chaque ecran invite retomberait sur la sienne.
+  it('ecrit et relit la langue imposee', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'LANG01',
+        settings: { pattern: 'linea', falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: 'es' },
+      }),
+    );
+
+    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reread?.settings.guestLocale).toBe('es');
+  });
+
+  // Le defaut, et le seul cas qui existe pour toutes les parties deja en
+  // base : la migration ajoute une colonne nullable, pas une valeur.
+  it('laisse la langue a null quand l option est decochee', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu sans langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'LANG02',
+        settings: { pattern: 'linea', falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reread?.settings.guestLocale).toBeNull();
+  });
 });

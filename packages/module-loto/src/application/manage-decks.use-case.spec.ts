@@ -144,42 +144,42 @@ describe('ManageDecksUseCase', () => {
 
     expect(deck.id).toBe('deck-1');
   });
-
-  // Issue #26 : `PATCH /decks/:id` passait par un `updateMany`, qui ne touche
-  // aucune ligne quand le rang n existe pas encore. Partir d un jeu vierge
-  // etait donc impossible : le bouton « Ajouter une carte » ne faisait rien,
-  // en silence, et il fallait dupliquer un jeu existant.
-  //
-  // Le rang est attribue ICI et non dans le depot : le cas d usage tient deja
-  // le jeu, donc le calcul reste pur et testable sans base, et le port reste
-  // bete. @@unique([deckId, rank, tenantId]) interdit toute collision.
-  it('ajoute une premiere carte a un jeu vierge', async () => {
-    const { decks, useCase } = build();
-    const vierge = decks.add(deckOf(0));
-
-    const carte = await useCase.addCard({ deckId: vierge.id, label: 'El Gallo' });
-
-    expect(carte.rank).toBe(1);
-    expect(carte.label).toBe('El Gallo');
-    expect((await useCase.findOne({ deckId: vierge.id })).cards).toHaveLength(1);
-  });
-
-  it('donne a la carte suivante le rang apres le dernier', async () => {
-    const { decks, useCase } = build();
-    decks.add(deckOf(3));
-
-    expect((await useCase.addCard({ deckId: 'deck-1', label: 'La Dama' })).rank).toBe(4);
-  });
-
-  // Les rangs peuvent avoir des trous (une carte retiree) : on repart du plus
-  // haut, jamais du nombre de cartes, sinon on reecrirait un rang existant.
-  it('repart du rang le plus haut, pas du nombre de cartes', async () => {
-    const { decks, useCase } = build();
-    decks.add(deckOf(0, { cards: [{ id: 'c', rank: 9, label: 'El Sol', imageId: null }] }));
-
-    expect((await useCase.addCard({ deckId: 'deck-1', label: 'La Luna' })).rank).toBe(10);
-  });
-
+
+  // Issue #26 : `PATCH /decks/:id` passait par un `updateMany`, qui ne touche
+  // aucune ligne quand le rang n existe pas encore. Partir d un jeu vierge
+  // etait donc impossible : le bouton « Ajouter une carte » ne faisait rien,
+  // en silence, et il fallait dupliquer un jeu existant.
+  //
+  // Le rang est attribue ICI et non dans le depot : le cas d usage tient deja
+  // le jeu, donc le calcul reste pur et testable sans base, et le port reste
+  // bete. @@unique([deckId, rank, tenantId]) interdit toute collision.
+  it('ajoute une premiere carte a un jeu vierge', async () => {
+    const { decks, useCase } = build();
+    const vierge = decks.add(deckOf(0));
+
+    const carte = await useCase.addCard({ deckId: vierge.id, label: 'El Gallo' });
+
+    expect(carte.rank).toBe(1);
+    expect(carte.label).toBe('El Gallo');
+    expect((await useCase.findOne({ deckId: vierge.id })).cards).toHaveLength(1);
+  });
+
+  it('donne a la carte suivante le rang apres le dernier', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(3));
+
+    expect((await useCase.addCard({ deckId: 'deck-1', label: 'La Dama' })).rank).toBe(4);
+  });
+
+  // Les rangs peuvent avoir des trous (une carte retiree) : on repart du plus
+  // haut, jamais du nombre de cartes, sinon on reecrirait un rang existant.
+  it('repart du rang le plus haut, pas du nombre de cartes', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(0, { cards: [{ id: 'c', rank: 9, label: 'El Sol', imageId: null }] }));
+
+    expect((await useCase.addCard({ deckId: 'deck-1', label: 'La Luna' })).rank).toBe(10);
+  });
+
   // Le bouton de l editeur cree une carte VIERGE que l animatrice nomme
   // ensuite, comme les autres champs de l ecran qui s editent au blur. Le
   // libelle est donc optionnel a la creation.
@@ -193,23 +193,23 @@ describe('ManageDecksUseCase', () => {
     expect(carte.rank).toBe(1);
   });
 
-  it('refuse d ajouter une carte a un jeu inconnu', async () => {
-    const { useCase } = build();
-
-    await expect(useCase.addCard({ deckId: 'absent', label: 'X' })).rejects.toBeInstanceOf(
-      DeckNotFoundError,
-    );
-  });
-
-  // Meme verrou D5 que les autres ecritures : on ne touche pas a un jeu qui
-  // sert une partie en cours.
-  it('refuse d ajouter une carte a un jeu verrouille', async () => {
-    const { decks, useCase } = build();
-    decks.add(deckOf(0));
-    decks.unfinished.add('deck-1');
-
-    await expect(useCase.addCard({ deckId: 'deck-1', label: 'X' })).rejects.toBeInstanceOf(
-      DeckLockedError,
-    );
-  });
+  it('refuse d ajouter une carte a un jeu inconnu', async () => {
+    const { useCase } = build();
+
+    await expect(useCase.addCard({ deckId: 'absent', label: 'X' })).rejects.toBeInstanceOf(
+      DeckNotFoundError,
+    );
+  });
+
+  // Meme verrou D5 que les autres ecritures : on ne touche pas a un jeu qui
+  // sert une partie en cours.
+  it('refuse d ajouter une carte a un jeu verrouille', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(0));
+    decks.unfinished.add('deck-1');
+
+    await expect(useCase.addCard({ deckId: 'deck-1', label: 'X' })).rejects.toBeInstanceOf(
+      DeckLockedError,
+    );
+  });
 });
