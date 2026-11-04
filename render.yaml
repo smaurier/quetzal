@@ -11,7 +11,21 @@ services:
       corepack enable && corepack prepare pnpm@9.15.0 --activate
       pnpm install --frozen-lockfile --prod=false
       pnpm turbo run build --filter=quetzal-api...
-      pnpm --filter @quetzal/db prisma:migrate:deploy
+      # Neon suspend son calcul au repos, et `migrate deploy` tombe en P1001
+      # pendant le reveil. Le 03/11 le build avait TOUT compile et c'est cette
+      # ligne qui a fait echouer le deploiement entier : l'API est restee 25 h
+      # sur le commit du 29/10 pendant que Vercel servait le host a jour. Comme
+      # le schema n'est migre QUE d'ici, `account.issuer` est reste NOT NULL
+      # alors que la better-auth du host ne l'ecrit plus : toute inscription
+      # echouait, en silence. Le reveil prend quelques secondes, donc on
+      # reessaie. L'echec de la DERNIERE tentative reste fatal (set -e voit le
+      # code non nul de la chaine entiere), et aucune variable de shell n'est
+      # utilisee pour ne rien laisser a l'interpretation de l'hebergeur.
+      pnpm --filter @quetzal/db prisma:migrate:deploy \
+        || { echo 'migrate deploy: echec, nouvelle tentative dans 10 s' >&2; sleep 10; \
+             pnpm --filter @quetzal/db prisma:migrate:deploy; } \
+        || { echo 'migrate deploy: echec, derniere tentative dans 20 s' >&2; sleep 20; \
+             pnpm --filter @quetzal/db prisma:migrate:deploy; }
     startCommand: node apps/api/dist/main.js
     healthCheckPath: /api/health
     envVars:
