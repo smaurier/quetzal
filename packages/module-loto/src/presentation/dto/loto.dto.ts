@@ -22,7 +22,7 @@ export const patchDeckSchema = z.object({
 // addCard), sinon le client devrait connaitre le prochain rang libre et
 // pourrait se heurter a @@unique([deckId, rank, tenantId]). Issue #26.
 export const addCardSchema = z.object({
-  label: z.string().min(1).max(80),
+  label: z.string().max(80).optional(),
   imageId: z.string().min(1).nullable().optional(),
 });
 
