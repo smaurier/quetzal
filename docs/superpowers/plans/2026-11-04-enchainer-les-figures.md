@@ -12,6 +12,30 @@
 
 ---
 
+## ⛔ Deux règles du dépôt que ce plan a d'abord violées
+
+Corrigé le 04/11 après le refus de la relecture de qualité sur la tâche 1. **Ces deux règles
+valent pour TOUTES les tâches de ce plan**, y compris celles dont le code d'exemple ne les
+montrerait pas.
+
+**1. Jamais `throw new Error(...)`** (`CLAUDE.md` §8 et §14). Le module a seize classes d'erreur
+dans `packages/module-loto/src/domain/errors.ts` : suivre leur patron. Et la conséquence n'est pas
+cosmétique : dans `apps/api/src/filters/global-exception.filter.ts`, un `Error` nu part en 500 avec
+capture Sentry **et perd son message**, tandis qu'un `DomainError` rend 400 sans Sentry en
+conservant le sien.
+
+Pour les erreurs de ce chantier, le choix est tranché : une liste ou un index corrompus en base
+**ne sont pas** des règles métier violées par la requête, donc les classes étendent `Error` et non
+`DomainError`, pour garder le 500 et la capture. Ce choix doit être tenu par un test dans
+`errors.spec.ts`, pas par un commentaire : ce fichier affirme que toutes ses classes descendent de
+`DomainError`, et sans test rouge le prochain passage « corrigera » l'anomalie et éteindra Sentry.
+
+**2. Jamais de `as` sans typeguard** (`CLAUDE.md` §8). Dans le code de production, typer
+l'interface plutôt que caster son résultat. Les `as` des fichiers E2E sont tolérés : ils reprennent
+le style déjà en place dans `loto-guest.e2e.spec.ts`.
+
+---
+
 ## Décisions descendues de la spec, et une qui s'y ajoute
 
 **1. La base stocke une chaîne, le port expose un tableau.** `patterns String @db.VarChar(64)` porte les clés séparées par une virgule (`"linea,llena"`). `GameSettings.patterns` est un `PatternKey[]`, et c'est le dépôt Prisma qui traduit dans les deux sens, comme il retype déjà `status` et `pattern`. `CLAUDE.md` §9 interdit les enums Postgres ; une liste de une à quatre clés courtes ne mérite pas un tableau Postgres. La borne `VarChar(64)` suit le style du fichier, où `pattern` était en `VarChar(16)`.
@@ -157,7 +181,10 @@ export function parsePatternList(raw: string): PatternKey[] {
   const keys = raw.split(',').map((key) => key.trim());
   const list = keys.filter(isPatternKey);
   if (list.length !== keys.length || !isValidPatternList(list)) {
-    throw new Error(`liste de figures invalide : ${JSON.stringify(raw)}`);
+    // Pas un `Error` nu : §14. Voir l avertissement en tete de plan, et
+    // `InvalidPatternListError` dans errors.ts, qui porte l operation
+    // (lecture ou ecriture) et la raison fermee.
+    throw new InvalidPatternListError('lecture', JSON.stringify(raw), patternListProblem(keys));
   }
   return list;
 }
@@ -216,8 +243,8 @@ describe('patternAt', () => {
   it('lève plutôt que de rendre undefined sur un index hors liste', () => {
     // `noUncheckedIndexedAccess` est actif : un accès nu rendrait
     // `PatternKey | undefined` et polluerait tous les appelants.
-    expect(() => patternAt(['linea'], 1)).toThrow();
-    expect(() => patternAt(['linea'], -1)).toThrow();
+    expect(() => patternAt(['linea'], 1)).toThrow(PatternIndexOutOfRangeError);
+    expect(() => patternAt(['linea'], -1)).toThrow(PatternIndexOutOfRangeError);
   });
 });
 
@@ -250,6 +277,30 @@ describe('patternProgress', () => {
 });
 ```
 
+Et dans `packages/module-loto/src/domain/errors.ts`, à côté de `InvalidPatternListError`, sur le
+même patron et avec la même justification de ne pas étendre `DomainError` :
+
+```ts
+export class PatternIndexOutOfRangeError extends Error {
+  constructor(index: number, length: number) {
+    super(`index de figure hors liste : ${index} sur ${length}`);
+    this.name = this.constructor.name;
+  }
+}
+```
+
+⚠️ `this.constructor.name` et non le littéral : c'est le motif de `packages/core/src/errors.ts`, et
+un littéral mentirait sous extension alors que le filtre global construit le code HTTP depuis
+`exception.name`.
+
+Et dans `errors.spec.ts`, le test qui tient la décision :
+
+```ts
+  it('ne descend PAS de DomainError, pour que le filtre la traite en panne', () => {
+    expect(new PatternIndexOutOfRangeError(1, 1)).not.toBeInstanceOf(DomainError);
+  });
+```
+
 - [ ] **Step 2: Lancer, vérifier l'échec**
 
 Run: `pnpm --filter @quetzal/module-loto test pattern-list`
@@ -270,7 +321,11 @@ Ajouter à `pattern-list.ts` :
 export function patternAt(list: readonly PatternKey[], index: number): PatternKey {
   const key = list[index];
   if (key === undefined) {
-    throw new Error(`index de figure hors liste : ${index} sur ${list.length}`);
+    // Pas un `Error` nu : §14. Et pas un `DomainError` non plus, pour la même
+    // raison qu `InvalidPatternListError` : un index hors liste veut dire une
+    // ligne desynchronisee en base, donc une panne a regarder, pas une regle
+    // metier violee par la requete.
+    throw new PatternIndexOutOfRangeError(index, list.length);
   }
   return key;
 }
@@ -632,10 +687,13 @@ Les deux nouvelles méthodes :
   async advancePattern(gameId: string, depuisIndex: number): Promise<boolean> {
     // La condition est dans le WHERE : c est Postgres qui arbitre la course,
     // pas nous. `updateMany` rend le nombre de lignes touchées.
-    const result = (await this.prisma.loto_Game.updateMany({
+    // ⚠️ Pas de `as` ici (§8) : dans l interface `LotoPrisma`, declarer
+    // `updateMany(args: unknown): Promise<{ count: number }>` pour `loto_Game`
+    // plutot que `Promise<unknown>`. Le typage de la frontiere remplace le cast.
+    const result = await this.prisma.loto_Game.updateMany({
       where: { id: gameId, patternIndex: depuisIndex },
       data: { patternIndex: depuisIndex + 1 },
-    })) as { count: number };
+    });
     return result.count === 1;
   }
 
