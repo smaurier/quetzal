@@ -131,6 +131,11 @@ describe('isLastPattern', () => {
   it('une liste a une figure est toujours a sa derniere', () => {
     expect(isLastPattern(['linea'], 0)).toBe(true);
   });
+
+  it('leve aussi sur un index hors liste, comme patternAt', () => {
+    expect(() => isLastPattern(['linea'], 1)).toThrow(PatternIndexOutOfRangeError);
+    expect(() => isLastPattern(['linea'], -1)).toThrow(PatternIndexOutOfRangeError);
+  });
 });
 
 describe('patternProgress', () => {
