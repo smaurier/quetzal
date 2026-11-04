@@ -47,6 +47,14 @@ describe('serializePatternList', () => {
       'llena',
     ]);
   });
+
+  it('refuse une liste vide', () => {
+    expect(() => serializePatternList([])).toThrow(InvalidPatternListError);
+  });
+
+  it('refuse un doublon', () => {
+    expect(() => serializePatternList(['linea', 'linea'])).toThrow(InvalidPatternListError);
+  });
 });
 
 describe('isValidPatternList', () => {
