@@ -1,7 +1,9 @@
 {
   "module": {
     "loto": {
-      "nav": { "title": "Lotería" },
+      "nav": {
+        "title": "Lotería"
+      },
       "decks": {
         "title": "Card decks",
         "empty": "No card deck yet",
@@ -23,6 +25,7 @@
         "create": "New game",
         "pattern": "Winning pattern",
         "maxTeams": "Maximum number of teams",
+        "forceLocale": "Everyone sees the game in my language",
         "penalty": "False claim penalty, in turns",
         "open": "Open the room",
         "notOpenYet": "Open the room so pupils can join.",
@@ -33,7 +36,12 @@
         "remaining": "{count, plural, one {# card left} other {# cards left}}",
         "wonBy": "{team} wins",
         "stopped": "Game stopped",
-        "status": { "draft": "Draft", "open": "Room open", "running": "Running", "finished": "Finished" }
+        "status": {
+          "draft": "Draft",
+          "open": "Room open",
+          "running": "Running",
+          "finished": "Finished"
+        }
       },
       "pattern": {
         "linea": "Línea",
@@ -41,14 +49,21 @@
         "centro": "El centro",
         "llena": "Lotería llena"
       },
-      "team": { "numbered": "Team {number}" },
+      "team": {
+        "numbered": "Team {number}"
+      },
       "player": {
         "claim": "¡Lotería!",
         "youWon": "You won!",
         "blocked": "Claim blocked until draw {draw}",
         "rejected": "Claim rejected",
         "waiting": "The game is about to start",
-        "error": { "notOpen": "This game is not accepting players right now. Wait for your teacher to open the room.", "notFound": "This game does not exist any more.", "deck": "This game's card deck is incomplete. Tell your teacher.", "generic": "Could not join the game. Try again in a moment." }
+        "error": {
+          "notOpen": "This game is not accepting players right now. Wait for your teacher to open the room.",
+          "notFound": "This game does not exist any more.",
+          "deck": "This game's card deck is incomplete. Tell your teacher.",
+          "generic": "Could not join the game. Try again in a moment."
+        }
       }
     }
   }

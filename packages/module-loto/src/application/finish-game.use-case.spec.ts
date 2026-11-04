@@ -4,7 +4,7 @@ import { GameNotFoundError, InvalidGameTransitionError } from '../domain/errors.
 import { FinishGameUseCase } from './finish-game.use-case.js';
 import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 async function build(status: 'draft' | 'open' | 'running' | 'finished' = 'running') {
   const games = new FakeGameRepository();

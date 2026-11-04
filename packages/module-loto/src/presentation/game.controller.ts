@@ -44,6 +44,7 @@ export class GameController {
         pattern: parsed.data.pattern,
         maxTeams: parsed.data.maxTeams,
         falseClaimPenaltyDraws: parsed.data.falseClaimPenaltyDraws,
+        guestLocale: parsed.data.guestLocale ?? null,
       },
     });
   }

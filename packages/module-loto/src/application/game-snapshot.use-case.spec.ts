@@ -3,7 +3,7 @@ import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
 import { GameSnapshotUseCase } from './game-snapshot.use-case.js';
 import { FakeGameRepository } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 async function build() {
   const games = new FakeGameRepository();
@@ -114,5 +114,25 @@ describe('GameSnapshotUseCase', () => {
   it('refuse une partie inconnue', async () => {
     const { useCase } = await build();
     await expect(useCase.execute({ gameId: 'absent' })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+
+  // Issue #40. L ecran de l animatrice construit le lien d entree depuis
+  // l instantane : si la langue gelee sur la partie n y figure pas, le lien
+  // ne peut pas la transporter et chaque telephone retombe sur la sienne.
+  // Aplatie comme maxTeams et falseClaimPenaltyDraws : SnapshotGame n a pas
+  // d objet `settings`, contrairement a ce que le plan supposait.
+  it('transporte la langue gelee sur la partie', async () => {
+    const { games, useCase } = await build();
+    const game = await games.create({
+      deckId: 'deck-1',
+      createdBy: 'u-1',
+      joinCode: 'LANG01',
+      settings: { ...SETTINGS, guestLocale: 'es' },
+    });
+    await games.freezeCards(game.id, [{ rank: 1, label: 'Carta 1', imageId: null }]);
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.game.guestLocale).toBe('es');
   });
 });

@@ -4,7 +4,7 @@ import { GameNotFoundError, GameNotRunningError, NoCardsLeftError } from '../dom
 import { DrawCardUseCase } from './draw-card.use-case.js';
 import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6 } as const;
+const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 async function build(cardCount = 54) {
   const games = new FakeGameRepository();

@@ -49,6 +49,7 @@ model Loto_Game {
   pattern                String   @db.VarChar(16)
   falseClaimPenaltyDraws Int      @default(0)
   maxTeams               Int      @default(6)
+  guestLocale            String?  @db.VarChar(5)
   joinCode               String   @db.VarChar(8)
   createdBy              String
   createdAt              DateTime @default(now())

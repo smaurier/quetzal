@@ -19,6 +19,7 @@
     "seed": "node --env-file-if-exists=../../.env.local --import tsx scripts/seed-loto.ts"
   },
   "dependencies": {
+    "@quetzal/i18n": "workspace:*",
     "@nestjs/common": "^10.4.15",
     "@nestjs/websockets": "^10.4.15",
     "@nestjs/platform-socket.io": "^10.4.15",
