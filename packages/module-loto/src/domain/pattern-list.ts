@@ -32,6 +32,14 @@ export function parsePatternList(raw: string): PatternKey[] {
 }
 
 export function serializePatternList(list: readonly PatternKey[]): string {
+  if (!isValidPatternList(list)) {
+    const serialized = list.join(',');
+    // À ce stade, list peut avoir un doublon ou être vide
+    if (list.length === 0) {
+      throw new InvalidPatternListError(serialized, 'liste vide');
+    }
+    throw new InvalidPatternListError(serialized, 'doublon');
+  }
   return list.join(',');
 }
 
