@@ -1,4 +1,5 @@
 import { DomainError } from '@quetzal/core/errors';
+import type { PatternListProblem } from './pattern-list.js';
 
 export class DeckTooSmallError extends DomainError {
   constructor(size: number) {
@@ -93,8 +94,12 @@ export class InvalidPatternListError extends Error {
    * (qui aurait mérité un 400 + DomainError), c'est une donnée cassée qui
    * exige qu'un humain regarde via Sentry (500 + capture).
    */
-  constructor(raw: string, reason: string) {
-    super(`liste de figures invalide (${reason}): ${JSON.stringify(raw)}`);
-    this.name = 'InvalidPatternListError';
+  constructor(
+    operation: 'lecture' | 'ecriture',
+    raw: string,
+    problem: PatternListProblem,
+  ) {
+    super(`liste de figures invalide (${problem}) en ${operation}: ${raw}`);
+    this.name = this.constructor.name;
   }
 }

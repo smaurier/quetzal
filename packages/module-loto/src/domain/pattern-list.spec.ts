@@ -30,16 +30,19 @@ describe('parsePatternList', () => {
     expect(() => parsePatternList('')).toThrow(InvalidPatternListError);
   });
 
+  it('rejette aussi une liste qui ne contient que des virgules', () => {
+    expect(() => parsePatternList(',,,')).toThrow(InvalidPatternListError);
+  });
+
   it('rejette un separateur degenere', () => {
     // Sans ce test, un refactor « tolérer une virgule finale » passerait
     // inaperçu : le test n'existerait pas pour l'arrêter.
     expect(() => parsePatternList('linea,')).toThrow(InvalidPatternListError);
-    expect(() => parsePatternList(',,,')).toThrow(InvalidPatternListError);
   });
 
   it('rejette un doublon venu de la base', () => {
-    // `parsePatternList` garantit une liste valide, c est elle qui lit la
-    // base : elle refuse donc tout ce que `isValidPatternList` refuse.
+    // Rejouer la meme figure deux fois de suite n a pas de sens, la seconde
+    // serait gagnee au tirage suivant par la meme equipe.
     expect(() => parsePatternList('linea,linea')).toThrow(InvalidPatternListError);
     expect(() => parsePatternList('linea,esquinas,centro,llena,linea')).toThrow(InvalidPatternListError);
   });
