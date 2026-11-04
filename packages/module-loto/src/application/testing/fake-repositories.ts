@@ -99,6 +99,15 @@ export class FakeDeckRepository implements DeckRepository {
     });
   }
 
+  async addCard(deckId: string, card: NewDeckCard): Promise<DeckCard> {
+    const deck = this.decks.get(deckId);
+    if (deck === undefined) throw new Error(`jeu absent du faux depot : ${deckId}`);
+    const inseree: DeckCard = { id: nextId('card'), ...card };
+    const cards = [...deck.cards, inseree];
+    this.decks.set(deckId, { ...deck, cards, cardCount: cards.length });
+    return inseree;
+  }
+
   async delete(deckId: string): Promise<void> {
     this.decks.delete(deckId);
   }

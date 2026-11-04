@@ -61,6 +61,25 @@ export default function DeckEditor(props: Props) {
     await reload();
   }
 
+  // Issue #26 : ce geste passait par `patch({ card: { rank, label: '' } })`,
+  // donc un updateMany qui ne touchait aucune ligne, et un rang calcule ici
+  // alors que les rangs peuvent avoir des trous. Le serveur decide du rang.
+  async function addCard(): Promise<void> {
+    if (deckId === undefined) return;
+    setError(null);
+    const res = await apiClient().apiFetch(`/api/modules/loto/decks/${deckId}/cards`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const payload = (await res.json()) as { error?: string };
+      setError(payload.error ?? String(res.status));
+      return;
+    }
+    await reload();
+  }
+
   async function upload(rank: number, file: File): Promise<void> {
     if (deckId === undefined) return;
     const { resizeToDataUrl } = await import('./resize-image.js');
@@ -126,7 +145,7 @@ export default function DeckEditor(props: Props) {
         ))}
       </ol>
 
-      <Button onClick={() => void patch({ card: { rank: deck.cards.length + 1, label: '' } })}>
+      <Button onClick={() => void addCard()}>
         {t('addCard')}
       </Button>
     </Card>

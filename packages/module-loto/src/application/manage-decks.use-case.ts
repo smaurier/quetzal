@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { DeckLockedError, DeckNotFoundError } from '../domain/errors.js';
-import type { Deck, DeckRepository, DeckSummary } from '../domain/ports/deck.repository.js';
+import type {
+  Deck,
+  DeckCard,
+  DeckRepository,
+  DeckSummary,
+} from '../domain/ports/deck.repository.js';
 
 @Injectable()
 export class ManageDecksUseCase {
@@ -51,6 +56,18 @@ export class ManageDecksUseCase {
   }): Promise<void> {
     await this.requireUnlocked(input.deckId);
     await this.decks.updateCard(input.deckId, input.rank, input.patch);
+  }
+
+  async addCard(input: { deckId: string; label?: string; imageId?: string | null }): Promise<DeckCard> {
+    const deck = await this.requireUnlocked(input.deckId);
+    // Le plus haut rang et non le nombre de cartes : les rangs peuvent avoir
+    // des trous, et @@unique([deckId, rank, tenantId]) refuserait un doublon.
+    const rang = deck.cards.reduce((haut, carte) => Math.max(haut, carte.rank), 0) + 1;
+    return this.decks.addCard(input.deckId, {
+      rank: rang,
+      label: input.label ?? '',
+      imageId: input.imageId ?? null,
+    });
   }
 
   async delete(input: { deckId: string }): Promise<void> {

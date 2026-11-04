@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Inject, Param, Patch, Post, BadRequestException } from '@nestjs/common';
 import { getCurrentTenant } from '@quetzal/core';
 import { ManageDecksUseCase } from '../application/manage-decks.use-case.js';
-import { createDeckSchema, patchDeckSchema } from './dto/loto.dto.js';
+import { addCardSchema, createDeckSchema, patchDeckSchema } from './dto/loto.dto.js';
 
 @Controller('api/modules/loto/decks')
 export class DeckController {
@@ -35,6 +35,21 @@ export class DeckController {
       });
     }
     return this.decks.createBlank({ name: parsed.data.name, createdBy: userId });
+  }
+
+  // Issue #26 : PATCH passait par un updateMany qui ne touchait rien quand le
+  // rang n existait pas, donc un jeu vierge restait vide en silence.
+  @Post(':id/cards')
+  async addCard(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = addCardSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+    const { label, imageId } = parsed.data;
+    // Champ par champ : exactOptionalPropertyTypes refuse un
+    // `imageId: string | null | undefined` assigne a `imageId?: string | null`.
+    const carte: { deckId: string; label?: string; imageId?: string | null } = { deckId: id };
+    if (label !== undefined) carte.label = label;
+    if (imageId !== undefined) carte.imageId = imageId;
+    return this.decks.addCard(carte);
   }
 
   @Patch(':id')
