@@ -15,6 +15,10 @@ describe('parsePatternList', () => {
     expect(parsePatternList(' linea , llena ')).toEqual(['linea', 'llena']);
   });
 
+  it('preserv l ordre des figures', () => {
+    expect(parsePatternList('llena,linea')).toEqual(['llena', 'linea']);
+  });
+
   it('rejette une cle inconnue plutot que de la propager', () => {
     // La valeur vient de la base, donc d un ecrit passe qui peut etre
     // anterieur a une suppression de figure. Mieux vaut lever ici que rendre
@@ -24,6 +28,11 @@ describe('parsePatternList', () => {
 
   it('rejette une liste vide', () => {
     expect(() => parsePatternList('')).toThrow(InvalidPatternListError);
+  });
+
+  it('rejette un separateur degenere', () => {
+    expect(() => parsePatternList('linea,')).toThrow(InvalidPatternListError);
+    expect(() => parsePatternList(',,,')).toThrow(InvalidPatternListError);
   });
 
   it('rejette aussi un doublon venu de la base', () => {
