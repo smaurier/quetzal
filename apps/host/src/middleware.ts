@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { FORCED_LOCALE_HEADER, readForcedLocale } from '@/lib/forced-locale';
 
 export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
@@ -19,6 +20,17 @@ export function middleware(request: NextRequest) {
 
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
+
+  // Les composants serveur ne reçoivent pas les paramètres de requête d'une
+  // mise en page : le middleware est le seul endroit qui voit l'URL complète
+  // avant le rendu. Il transporte, il ne décide pas — la décision reste dans
+  // i18n/request.ts.
+  // Restreint à /j/ : sans ça, n'importe quelle URL de l'application
+  // accepterait ?lang=, tableau de bord compris. Rien ne l'exige.
+  if (request.nextUrl.pathname.startsWith('/j/')) {
+    const forced = readForcedLocale(request.nextUrl.searchParams.get('lang'));
+    if (forced !== null) requestHeaders.set(FORCED_LOCALE_HEADER, forced);
+  }
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set('Content-Security-Policy', csp);
