@@ -460,20 +460,31 @@ docker exec quetzal-postgres-1 psql -U test -d quetzal_test \
 
 Expected: `sans_figure` à zéro, et `patterns` rempli d'une seule clé. Rapporter les valeurs réelles.
 
-- [ ] **Step 7: Constater que le typecheck est ROUGE, et ne rien y faire**
+- [x] **Step 7: Constater que le typecheck est VERT, et comprendre pourquoi c'est un problème**
 
-Run: `pnpm --filter @quetzal/module-loto typecheck`
-Expected: **ÉCHEC**, et c'est normal. Six sites de `prisma-game.repository.ts` lisent encore
-`row.pattern` ou `input.settings.pattern`, colonne que cette tâche vient de retirer. La tâche 4
-change le port et la tâche 5 l'adaptateur : l'arbre redevient vert à la fin de la 5.
+⚠️ **Cette étape disait d'abord l'inverse. Mesuré le 04/11, elle avait tort, et la raison compte.**
 
-⛔ **Ne corrige rien hors du périmètre de cette tâche.** Rapporte la liste des erreurs pour qu'on
-vérifie qu'elles portent bien toutes sur `pattern`, et rien d'autre.
+`pnpm --filter @quetzal/module-loto typecheck` sort à **0, zéro erreur**, alors que `Loto_Game.pattern`
+vient de disparaître et que sept sites de `prisma-game.repository.ts` la lisent encore. Vérifié :
+le fichier est bien dans le programme `tsc` (`--listFiles`), et le client Prisma régénéré est bien à
+jour (`patterns`/`patternIndex` sur la partie, `pattern` sur la réclamation).
 
-⚠️ À traiter en tâche 5, noté ici pour ne pas l'oublier : `prisma-game.repository.ts:92` fait
-`throw new Error(...)`, ce que le §14 interdit. Préexistant, pas introduit par ce chantier, mais la
-tâche 5 réécrit ce mappage : c'est le bon moment, au titre de « améliorer le code qu'on touche ».
+**La cause est un double cast, ligne 84** : `getTenantScopedPrisma() as unknown as PrismaWithLoto`.
+Or `getTenantScopedPrisma()` rend déjà un `PrismaClient` complet et entièrement typé
+(`TenantScopedPrismaClient = ReturnType<typeof createTenantScopedClient>`, qui rend `PrismaClient`).
+Le cast ne comble donc aucun manque : il **remplace** un type exact par `PrismaWithLoto`, écrit à la
+main, qui type chaque `where` et chaque `data` en `Record<string, unknown>`. Aucun nom de colonne
+n'est vérifié nulle part dans la persistance du module.
 
+Prouvé par une sonde jetable : sans le cast, `tsc` rend
+`error TS2561: 'pattern' does not exist in type 'Loto_GameWhereInput'. Did you mean to write 'patterns'?`
+
+**Le vrai signal rouge est ailleurs, et il existe** : `pnpm --filter @quetzal/module-loto
+test:integration` tombe à **16 échecs sur 33**, avec `Argument 'patterns' is missing` — une erreur
+Prisma à l'exécution. C'est le seul filet de cette couche, et il tient.
+
+**Conséquence pour la suite : les tâches 4 à 11 ne peuvent pas s'appuyer sur `tsc` pour la
+persistance.** Leur preuve est l'intégration, jamais la compilation.
 - [ ] **Step 8: Commit**
 
 ```bash
@@ -592,6 +603,21 @@ git commit -m "feat(loto): le port porte la liste, l index et le compare-and-set
 ---
 
 ### Task 5: La persistance (TDD strict)
+
+⚠️ **Deux dettes à solder ici, relevées à la tâche 3, et c'est le bon moment : cette tâche réécrit
+précisément ce mappage.**
+
+**1. Le double cast ligne 84 doit disparaître.** `getTenantScopedPrisma() as unknown as PrismaWithLoto`
+jette un `PrismaClient` exact pour un stub en `Record<string, unknown>`. Supprimer `GameRow`,
+`TeamRow` et `PrismaWithLoto`, et consommer le client tel qu'il est rendu. La règle ESLint
+`packages/config/eslint/module.js` n'interdit que la *valeur* `PrismaClient` (`importNames:
+['PrismaClient']`) : rien n'est importé ici, le type vient de la valeur de retour. Attendre une
+volée d'erreurs `tsc` au retrait : c'est le but, elles disent où le code mentait.
+
+**2. Les deux `throw new Error(...)` de `toState`** (statut inconnu, figure inconnue) violent le §14.
+Classes typées, comme partout ailleurs dans le module.
+
+Le commentaire « Aucun `as` sans garde » juste au-dessus du double cast reste, lui, parfaitement juste.
 
 **Files:**
 - Modify: `packages/module-loto/src/infrastructure/prisma-game.repository.ts`
