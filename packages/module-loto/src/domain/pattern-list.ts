@@ -1,4 +1,4 @@
-import { PATTERN_KEYS, isPatternKey, type PatternKey } from './pattern.js';
+import { isPatternKey, type PatternKey } from './pattern.js';
 import { InvalidPatternListError } from './errors.js';
 
 /**
@@ -19,26 +19,23 @@ export function parsePatternList(raw: string): PatternKey[] {
     throw new InvalidPatternListError(raw, 'separateur degenere');
   }
   
-  const list = keys.filter(isPatternKey);
-  
-  // Vérifier clé inconnue
-  if (list.length !== keys.length) {
+  // Vérifier clé inconnue, doublon, etc.
+  if (!isValidPatternList(keys)) {
+    // À ce stade, keys peut avoir un doublon ou une clé inconnue
+    if (new Set(keys).size !== keys.length) {
+      throw new InvalidPatternListError(raw, 'doublon');
+    }
     throw new InvalidPatternListError(raw, 'cle inconnue');
   }
   
-  // Vérifier validité (doublon, etc.)
-  if (!isValidPatternList(list)) {
-    throw new InvalidPatternListError(raw, 'doublon');
-  }
-  
-  return list;
+  return keys;
 }
 
 export function serializePatternList(list: readonly PatternKey[]): string {
   return list.join(',');
 }
 
-export function isValidPatternList(list: readonly string[]): boolean {
+export function isValidPatternList(list: readonly string[]): list is PatternKey[] {
   if (list.length === 0) return false;
   if (new Set(list).size !== list.length) return false;
   return list.every(isPatternKey);
