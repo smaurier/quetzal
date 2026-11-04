@@ -17,6 +17,7 @@ import {
   TeamIndexCollisionError,
   InvalidPatternListError,
   PatternIndexOutOfRangeError,
+  UnknownGameStatusError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -96,5 +97,12 @@ describe('erreurs d infrastructure', () => {
     expect(err).not.toBeInstanceOf(DomainError);
     expect(err.name).toBe('PatternIndexOutOfRangeError');
     expect(err.message).toMatch(/5 sur 3/);
+  });
+
+  it('UnknownGameStatusError ne descend PAS de DomainError, pour que le filtre global la traite en panne et non en regle metier', () => {
+    const err = new UnknownGameStatusError('archive');
+    expect(err).not.toBeInstanceOf(DomainError);
+    expect(err.name).toBe('UnknownGameStatusError');
+    expect(err.message).toContain('archive');
   });
 });
