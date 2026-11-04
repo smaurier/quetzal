@@ -41,7 +41,7 @@ export class GameController {
       deckId: parsed.data.deckId,
       createdBy: userId,
       settings: {
-        pattern: parsed.data.pattern,
+        patterns: parsed.data.patterns,
         maxTeams: parsed.data.maxTeams,
         falseClaimPenaltyDraws: parsed.data.falseClaimPenaltyDraws,
         guestLocale: parsed.data.guestLocale ?? null,

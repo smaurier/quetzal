@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createGameSchema } from './loto.dto.js';
 
-const base = { deckId: 'd-1', pattern: 'linea', maxTeams: 6, falseClaimPenaltyDraws: 0 };
+const base = { deckId: 'd-1', patterns: ['linea'], maxTeams: 6, falseClaimPenaltyDraws: 0 };
 
 describe('createGameSchema, langue de partie', () => {
   it('accepte une langue connue', () => {
