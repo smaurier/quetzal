@@ -7,6 +7,7 @@ import {
   patternAt,
   isLastPattern,
   patternProgress,
+  patternsDeLaLigne,
 } from './pattern-list.js';
 import { InvalidPatternListError, PatternIndexOutOfRangeError } from './errors.js';
 
@@ -142,6 +143,21 @@ describe('isLastPattern', () => {
   it('leve aussi sur un index hors liste, comme patternAt', () => {
     expect(() => isLastPattern(['linea'], 1)).toThrow(PatternIndexOutOfRangeError);
     expect(() => isLastPattern(['linea'], -1)).toThrow(PatternIndexOutOfRangeError);
+  });
+});
+
+describe('patternsDeLaLigne', () => {
+  it('lit la liste quand la colonne est remplie', () => {
+    expect(patternsDeLaLigne('linea,llena', 'linea')).toEqual(['linea', 'llena']);
+  });
+
+  it('replie sur la figure unique quand la liste est NULL', () => {
+    // Une partie creee par l ancienne instance pendant la bascule.
+    expect(patternsDeLaLigne(null, 'llena')).toEqual(['llena']);
+  });
+
+  it('leve si les deux colonnes sont inexploitables', () => {
+    expect(() => patternsDeLaLigne(null, 'inexistante')).toThrow(InvalidPatternListError);
   });
 });
 
