@@ -15,6 +15,7 @@ import {
   CardNotOnTablaError,
   TeamNotFoundError,
   TeamIndexCollisionError,
+  InvalidPatternListError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -79,5 +80,13 @@ describe('erreurs des cas d usage', () => {
     expect(err.name).toBe('TeamIndexCollisionError');
     expect(err.message).toContain('g-1');
     expect(err.message).toContain('0');
+  });
+});
+
+describe('erreurs d infrastructure', () => {
+  it('ne descend PAS de DomainError, pour que le filtre global la traite en panne et non en regle metier', () => {
+    const err = new InvalidPatternListError('lecture', '""', 'liste vide');
+    expect(err).not.toBeInstanceOf(DomainError);
+    expect(err.name).toBe('InvalidPatternListError');
   });
 });
