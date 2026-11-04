@@ -9,19 +9,15 @@ import { InvalidPatternListError } from './errors.js';
 export function parsePatternList(raw: string): PatternKey[] {
   const keys = raw.split(',').map((key) => key.trim());
   
-  // Vérifier liste vide
   if (keys.every((k) => k === '')) {
     throw new InvalidPatternListError(raw, 'liste vide');
   }
   
-  // Vérifier séparateurs dégénérés
   if (keys.some((k) => k === '')) {
     throw new InvalidPatternListError(raw, 'separateur degenere');
   }
   
-  // Vérifier clé inconnue, doublon, etc.
   if (!isValidPatternList(keys)) {
-    // À ce stade, keys peut avoir un doublon ou une clé inconnue
     if (new Set(keys).size !== keys.length) {
       throw new InvalidPatternListError(raw, 'doublon');
     }
@@ -34,7 +30,6 @@ export function parsePatternList(raw: string): PatternKey[] {
 export function serializePatternList(list: readonly PatternKey[]): string {
   if (!isValidPatternList(list)) {
     const serialized = list.join(',');
-    // À ce stade, list peut avoir un doublon ou être vide
     if (list.length === 0) {
       throw new InvalidPatternListError(serialized, 'liste vide');
     }

@@ -15,7 +15,7 @@ describe('parsePatternList', () => {
     expect(parsePatternList(' linea , llena ')).toEqual(['linea', 'llena']);
   });
 
-  it('preserv l ordre des figures', () => {
+  it('preserve l ordre des figures', () => {
     expect(parsePatternList('llena,linea')).toEqual(['llena', 'linea']);
   });
 
@@ -31,14 +31,15 @@ describe('parsePatternList', () => {
   });
 
   it('rejette un separateur degenere', () => {
+    // Sans ce test, un refactor « tolérer une virgule finale » passerait
+    // inaperçu : le test n'existerait pas pour l'arrêter.
     expect(() => parsePatternList('linea,')).toThrow(InvalidPatternListError);
     expect(() => parsePatternList(',,,')).toThrow(InvalidPatternListError);
   });
 
-  it('rejette aussi un doublon venu de la base', () => {
+  it('rejette un doublon venu de la base', () => {
     // `parsePatternList` garantit une liste valide, c est elle qui lit la
-    // base : elle refuse donc tout ce que `isValidPatternList` refuse, pas
-    // seulement les cles inconnues.
+    // base : elle refuse donc tout ce que `isValidPatternList` refuse.
     expect(() => parsePatternList('linea,linea')).toThrow(InvalidPatternListError);
     expect(() => parsePatternList('linea,esquinas,centro,llena,linea')).toThrow(InvalidPatternListError);
   });
@@ -58,6 +59,8 @@ describe('serializePatternList', () => {
   });
 
   it('refuse une liste vide', () => {
+    // Écrire une liste invalide rend la partie illisible pour toujours :
+    // chaque lecture suivante lèverait.
     expect(() => serializePatternList([])).toThrow(InvalidPatternListError);
   });
 
