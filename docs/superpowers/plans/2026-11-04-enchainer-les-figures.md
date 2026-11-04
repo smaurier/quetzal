@@ -460,7 +460,21 @@ docker exec quetzal-postgres-1 psql -U test -d quetzal_test \
 
 Expected: `sans_figure` à zéro, et `patterns` rempli d'une seule clé. Rapporter les valeurs réelles.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 7: Constater que le typecheck est ROUGE, et ne rien y faire**
+
+Run: `pnpm --filter @quetzal/module-loto typecheck`
+Expected: **ÉCHEC**, et c'est normal. Six sites de `prisma-game.repository.ts` lisent encore
+`row.pattern` ou `input.settings.pattern`, colonne que cette tâche vient de retirer. La tâche 4
+change le port et la tâche 5 l'adaptateur : l'arbre redevient vert à la fin de la 5.
+
+⛔ **Ne corrige rien hors du périmètre de cette tâche.** Rapporte la liste des erreurs pour qu'on
+vérifie qu'elles portent bien toutes sur `pattern`, et rien d'autre.
+
+⚠️ À traiter en tâche 5, noté ici pour ne pas l'oublier : `prisma-game.repository.ts:92` fait
+`throw new Error(...)`, ce que le §14 interdit. Préexistant, pas introduit par ce chantier, mais la
+tâche 5 réécrit ce mappage : c'est le bon moment, au titre de « améliorer le code qu'on touche ».
+
+- [ ] **Step 8: Commit**
 
 ```bash
 git add packages/module-loto/prisma/models.prisma packages/db/prisma/migrations
