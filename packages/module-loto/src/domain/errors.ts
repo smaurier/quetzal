@@ -86,3 +86,15 @@ export class TeamIndexCollisionError extends DomainError {
     super(`Une équipe existe déjà à l index ${teamIndex} de la partie ${gameId}`);
   }
 }
+
+export class InvalidPatternListError extends Error {
+  /**
+   * Une colonne corrompue en base n'est pas une violation de règle métier
+   * (qui aurait mérité un 400 + DomainError), c'est une donnée cassée qui
+   * exige qu'un humain regarde via Sentry (500 + capture).
+   */
+  constructor(raw: string, reason: string) {
+    super(`liste de figures invalide (${reason}): ${JSON.stringify(raw)}`);
+    this.name = 'InvalidPatternListError';
+  }
+}

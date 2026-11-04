@@ -1,19 +1,38 @@
 import { PATTERN_KEYS, isPatternKey, type PatternKey } from './pattern.js';
+import { InvalidPatternListError } from './errors.js';
 
-/** Quatre figures existent : une liste n en contient ni zero ni plus. */
 const MAX = PATTERN_KEYS.length;
 
 /**
- * La base stocke une chaine (`CLAUDE.md` :9 : pas d enum Postgres, et un
+ * La base stocke une chaine (`CLAUDE.md` §9 : pas d enum Postgres, et un
  * tableau Postgres serait disproportionne pour quatre cles courtes). Le port
  * expose un tableau : la traduction vit ici, et nulle part ailleurs.
  */
 export function parsePatternList(raw: string): PatternKey[] {
   const keys = raw.split(',').map((key) => key.trim());
-  const list = keys.filter(isPatternKey);
-  if (list.length !== keys.length || !isValidPatternList(list)) {
-    throw new Error(`liste de figures invalide : ${JSON.stringify(raw)}`);
+  
+  // Vérifier liste vide
+  if (keys.every((k) => k === '')) {
+    throw new InvalidPatternListError(raw, 'liste vide');
   }
+  
+  // Vérifier séparateurs dégénérés
+  if (keys.some((k) => k === '')) {
+    throw new InvalidPatternListError(raw, 'separateur degenere');
+  }
+  
+  const list = keys.filter(isPatternKey);
+  
+  // Vérifier clé inconnue
+  if (list.length !== keys.length) {
+    throw new InvalidPatternListError(raw, 'cle inconnue');
+  }
+  
+  // Vérifier validité (doublon, longueur, etc.)
+  if (!isValidPatternList(list)) {
+    throw new InvalidPatternListError(raw, 'doublon');
+  }
+  
   return list;
 }
 
