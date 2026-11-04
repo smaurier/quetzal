@@ -40,6 +40,7 @@ async function bearer(page: Page): Promise<string> {
 // libellés couvre les trois plutôt que d en figer un seul.
 const NEW_DECK_NAME_LABEL = /^(nom du nouveau jeu de cartes|new deck name|nombre de la nueva baraja)$/i;
 const DECK_NAME_LABEL = /^(nom du jeu de cartes|deck name|nombre de la baraja)$/i;
+const ADD_CARD_LABEL = /^(ajouter une carte|add a card|añadir una carta)$/i;
 
 function cardNameLabel(rank: number): RegExp {
   return new RegExp(`^(nom de la carte ${rank}|name of card ${rank}|nombre de la carta ${rank})$`, 'i');
@@ -142,4 +143,25 @@ test('écrans animatrice du Lotería : liste des jeux et éditeur exposent leurs
   const idA = await cardImageA.getAttribute('id');
   const idB = await cardImageB.getAttribute('id');
   expect(idA, 'les deux champs image doivent être des éléments DOM différents').not.toBe(idB);
+
+  // --- Issue #26 : le bouton d ajout. Il appelait PATCH avec un rang calcule
+  // cote client, donc un updateMany qui ne touchait aucune ligne, et un
+  // libelle vide que le schema du PATCH refusait de toute facon. Partir d un
+  // jeu vierge etait impossible. Ici le geste complet, de l ecran jusqu a la
+  // relecture par l API. ---
+  const avant = deck.cards.length;
+
+  await page.getByRole('button', { name: ADD_CARD_LABEL }).click();
+
+  // La carte apparait a l ecran, au rang que le SERVEUR a decide.
+  const cartes = page.getByTestId('deck-cards').getByRole('listitem');
+  await expect(cartes).toHaveCount(avant + 1);
+  await expect(page.getByLabel(cardNameLabel(avant + 1), { exact: true })).toBeVisible();
+
+  // Et elle existe vraiment en base, pas seulement dans l etat React.
+  const relu = await page.request.get(`/api/modules/loto/decks/${deck.id}`, { headers: auth });
+  expect(relu.ok()).toBeTruthy();
+  const apres = (await relu.json()) as Deck;
+  expect(apres.cards).toHaveLength(avant + 1);
+  expect(apres.cards.at(-1)?.rank).toBe(avant + 1);
 });

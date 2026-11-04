@@ -180,6 +180,19 @@ describe('ManageDecksUseCase', () => {
     expect((await useCase.addCard({ deckId: 'deck-1', label: 'La Luna' })).rank).toBe(10);
   });
 
+  // Le bouton de l editeur cree une carte VIERGE que l animatrice nomme
+  // ensuite, comme les autres champs de l ecran qui s editent au blur. Le
+  // libelle est donc optionnel a la creation.
+  it('cree une carte sans libelle, a nommer ensuite', async () => {
+    const { decks, useCase } = build();
+    decks.add(deckOf(0));
+
+    const carte = await useCase.addCard({ deckId: 'deck-1' });
+
+    expect(carte.label).toBe('');
+    expect(carte.rank).toBe(1);
+  });
+
   it('refuse d ajouter une carte a un jeu inconnu', async () => {
     const { useCase } = build();
 
