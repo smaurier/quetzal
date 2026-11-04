@@ -646,8 +646,8 @@ git commit -m "feat(loto): le port porte la liste, l index et le compare-and-set
 
 ### Task 5: La persistance (TDD strict)
 
-⚠️ **Deux dettes à solder ici, relevées à la tâche 3, et c'est le bon moment : cette tâche réécrit
-précisément ce mappage.**
+⚠️ **Trois dettes à solder ici, relevées aux tâches 3 et 4, et c'est le bon moment : cette tâche
+réécrit précisément ce mappage.** Plus deux étapes remontées de la tâche 10, voir en fin de tâche.
 
 **0. La double écriture et le repli de lecture, conséquences du motif *expand / contract*** (tâche 3,
 corrections du 04/11, issue #52). Tant que `pattern` existe et que `patterns` est nullable :
@@ -677,6 +677,10 @@ Le commentaire « Aucun `as` sans garde » juste au-dessus du double cast reste,
 **Files:**
 - Modify: `packages/module-loto/src/infrastructure/prisma-game.repository.ts`
 - Test: `packages/module-loto/src/infrastructure/prisma-game.repository.integration.spec.ts`
+- Modify: `packages/module-loto/src/presentation/dto/loto.dto.ts` *(remonté de la tâche 10)*
+- Modify: `packages/module-loto/src/presentation/game.controller.ts` *(remonté de la tâche 10)*
+- Test: `packages/module-loto/src/presentation/loto.gateway.integration.spec.ts` *(une doublure à
+  réparer, ligne 89 : un littéral `settings: { pattern: 'linea', ... }`)*
 
 - [ ] **Step 1: Écrire le test rouge**
 
@@ -815,6 +819,47 @@ git add packages/module-loto/src/infrastructure
 git commit -m "feat(loto): persister la liste, l index et la figure d une reclamation"
 ```
 
+
+- [ ] **Step R1 (remonté de la tâche 10) : la validation d'entrée**
+
+Dans `createGameSchema` de `loto.dto.ts`, remplacer `pattern: z.enum(PATTERN_KEYS),` par :
+
+```ts
+  // De une à quatre, sans doublon : `isValidPatternList` porte la règle, le
+  // schéma ne fait que l appeler pour ne pas la dire deux fois.
+  patterns: z
+    .array(z.enum(PATTERN_KEYS))
+    .refine(isValidPatternList, { message: 'liste de figures invalide' }),
+```
+
+- [ ] **Step R2 (remonté de la tâche 10) : le contrôleur passe la liste**
+
+Dans `game.controller.ts`, remplacer `pattern: parsed.data.pattern,` par `patterns: parsed.data.patterns,`.
+
+⚠️ **Pourquoi ces deux étapes ont changé de tâche.** Mesuré le 04/11 à la fin de la tâche 4 : le
+typecheck rendait dix erreurs dans quatre fichiers, et deux d'entre elles n'étaient pas dans
+l'adaptateur — `game.controller.ts(44,9)` et `loto.gateway.integration.spec.ts(89,19)`. Les laisser
+à la tâche 10 aurait gardé l'arbre rouge pendant sept tâches, donc privé les tâches 6 à 9 du seul
+garde automatique dont elles disposent. La tâche 10 garde les libellés et les deux écrans.
+
+- [ ] **Step R3 : commit des deux étapes remontées**
+
+Un commit séparé de celui de l'étape 6 : il porte la couche présentation, pas la persistance.
+
+```bash
+git add packages/module-loto/src/presentation
+git commit -m "feat(loto): l entree accepte une liste de figures"
+```
+
+- [ ] **Step R4 : l'arbre redevient vert, et c'est la vraie fin de cette tâche**
+
+Run: `pnpm --filter @quetzal/module-loto typecheck`
+Expected: **PASS, zéro erreur.** C'est le premier vert depuis la tâche 3. S'il reste une erreur,
+elle est à corriger ici, pas à reporter.
+
+Run: `pnpm --filter @quetzal/module-loto test:integration`
+Expected: **tout vert.** Cette suite était à 16 échecs sur 33 depuis la tâche 3 ; c'est elle, et non
+le typecheck, qui a tenu le filet sur cette couche pendant tout ce temps.
 ---
 
 ### Task 6: La réclamation avance ou termine (TDD strict)
@@ -1156,27 +1201,13 @@ git commit -m "feat(loto): diffuser le changement de figure"
 Presentation : couverte par l'E2E de la tâche 11. Un seul commit `feat:`.
 
 **Files:**
-- Modify: `packages/module-loto/src/presentation/dto/loto.dto.ts`
-- Modify: `packages/module-loto/src/presentation/game.controller.ts`
+- ~~`dto/loto.dto.ts`~~ et ~~`game.controller.ts`~~ : **faits en tâche 5**, étapes R1 et R2. Ils y ont
+  été remontés pour que l'arbre ne reste pas rouge sept tâches de suite.
 - Modify: `packages/module-loto/src/presentation/ui/decks-page.tsx`
 - Modify: `packages/module-loto/src/presentation/ui/animator-page.tsx`
 - Modify: `packages/module-loto/src/i18n/{fr,en,es}.json`
 
-- [ ] **Step 1: La validation d'entrée**
-
-Dans `createGameSchema`, remplacer `pattern: z.enum(PATTERN_KEYS),` par :
-
-```ts
-  // De une à quatre, sans doublon : `isValidPatternList` porte la règle, le
-  // schéma ne fait que l appeler pour ne pas la dire deux fois.
-  patterns: z
-    .array(z.enum(PATTERN_KEYS))
-    .refine(isValidPatternList, { message: 'liste de figures invalide' }),
-```
-
-- [ ] **Step 2: Le contrôleur passe la liste**
-
-Remplacer `pattern: parsed.data.pattern,` par `patterns: parsed.data.patterns,`.
+- [x] **Steps 1 et 2 : faits en tâche 5** (étapes R1 et R2). Le schéma d'entrée et le contrôleur.
 
 - [ ] **Step 3: Les libellés, dans les trois catalogues**
 
