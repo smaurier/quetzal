@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { rooms } from '@quetzal/core';
+import { logger, rooms } from '@quetzal/core';
 import type { Server } from 'socket.io';
 import { GameSnapshotUseCase } from '../application/game-snapshot.use-case.js';
 import type { ClaimResult } from '../application/claim.use-case.js';
@@ -23,24 +23,40 @@ export class LotoBroadcaster {
     this.server = server;
   }
 
+  /**
+   * Le seul point d emission, et il n est plus muet (issue #34). Le `?.`
+   * d avant avalait l emission sans rien dire quand le serveur manquait.
+   * On ne jette pas pour autant : la commande HTTP est deja executee et
+   * persistee quand la diffusion part, donc echouer ici rendrait un 500 sur
+   * une operation reussie. Une trace, pas une panne.
+   */
+  private emit(room: string, event: string, payload: unknown): void {
+    if (this.server === null) {
+      logger.error({ module: 'loto', action: 'broadcast.detached', event, room },
+        'loto: diffusion demandee avant attachement du serveur');
+      return;
+    }
+    this.server.to(room).emit(event, payload);
+  }
+
   private room(gameId: string): string {
     return rooms.session('loto', gameId);
   }
 
   async gameChanged(gameId: string): Promise<void> {
     const snapshot = await this.snapshot.execute({ gameId });
-    this.server?.to(this.room(gameId)).emit('game-changed', snapshot.game);
+    this.emit(this.room(gameId), 'game-changed', snapshot.game);
   }
 
   async teamJoined(gameId: string, teamId: string): Promise<void> {
     const snapshot = await this.snapshot.execute({ gameId });
     const team = snapshot.teams.find((candidate) => candidate.id === teamId);
     if (team === undefined) return;
-    this.server?.to(this.room(gameId)).emit('team-joined', team);
+    this.emit(this.room(gameId), 'team-joined', team);
   }
 
   async cardDrawn(gameId: string, order: number, card: DeckCard): Promise<void> {
-    this.server?.to(this.room(gameId)).emit('card-drawn', {
+    this.emit(this.room(gameId), 'card-drawn', {
       order,
       cardId: card.id,
       label: card.label,
@@ -53,11 +69,11 @@ export class LotoBroadcaster {
     teamId: string,
     payload: { cardId: string; marked: boolean; byGuestId: string },
   ): void {
-    this.server?.to(rooms.subgroup('loto', gameId, teamId)).emit('mark-changed', payload);
+    this.emit(rooms.subgroup('loto', gameId, teamId), 'mark-changed', payload);
   }
 
   claimResult(gameId: string, teamId: string, result: ClaimResult): void {
-    this.server?.to(this.room(gameId)).emit('claim-result', {
+    this.emit(this.room(gameId), 'claim-result', {
       teamId,
       valid: result.valid,
       atDraw: result.atDraw,
@@ -67,7 +83,7 @@ export class LotoBroadcaster {
 
   async gameFinished(gameId: string, wonByTeamId: string | null): Promise<void> {
     const snapshot = await this.snapshot.execute({ gameId });
-    this.server?.to(this.room(gameId)).emit('game-finished', {
+    this.emit(this.room(gameId), 'game-finished', {
       wonByTeamId,
       pattern: snapshot.game.pattern,
       drawCount: snapshot.game.lastDrawOrder,
