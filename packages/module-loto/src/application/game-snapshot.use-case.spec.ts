@@ -136,4 +136,22 @@ describe('GameSnapshotUseCase', () => {
 
     expect(snapshot.game.guestLocale).toBe('es');
   });
+
+  it('transporte la figure en cours et la progression', async () => {
+    const { games, useCase } = await build();
+    const game = await games.create({
+      deckId: 'deck-1',
+      createdBy: 'u-1',
+      joinCode: 'FIG003',
+      settings: { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null },
+    });
+    await games.freezeCards(game.id, [{ rank: 1, label: 'Carta 1', imageId: null }]);
+    await games.advancePattern(game.id, 0);
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.game.pattern).toBe('llena');
+    expect(snapshot.game.patternPosition).toBe(2);
+    expect(snapshot.game.patternTotal).toBe(2);
+  });
 });
