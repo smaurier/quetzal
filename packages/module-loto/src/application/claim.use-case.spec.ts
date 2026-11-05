@@ -254,4 +254,48 @@ describe('ClaimUseCase', () => {
     // reclamation doit echouer.
     expect(result.valid).toBe(false);
   });
+
+  // ⭐ Le cas qui manquait : la course du compare-and-set est perdue, mais la
+  // reclamation etait authentiquement gagnante. L equipe n est pas punie, et
+  // elle n est pas non plus la gagnante de cette figure.
+  it('une figure gagnee perdue dans la course n ecrit rien et n emet rien', async () => {
+    const { games, bus, useCase, game, team } = await buildGagnant({ ...DEUX });
+    games.failNextAdvancePattern = true;
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.valid).toBe(true);
+    expect(result.outcome).toBe('pattern-won-by-other');
+    const apres = await games.findById(game.id);
+    expect(apres?.wonByTeamId).toBeNull();
+    expect(apres?.patternIndex).toBe(0);
+    expect(bus.names()).not.toContain('loto.pattern.won');
+  });
+
+  it('outcome pattern-won sur une figure intermediaire gagnee normalement', async () => {
+    const { useCase, game, team } = await buildGagnant({ ...DEUX });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.outcome).toBe('pattern-won');
+  });
+
+  it('outcome game-finished sur la derniere figure gagnee', async () => {
+    const { useCase, game, team } = await buildGagnant({
+      patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null,
+    });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.outcome).toBe('game-finished');
+  });
+
+  it('outcome rejected sur une reclamation invalide', async () => {
+    const { games, game, team, useCase } = await build();
+    await draw(games, game.id, ['a']);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.outcome).toBe('rejected');
+  });
 });
