@@ -315,7 +315,18 @@ export class FakeGameRepository implements GameRepository {
     this.claims.push(input);
   }
 
+  /**
+   * Arme un échec pour le prochain advancePattern. Même modèle que
+   * failNextAppendDraw : c est la seule façon de reproduire en mémoire une
+   * course perdue sur le compare-and-set, sans rien modifier à l état.
+   */
+  failNextAdvancePattern = false;
+
   async advancePattern(gameId: string, depuisIndex: number): Promise<boolean> {
+    if (this.failNextAdvancePattern) {
+      this.failNextAdvancePattern = false;
+      return false;
+    }
     const game = this.games.get(gameId);
     if (game === undefined || game.patternIndex !== depuisIndex) return false;
     this.games.set(gameId, { ...game, patternIndex: depuisIndex + 1 });
