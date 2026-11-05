@@ -1370,16 +1370,23 @@ Expected: l'appelant. Le diffuseur ne s'appelle pas lui-même.
 
 Dans `loto.broadcaster.ts`, sur le modèle des six autres méthodes et en passant par le `emit()` existant :
 
+⚠️ **Corrige le 05/11 : ce bloc appelait `this.emit(...)`, une methode partagee qui n'existe pas sur
+cette branche.** Elle est introduite par la PR #49, encore ouverte. Le diffuseur actuel emet
+directement, et c'est cette forme qu'il faut suivre :
+
 ```ts
   async patternChanged(gameId: string): Promise<void> {
     const snapshot = await this.snapshot.execute({ gameId });
-    this.emit(this.room(gameId), 'pattern-changed', {
+    this.server?.to(this.room(gameId)).emit('pattern-changed', {
       pattern: snapshot.game.pattern,
       position: snapshot.game.patternPosition,
       total: snapshot.game.patternTotal,
     });
   }
 ```
+
+Si la PR #49 est fusionnee avant celle-ci, le rebase remplacera cette forme par `this.emit(...)` :
+c'est un conflit attendu et trivial, pas une erreur.
 
 Puis l'appeler dans `loto.gateway.ts`, **sur `result.outcome === 'pattern-won'` et rien d'autre**.
 
