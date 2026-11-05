@@ -20,3 +20,35 @@ describe('createGameSchema, langue de partie', () => {
     expect(createGameSchema.safeParse({ ...base, guestLocale: '"><script>' }).success).toBe(false);
   });
 });
+
+describe('createGameSchema, liste de figures', () => {
+  it('accepte une liste a une entree', () => {
+    expect(createGameSchema.safeParse({ ...base, patterns: ['linea'] }).success).toBe(true);
+  });
+
+  it('accepte deux figures distinctes et conserve leur ordre', () => {
+    // L ordre est celui voulu par l animatrice : rien d autre ne le garde
+    // avant la base, donc le schema doit le laisser passer intact.
+    const result = createGameSchema.safeParse({ ...base, patterns: ['llena', 'linea'] });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data.patterns).toEqual(['llena', 'linea']);
+  });
+
+  it('refuse une liste vide', () => {
+    expect(createGameSchema.safeParse({ ...base, patterns: [] }).success).toBe(false);
+  });
+
+  it('refuse un doublon', () => {
+    expect(createGameSchema.safeParse({ ...base, patterns: ['linea', 'linea'] }).success).toBe(false);
+  });
+
+  it('refuse une liste de cinq entrees', () => {
+    expect(
+      createGameSchema.safeParse({ ...base, patterns: ['linea', 'esquinas', 'centro', 'llena', 'linea'] }).success,
+    ).toBe(false);
+  });
+
+  it('refuse une cle inconnue', () => {
+    expect(createGameSchema.safeParse({ ...base, patterns: ['inexistante'] }).success).toBe(false);
+  });
+});
