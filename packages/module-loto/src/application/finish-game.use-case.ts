@@ -4,6 +4,7 @@ import { GameNotFoundError } from '../domain/errors.js';
 import { assertTransition } from '../domain/game-status.js';
 import { patternAt } from '../domain/pattern-list.js';
 import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
+import { emitLoto } from '@quetzal/core/events/loto';
 
 @Injectable()
 export class FinishGameUseCase {
@@ -18,7 +19,7 @@ export class FinishGameUseCase {
     assertTransition(game.status, 'finished');
 
     await this.games.setStatus(game.id, 'finished');
-    await this.eventBus.emit('loto.game.finished', {
+    await emitLoto(this.eventBus, 'loto.game.finished', {
       gameId: game.id,
       wonByTeamId: null,
       pattern: patternAt(game.settings.patterns, game.patternIndex),
