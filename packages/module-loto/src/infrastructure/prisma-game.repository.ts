@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { newId } from '@quetzal/db';
 import { getTenantScopedPrisma } from '@quetzal/core';
 import { isGameStatus, type GameStatus } from '../domain/game-status.js';
-import { isPatternKey, type PatternKey } from '../domain/pattern.js';
+import type { PatternKey } from '../domain/pattern.js';
 import { TeamIndexCollisionError, UnknownGameStatusError } from '../domain/errors.js';
-import { patternAt, patternsDeLaLigne, serializePatternList } from '../domain/pattern-list.js';
+import { patternAt, patternCouranteOuNull, patternsDeLaLigne, serializePatternList } from '../domain/pattern-list.js';
 import type { DeckCard, NewDeckCard } from '../domain/ports/deck.repository.js';
 import type {
   GameRepository,
@@ -170,13 +170,14 @@ export class PrismaGameRepository implements GameRepository {
   async list(): Promise<GameSummary[]> {
     const rows = await this.prisma.loto_Game.findMany({ orderBy: { createdAt: 'desc' } });
     return rows.flatMap((row) => {
-      if (!isGameStatus(row.status) || !isPatternKey(row.pattern)) return [];
+      const courante = patternCouranteOuNull(row.patterns, row.pattern, row.patternIndex);
+      if (!isGameStatus(row.status) || courante === null) return [];
       return [
         {
           id: row.id,
           deckId: row.deckId,
           status: row.status,
-          pattern: row.pattern,
+          pattern: courante,
           joinCode: row.joinCode,
           createdAt: row.createdAt,
           wonByTeamId: row.wonByTeamId,
