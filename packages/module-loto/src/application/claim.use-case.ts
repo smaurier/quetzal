@@ -7,6 +7,7 @@ import { canClaim } from '../domain/game-status.js';
 import { blockUntil, isBlocked } from '../domain/penalty.js';
 import { isLastPattern, patternAt } from '../domain/pattern-list.js';
 import type { GameRepository } from '../domain/ports/game.repository.js';
+import { emitLoto } from '@quetzal/core/events/loto';
 
 /**
  * Ce qu une reclamation a produit. `valid` ne suffit pas a l appelant : une
@@ -68,7 +69,7 @@ export class ClaimUseCase {
     if (valid) {
       if (isLastPattern(game.settings.patterns, game.patternIndex)) {
         await this.games.setStatus(game.id, 'finished', { wonByTeamId: team.id });
-        await this.eventBus.emit('loto.game.finished', {
+        await emitLoto(this.eventBus, 'loto.game.finished', {
           gameId: game.id,
           wonByTeamId: team.id,
           pattern,
@@ -97,7 +98,7 @@ export class ClaimUseCase {
       }
 
       await this.games.setWinner(game.id, team.id);
-      await this.eventBus.emit('loto.pattern.won', {
+      await emitLoto(this.eventBus, 'loto.pattern.won', {
         gameId: game.id,
         wonByTeamId: team.id,
         pattern,
@@ -125,7 +126,7 @@ export class ClaimUseCase {
 
     const blockedUntilDraw = blockUntil(game.lastDrawOrder, game.settings.falseClaimPenaltyDraws);
     await this.games.blockTeam(team.id, blockedUntilDraw);
-    await this.eventBus.emit('loto.claim.rejected', {
+    await emitLoto(this.eventBus, 'loto.claim.rejected', {
       gameId: game.id,
       teamId: team.id,
       atDraw: game.lastDrawOrder,

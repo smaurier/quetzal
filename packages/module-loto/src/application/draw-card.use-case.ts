@@ -5,6 +5,7 @@ import { canDraw } from '../domain/game-status.js';
 import { patternAt } from '../domain/pattern-list.js';
 import type { DeckCard } from '../domain/ports/deck.repository.js';
 import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
+import { emitLoto } from '@quetzal/core/events/loto';
 
 export type DrawResult = { drawn: false } | { drawn: true; order: number; card: DeckCard };
 
@@ -38,7 +39,7 @@ export class DrawCardUseCase {
 
     await this.start(game, drawnBefore.length);
 
-    await this.eventBus.emit('loto.card.drawn', {
+    await emitLoto(this.eventBus, 'loto.card.drawn', {
       gameId: game.id,
       order,
       cardId: card.id,
@@ -69,7 +70,7 @@ export class DrawCardUseCase {
   private async startFrom(game: GameState): Promise<void> {
     await this.games.setStatus(game.id, 'running');
     const teams = await this.games.teams(game.id);
-    await this.eventBus.emit('loto.game.started', {
+    await emitLoto(this.eventBus, 'loto.game.started', {
       gameId: game.id,
       deckId: game.deckId,
       pattern: patternAt(game.settings.patterns, game.patternIndex),
