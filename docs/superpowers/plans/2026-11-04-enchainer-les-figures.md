@@ -1019,6 +1019,45 @@ git commit -m "refactor(loto): le depot consomme le client Prisma type"
 
 Le cœur. C'est la logique la plus porteuse du module : elle décide des victoires et des pénalités. Une erreur ici ne se voit pas en relisant le code, elle se voit en classe.
 
+⚠️ **Deux defauts bloquants trouves en relecture le 05/11, tous deux venus de ce plan.**
+
+**1. Le code que ce plan dictait jetait le resultat du compare-and-set.** Il appelait
+`advancePattern` sans lire son booleen, puis `setWinner` et l'emission quoi qu'il arrive. En course,
+l'equipe qui PERD le compare-and-set s'inscrivait gagnante et un second `loto.pattern.won` partait
+pour une figure gagnee une seule fois. Ironie : ce plan consacre trois paragraphes a l'importance de
+ce retour, et son propre code l'ignorait.
+
+**2. Plus grave, et sur le chemin principal : la passerelle annoncait la fin de partie.**
+`loto.gateway.ts` faisait `if (result.valid) await this.broadcaster.gameFinished(...)`, et le client
+met `status: 'finished'` en dur. Donc gagner la `linea` dans une partie a deux figures annoncait a
+tous les ecrans que la partie etait terminee. Aucune concurrence requise.
+
+**Cause racine commune** : `ClaimResult` ne disait pas ce qui s'etait passe. `{ valid, atDraw,
+blockedUntilDraw }` ne distingue pas « figure gagnee » de « partie terminee » — et la tache 9 de ce
+plan demandait pourtant a l'appelant de faire cette distinction, avec une information que rien ne
+lui donnait.
+
+**Corrige** : `ClaimResult` porte desormais un `outcome` a quatre valeurs.
+
+```ts
+export type ClaimOutcome =
+  | 'rejected'
+  | 'pattern-won'
+  | 'pattern-won-by-other'
+  | 'game-finished';
+```
+
+`pattern-won-by-other` n'etait pas prevu : c'est l'equipe authentiquement gagnante qui arrive une
+seconde trop tard. Sa reclamation est enregistree, elle n'est pas penalisee, elle n'est simplement
+pas la gagnante de cette figure. Meme equite que la decision D5.
+
+La doublure a gagne `failNextAdvancePattern`, sur le modele de `failNextAppendDraw` qui existait
+deja, pour qu'un test puisse forcer une course perdue. Et `loto.gateway.spec.ts` (unitaire, pas
+integration) garde la condition de diffusion : construire la passerelle a la main avec deux
+doublures suffit, la ou un test d'integration aurait demande de restructurer tout un montage.
+
+**Les deux corrections sont prouvees par mutation** : remettre l'un ou l'autre defaut fait rougir
+1 et 2 tests respectivement. Avant, les deux passaient au vert.
 **Files:**
 - Modify: `packages/module-loto/src/application/claim.use-case.ts`
 - Test: `packages/module-loto/src/application/claim.use-case.spec.ts`
@@ -1342,7 +1381,16 @@ Dans `loto.broadcaster.ts`, sur le modèle des six autres méthodes et en passan
   }
 ```
 
-Puis l'appeler là où `claimResult` est appelé, quand la réclamation était valide et que la partie n'est pas terminée.
+Puis l'appeler dans `loto.gateway.ts`, **sur `result.outcome === 'pattern-won'` et rien d'autre**.
+
+⚠️ **Ce passage disait d'abord « quand la reclamation etait valide et que la partie n'est pas
+terminee », sans dire comment l'appelant l'apprend : rien ne le lui disait.** `ClaimResult.outcome`,
+ajoute en tache 6, le dit maintenant. Ne diffuse pas sur `pattern-won-by-other` : la figure a bien
+change, mais c'est l'equipe gagnante qui l'a deja diffusee, et un second envoi ferait clignoter
+l'ecran.
+
+La condition de `gameFinished` est deja corrigee en tache 6 et gardee par `loto.gateway.spec.ts` :
+ne la retouche pas.
 
 - [ ] **Step 3: Vérifier**
 
