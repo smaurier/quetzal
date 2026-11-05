@@ -1,7 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const EMAIL = process.env['SEED_OWNER_EMAIL'] ?? 'elda@test.dev';
-const PASSWORD = process.env['SEED_OWNER_PASSWORD'] ?? '';
 
 /**
  * Parcours invité complet du Lotería. Il solde le point laissé en réserve à la
@@ -13,13 +11,6 @@ const PASSWORD = process.env['SEED_OWNER_PASSWORD'] ?? '';
  * joueur, pas le formulaire de l animatrice.
  */
 
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/e-mail|email/i).fill(EMAIL);
-  await page.getByLabel(/password|mot de passe|contraseña/i).fill(PASSWORD);
-  await page.getByRole('button', { name: /sign in|se connecter|iniciar/i }).click();
-  await page.waitForURL(/\/dashboard/);
-}
 
 async function bearer(page: Page): Promise<string> {
   const res = await page.request.get('/api/auth/token');
@@ -32,7 +23,6 @@ async function bearer(page: Page): Promise<string> {
 test('une partie entière, de la création à la victoire d un invité', async ({ page, browser }) => {
   test.slow();
 
-  await login(page);
   const token = await bearer(page);
   const auth = { Authorization: `Bearer ${token}` };
 
