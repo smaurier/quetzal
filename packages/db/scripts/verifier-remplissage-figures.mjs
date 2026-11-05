@@ -10,16 +10,44 @@
 //
 // Aucune ecriture : ni INSERT, ni UPDATE, ni DELETE, ni migration.
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+// Meme procede que `check-doublons-account.mjs` : lire `.env.local` a la main et
+// passer l'URL explicitement. Prisma ne resout pas `env("DATABASE_URL")` tout
+// seul quand le script est lance sans que la variable soit deja dans
+// l'environnement, et c'est ce qui a fait echouer la premiere version.
+// Une variable deja exportee gagne : c'est elle qui sert aux essais en local.
+function urlDeLaBase() {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  const racine = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+  try {
+    const env = readFileSync(join(racine, '.env.local'), 'utf8');
+    const trouvee = env.match(/^DATABASE_URL=(.+)$/m)?.[1]?.trim();
+    if (trouvee) return trouvee.replace(/^["']|["']$/g, '');
+  } catch {
+    // pas de .env.local : on le dira plus bas
+  }
+  return '';
+}
+
+const url = urlDeLaBase();
+if (!url) {
+  console.error(
+    "\nAucune DATABASE_URL : ni dans l'environnement, ni dans `.env.local` a la racine du depot.\n",
+  );
+  process.exit(1);
+}
+
+const prisma = new PrismaClient({ datasources: { db: { url } } });
 
 function ligne(etiquette, valeur) {
   console.log(`  ${etiquette.padEnd(46)} ${valeur}`);
 }
 
 try {
-  const url = process.env.DATABASE_URL ?? '';
   const hote = url.replace(/^.*@/, '').replace(/\/.*$/, '') || '(inconnu)';
   console.log(`\nbase interrogee : ${hote}`);
   console.log(`cible           : ${url.includes('neon') ? 'NEON (production)' : 'autre'}\n`);
