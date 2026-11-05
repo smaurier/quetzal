@@ -1,7 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const EMAIL = process.env['SEED_OWNER_EMAIL'] ?? 'elda@test.dev';
-const PASSWORD = process.env['SEED_OWNER_PASSWORD'] ?? '';
 const PROGRESS_1 = /(figure 1 sur 2|pattern 1 of 2|figura 1 de 2)/i;
 const PROGRESS_2 = /(figure 2 sur 2|pattern 2 of 2|figura 2 de 2)/i;
 
@@ -17,13 +15,6 @@ const PROGRESS_2 = /(figure 2 sur 2|pattern 2 of 2|figura 2 de 2)/i;
  * test. Ce qui prouve la non-recréation est le code d entrée, pas le statut.
  */
 
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/e-mail|email/i).fill(EMAIL);
-  await page.getByLabel(/password|mot de passe|contraseña/i).fill(PASSWORD);
-  await page.getByRole('button', { name: /sign in|se connecter|iniciar/i }).click();
-  await page.waitForURL(/\/dashboard/);
-}
 
 async function bearer(page: Page): Promise<string> {
   const res = await page.request.get('/api/auth/token');
@@ -41,7 +32,6 @@ interface DeckSummary {
 test('une partie enchaine deux figures sans etre recreee', async ({ page, browser }) => {
   test.slow();
 
-  await login(page);
   const token = await bearer(page);
   const auth = { Authorization: `Bearer ${token}` };
 
@@ -99,28 +89,46 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   await page.getByTestId('draw').click();
   await expect(page.getByTestId('pattern-progress')).toHaveText(PROGRESS_1);
 
-  // Tirer par l API et reclamer par l ecran de l eleve, jusqu a ce que le
-  // serveur dise que la figure a change.
+  // Tirer par l API, reclamer par l ecran de l eleve, et demander au serveur
+  // ou il en est. Deux choix a expliquer.
   //
-  // ⚠️ Pourquoi l API pour tirer, alors qu un E2E devrait passer par l ecran.
+  // **Pourquoi l API pour tirer**, alors qu un E2E devrait passer par l ecran.
   // Mesure du 05/11 : une boucle qui cliquait le bouton de tirage avec un
-  // delai de quatre secondes sortait parfois tot, et le test echouait une fois
+  // delai de quatre secondes sortait parfois tot, et le test passait une fois
   // sur deux sans que rien ne soit casse. Le tirage n est pas le sujet de ce
-  // test et il est deja couvert par `loto-teacher` et `loto-guest` ; ce qui est
-  // teste ici, c est l enchainement des figures et son arrivee a l ecran. On
+  // test, et il est deja couvert par `loto-teacher` et `loto-guest` ; ce qui se
+  // joue ici, c est l enchainement des figures et son arrivee a l ecran. On
   // rend donc deterministe ce qui n est que decor, et on garde l interface la
-  // ou elle prouve quelque chose : la reclamation de l eleve, et la lecture
-  // finale de la progression.
+  // ou elle prouve quelque chose : la reclamation de l eleve, et la lecture de
+  // la progression.
+  //
+  // **Pourquoi une reclamation pour quatre tirages**, et non une par tirage.
+  // Ce test etait de loin le plus lourd de la suite, avec une cinquantaine
+  // d interactions d interface, et `loto-teacher` — qui passe juste apres lui —
+  // a expire a la connexion en CI le 05/11, apres onze executions vertes
+  // d affilee sans cette branche. La charge de ce test est le suspect le plus
+  // probable, sans que ce soit demontre. Alleger ne coute rien de toute facon :
+  // les tirages passent par l API, bon marche, et c est le clic de reclamation
+  // qui pese. `esquinas` reste gagnee des que ses quatre coins sont sortis, au
+  // pire trois tirages plus tard.
   //
   // Le serveur ignore tout marquage client (decision D1 du domaine, cf.
   // claim.ts) : seules les cartes reellement tirees comptent, donc reclamer
   // sans rien marquer sur la tabla est fidele a ce que le serveur verifie.
-  // La boucle ne calcule jamais quand `esquinas` est complete : elle tire,
-  // reclame, et demande au serveur ou il en est.
+  // La boucle ne calcule jamais quand `esquinas` est complete.
+  const PAS = 4;
   let avance = false;
-  for (let i = 0; i < 54 && !avance; i++) {
+  // Le plafond vient du paquet, pas d un nombre en dur. Mesure du 05/11 : il
+  // valait 54, la taille du paquet seme, et ma base locale avait derive a 58
+  // parce que `loto-teacher` ajoute une carte a chaque execution. La boucle
+  // s arretait donc avant d avoir tire les quatre coins de la tabla, et le test
+  // echouait sans que rien ne soit casse. Un nombre en dur sur une donnee qui
+  // bouge est un test qui mentira un jour.
+  const plafond = (deck?.cardCount ?? 54) + 1;
+  for (let i = 0; i < plafond && !avance; i++) {
     const tirage = await page.request.post(`/api/modules/loto/games/${game.id}/draw`, { headers: auth });
     if (!tirage.ok()) break; // paquet epuise
+    if (i % PAS !== PAS - 1) continue;
 
     try {
       await guest.getByTestId('claim').click({ timeout: 3000 });
