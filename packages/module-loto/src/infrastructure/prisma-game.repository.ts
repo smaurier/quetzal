@@ -3,8 +3,14 @@ import { newId } from '@quetzal/db';
 import { getTenantScopedPrisma } from '@quetzal/core';
 import { isGameStatus, type GameStatus } from '../domain/game-status.js';
 import type { PatternKey } from '../domain/pattern.js';
-import { TeamIndexCollisionError, UnknownGameStatusError } from '../domain/errors.js';
-import { patternAt, patternCouranteOuNull, patternsDeLaLigne, serializePatternList } from '../domain/pattern-list.js';
+import { PatternIndexOutOfRangeError, TeamIndexCollisionError, UnknownGameStatusError } from '../domain/errors.js';
+import {
+  estIndexDansLaListe,
+  patternAt,
+  patternCouranteOuNull,
+  patternsDeLaLigne,
+  serializePatternList,
+} from '../domain/pattern-list.js';
 import type { DeckCard, NewDeckCard } from '../domain/ports/deck.repository.js';
 import type {
   GameRepository,
@@ -18,8 +24,11 @@ interface GameRow {
   id: string;
   deckId: string;
   status: string;
-  // Obsolete : conservee le temps d un deploiement (issue #52). Toujours la
-  // premiere figure de `patterns`, jamais la figure en cours.
+  // Obsolete : conservee le temps d un deploiement (issue #52). Figee a la
+  // creation sur la PREMIERE figure de `patterns` : `advancePattern` ne la
+  // met jamais a jour. Compatible avec l ancienne instance seulement avant
+  // toute avance ; un retour arriere apres avance lirait la mauvaise figure,
+  // et ce n est pas couvert (cf. create()).
   pattern: string;
   patterns: string | null;
   patternIndex: number;
@@ -94,13 +103,22 @@ export class PrismaGameRepository implements GameRepository {
     if (!isGameStatus(row.status)) {
       throw new UnknownGameStatusError(row.status);
     }
+    const patterns = patternsDeLaLigne(row.patterns, row.pattern);
+    if (!estIndexDansLaListe(patterns, row.patternIndex)) {
+      // Une ligne desynchronisee, comme un statut inconnu : `toState` ne rend
+      // qu une seule partie et l appelant doit savoir qu elle est cassee.
+      // `list()` ne leve pas pour autant (cf. patternCouranteOuNull) : cette
+      // asymetrie est voulue, le tableau de bord ne doit pas tomber en entier
+      // pour une seule ligne corrompue.
+      throw new PatternIndexOutOfRangeError(row.patternIndex, patterns.length);
+    }
     return {
       id: row.id,
       deckId: row.deckId,
       status: row.status,
       joinCode: row.joinCode,
       settings: {
-        patterns: patternsDeLaLigne(row.patterns, row.pattern),
+        patterns,
         falseClaimPenaltyDraws: row.falseClaimPenaltyDraws,
         maxTeams: row.maxTeams,
         guestLocale: row.guestLocale,
@@ -145,7 +163,12 @@ export class PrismaGameRepository implements GameRepository {
         status: 'draft',
         patterns: serializePatternList(input.settings.patterns),
         // Issue #52 : l ancienne instance lit encore cette colonne pendant
-        // la bascule. Retiree au deploiement suivant.
+        // la bascule, et ne connait que la figure a la creation. Cette
+        // compatibilite descendante couvre la bascule AVANT une avance :
+        // elle ne couvre PAS un retour a l ancienne instance apres qu une
+        // partie a plusieurs figures a avance (`advancePattern` ne touche
+        // jamais cette colonne). Decision deliberee, pas un oubli : un tel
+        // rollback n est pas dans le perimetre du motif expand / contract.
         pattern: patternAt(input.settings.patterns, 0),
         falseClaimPenaltyDraws: input.settings.falseClaimPenaltyDraws,
         maxTeams: input.settings.maxTeams,
