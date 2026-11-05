@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { EventBus } from '@quetzal/core';
 import { GameNotFoundError, GameNotRunningError, NoCardsLeftError } from '../domain/errors.js';
 import { canDraw } from '../domain/game-status.js';
+import { patternAt } from '../domain/pattern-list.js';
 import type { DeckCard } from '../domain/ports/deck.repository.js';
 import type { GameRepository, GameState } from '../domain/ports/game.repository.js';
 
@@ -71,7 +72,7 @@ export class DrawCardUseCase {
     await this.eventBus.emit('loto.game.started', {
       gameId: game.id,
       deckId: game.deckId,
-      pattern: game.settings.pattern,
+      pattern: patternAt(game.settings.patterns, game.patternIndex),
       teamCount: teams.length,
     });
   }

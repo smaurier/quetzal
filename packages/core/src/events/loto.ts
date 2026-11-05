@@ -30,7 +30,15 @@ export interface LotoGameFinishedEvent {
   drawCount: number;
 }
 
+export interface LotoPatternWonEvent {
+  gameId: string;
+  wonByTeamId: string;
+  pattern: string;
+  drawCount: number;
+}
+
 export const LotoGameStartedEvent = 'LotoGameStartedEvent' as const;
 export const LotoCardDrawnEvent = 'LotoCardDrawnEvent' as const;
 export const LotoClaimRejectedEvent = 'LotoClaimRejectedEvent' as const;
 export const LotoGameFinishedEvent = 'LotoGameFinishedEvent' as const;
+export const LotoPatternWonEvent = 'LotoPatternWonEvent' as const;

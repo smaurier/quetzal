@@ -15,6 +15,9 @@ import {
   CardNotOnTablaError,
   TeamNotFoundError,
   TeamIndexCollisionError,
+  InvalidPatternListError,
+  PatternIndexOutOfRangeError,
+  UnknownGameStatusError,
 } from './errors.js';
 
 describe('erreurs du domaine loto', () => {
@@ -79,5 +82,27 @@ describe('erreurs des cas d usage', () => {
     expect(err.name).toBe('TeamIndexCollisionError');
     expect(err.message).toContain('g-1');
     expect(err.message).toContain('0');
+  });
+});
+
+describe('erreurs d infrastructure', () => {
+  it('InvalidPatternListError ne descend PAS de DomainError, pour que le filtre global la traite en panne et non en regle metier', () => {
+    const err = new InvalidPatternListError('lecture', '""', 'liste vide');
+    expect(err).not.toBeInstanceOf(DomainError);
+    expect(err.name).toBe('InvalidPatternListError');
+  });
+
+  it('PatternIndexOutOfRangeError ne descend PAS de DomainError, pour que le filtre la traite en panne', () => {
+    const err = new PatternIndexOutOfRangeError(5, 3);
+    expect(err).not.toBeInstanceOf(DomainError);
+    expect(err.name).toBe('PatternIndexOutOfRangeError');
+    expect(err.message).toMatch(/5 sur 3/);
+  });
+
+  it('UnknownGameStatusError ne descend PAS de DomainError, pour que le filtre global la traite en panne et non en regle metier', () => {
+    const err = new UnknownGameStatusError('archive');
+    expect(err).not.toBeInstanceOf(DomainError);
+    expect(err.name).toBe('UnknownGameStatusError');
+    expect(err.message).toContain('archive');
   });
 });

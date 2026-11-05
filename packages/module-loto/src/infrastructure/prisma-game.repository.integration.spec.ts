@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
-import { tenantStore } from '@quetzal/core';
+import { tenantStore, getTenantScopedPrisma } from '@quetzal/core';
 import { Prisma } from '@prisma/client';
 import { PrismaDeckRepository } from './prisma-deck.repository.js';
 import { PrismaGameRepository } from './prisma-game.repository.js';
 import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from './traditional-deck.js';
-import { TeamIndexCollisionError } from '../domain/errors.js';
+import { PatternIndexOutOfRangeError, TeamIndexCollisionError } from '../domain/errors.js';
 
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -13,7 +13,7 @@ function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Pr
   });
 }
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
 
 describe('PrismaGameRepository (intégration)', () => {
   beforeAll(async () => { await ensureTestPostgres(); });
@@ -47,7 +47,7 @@ describe('PrismaGameRepository (intégration)', () => {
     const { tenantId, ownerId, games, game } = await aGame();
     const reloaded = await inTenant(tenantId, ownerId, () => games.findById(game.id));
     expect(reloaded?.status).toBe('draft');
-    expect(reloaded?.settings.pattern).toBe('linea');
+    expect(reloaded?.settings.patterns).toEqual(['linea']);
   });
 
   it('fige les cartes du jeu et les relit triées par rang', async () => {
@@ -233,47 +233,178 @@ describe('PrismaGameRepository (intégration)', () => {
     const list = await inTenant(other.tenantId, other.ownerId, () => games.list());
     expect(list).toEqual([]);
   });
-
-  // Issue #40, tache 5 du plan. La langue est resolue UNE FOIS a la creation
-  // et gelee sur la partie : elle doit donc survivre a un aller-retour en
-  // base, sinon chaque ecran invite retomberait sur la sienne.
-  it('ecrit et relit la langue imposee', async () => {
-    const { tenantId, ownerId, decks, games } = await aGame();
-    const deck = await inTenant(tenantId, ownerId, () =>
-      decks.create({ name: 'Jeu langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
-    );
-
-    const game = await inTenant(tenantId, ownerId, () =>
-      games.create({
-        deckId: deck.id,
-        createdBy: ownerId,
-        joinCode: 'LANG01',
-        settings: { pattern: 'linea', falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: 'es' },
-      }),
-    );
-
-    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
-    expect(reread?.settings.guestLocale).toBe('es');
-  });
-
-  // Le defaut, et le seul cas qui existe pour toutes les parties deja en
-  // base : la migration ajoute une colonne nullable, pas une valeur.
-  it('laisse la langue a null quand l option est decochee', async () => {
-    const { tenantId, ownerId, decks, games } = await aGame();
-    const deck = await inTenant(tenantId, ownerId, () =>
-      decks.create({ name: 'Jeu sans langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
-    );
-
-    const game = await inTenant(tenantId, ownerId, () =>
-      games.create({
-        deckId: deck.id,
-        createdBy: ownerId,
-        joinCode: 'LANG02',
-        settings: { pattern: 'linea', falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
-      }),
-    );
-
-    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
-    expect(reread?.settings.guestLocale).toBeNull();
-  });
+
+  // Issue #40, tache 5 du plan. La langue est resolue UNE FOIS a la creation
+  // et gelee sur la partie : elle doit donc survivre a un aller-retour en
+  // base, sinon chaque ecran invite retomberait sur la sienne.
+  it('ecrit et relit la langue imposee', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'LANG01',
+        settings: { patterns: ['linea'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: 'es' },
+      }),
+    );
+
+    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reread?.settings.guestLocale).toBe('es');
+  });
+
+  // Le defaut, et le seul cas qui existe pour toutes les parties deja en
+  // base : la migration ajoute une colonne nullable, pas une valeur.
+  it('laisse la langue a null quand l option est decochee', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu sans langue', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'LANG02',
+        settings: { patterns: ['linea'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reread?.settings.guestLocale).toBeNull();
+  });
+
+  // Issue #30, tache 5 du plan. L animatrice enchaine plusieurs figures dans
+  // la meme partie : la liste doit survivre a un aller-retour en base, avec
+  // son ordre.
+  it('ecrit et relit une liste de figures', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu figures', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'FIG001',
+        settings: { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    const reread = await inTenant(tenantId, ownerId, () => games.findById(game.id));
+    expect(reread?.settings.patterns).toEqual(['linea', 'llena']);
+    expect(reread?.patternIndex).toBe(0);
+  });
+
+  it('avance l index une seule fois quand deux appels partent du meme', async () => {
+    // Le defaut que le compare-and-set ferme : deux telephones reclamant au
+    // meme tirage liraient tous deux l index 0. Un `++` ferait sauter une
+    // figure. Ici le second appel doit rendre false et ne rien changer.
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu course', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'FIG002',
+        settings: { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    const premier = await inTenant(tenantId, ownerId, () => games.advancePattern(game.id, 0));
+    const second = await inTenant(tenantId, ownerId, () => games.advancePattern(game.id, 0));
+
+    expect(premier).toBe(true);
+    expect(second).toBe(false);
+    expect((await inTenant(tenantId, ownerId, () => games.findById(game.id)))?.patternIndex).toBe(1);
+  });
+
+  it('enregistre la figure d une reclamation, et la retrouve au meme tirage', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+    const team = await inTenant(tenantId, ownerId, () => games.createTeam(game.id, { teamIndex: 0, cardIds: [] }));
+
+    await inTenant(tenantId, ownerId, () =>
+      games.recordClaim({ gameId: game.id, teamId: team.id, atDraw: 7, valid: true, pattern: 'linea' }),
+    );
+
+    expect(await inTenant(tenantId, ownerId, () => games.hasValidClaimAt(game.id, 7))).toBe(true);
+    expect(await inTenant(tenantId, ownerId, () => games.hasValidClaimAt(game.id, 8))).toBe(false);
+  });
+
+  // Seul test qui garde la double ecriture de l issue #52 : tant que l
+  // ancienne instance existe, elle ne connait que la colonne `pattern`.
+  // Sans ce test, rien n empeche un refactor de ne plus l ecrire.
+  it('ecrit la premiere figure dans la colonne pattern, pour la compatibilite descendante', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu retro', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'FIG003',
+        settings: { patterns: ['llena', 'linea'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    // Lecture par le client Prisma directement : le port n expose pas la
+    // colonne `pattern`, et c est voulu (tache 5b la retirera). Ce test
+    // d infrastructure a le droit de regarder sous le port.
+    const row = await inTenant(tenantId, ownerId, () =>
+      getTenantScopedPrisma().loto_Game.findFirst({ where: { id: game.id } }),
+    );
+    expect(row?.pattern).toBe('llena');
+  });
+
+  // Defaut trouve en relecture : list() lisait la colonne `pattern` (gelee a
+  // la creation) au lieu de suivre patternIndex. Une fois la figure avancee,
+  // le tableau de bord de l animatrice affichait encore la premiere figure.
+  it('liste la figure en cours, pas la figure gelee a la creation', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu avance', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'FIG004',
+        settings: { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    await inTenant(tenantId, ownerId, () => games.advancePattern(game.id, 0));
+
+    const list = await inTenant(tenantId, ownerId, () => games.list());
+    const entry = list.find((g) => g.id === game.id);
+    expect(entry?.pattern).toBe('llena');
+  });
+
+  // Defaut trouve en relecture, symetrique de celui de list() : toState() ne
+  // verifiait pas que patternIndex tombe dans la liste qu il vient de lire.
+  // Contrairement a list() qui saute une ligne corrompue, findById() doit le
+  // dire franchement : une partie unique rendue sans erreur sur une ligne
+  // desynchronisee irait jusqu au client sans capture Sentry.
+  it('leve si l index de la partie deborde de sa liste de figures', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+
+    // Produit une ligne desynchronisee : le depot ne permet pas d ecrire un
+    // tel etat (c est voulu), donc on passe par le client Prisma que ce
+    // fichier a deja sous la main pour forcer la corruption.
+    await inTenant(tenantId, ownerId, () =>
+      getTenantScopedPrisma().loto_Game.updateMany({ where: { id: game.id }, data: { patternIndex: 2 } }),
+    );
+
+    await expect(inTenant(tenantId, ownerId, () => games.findById(game.id))).rejects.toBeInstanceOf(
+      PatternIndexOutOfRangeError,
+    );
+  });
 });

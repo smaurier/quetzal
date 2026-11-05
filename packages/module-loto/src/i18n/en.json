@@ -22,9 +22,10 @@
         "cardImage": "Choose an image for card {rank}"
       },
       "game": {
-        "create": "New game",
-        "pattern": "Winning pattern",
+        "create": "New game",
         "maxTeams": "Maximum number of teams",
+        "patterns": "Patterns to chain",
+        "patternProgress": "Pattern {position} of {total}: {pattern}",
         "forceLocale": "Everyone sees the game in my language",
         "penalty": "False claim penalty, in turns",
         "open": "Open the room",

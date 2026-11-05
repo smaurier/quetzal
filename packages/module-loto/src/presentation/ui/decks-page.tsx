@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { apiClient } from '@quetzal/core/client';
 import { Button, Card, Input, Label } from '@quetzal/ui';
+import { PATTERN_KEYS, type PatternKey } from '../../domain/pattern.js';
 
 interface DeckSummary {
   id: string;
@@ -20,12 +21,6 @@ interface GameHistoryEntry {
 }
 
 const MIN_PLAYABLE = 16;
-const PATTERN_KEYS = ['linea', 'esquinas', 'centro', 'llena'] as const;
-type PatternKey = (typeof PATTERN_KEYS)[number];
-
-function isPatternKey(value: string): value is PatternKey {
-  return (PATTERN_KEYS as readonly string[]).includes(value);
-}
 
 export default function DecksPage() {
   const t = useTranslations('module.loto.decks');
@@ -37,7 +32,13 @@ export default function DecksPage() {
 
   const [games, setGames] = useState<GameHistoryEntry[]>([]);
   const [gameDeckId, setGameDeckId] = useState('');
-  const [pattern, setPattern] = useState<PatternKey>('linea');
+  const [patterns, setPatterns] = useState<PatternKey[]>(['linea']);
+
+  function togglePattern(key: PatternKey): void {
+    setPatterns((actuel) =>
+      actuel.includes(key) ? actuel.filter((k) => k !== key) : [...actuel, key],
+    );
+  }
   const [maxTeams, setMaxTeams] = useState(6);
   const [penalty, setPenalty] = useState(0);
   const locale = useLocale();
@@ -114,7 +115,7 @@ export default function DecksPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         deckId: gameDeckId,
-        pattern,
+        patterns,
         maxTeams,
         // Pénalité à zéro par défaut : c est ce dont dépend la boucle de
         // réclamation systématique de l E2E invité (tâche 35).
@@ -132,10 +133,6 @@ export default function DecksPage() {
     }
     const game = (await res.json()) as { id: string };
     window.location.assign(`/modules/loto/games/${game.id}`);
-  }
-
-  function onPatternChange(value: string): void {
-    if (isPatternKey(value)) setPattern(value);
   }
 
   const playableDecks = decks.filter((deck) => deck.cardCount >= MIN_PLAYABLE);
@@ -191,17 +188,20 @@ export default function DecksPage() {
               </option>
             ))}
           </select>
-          <select
-            aria-label={tGame('pattern')}
-            value={pattern}
-            onChange={(event) => onPatternChange(event.target.value)}
-          >
+          <fieldset>
+            <legend className="text-sm">{tGame('patterns')}</legend>
             {PATTERN_KEYS.map((key) => (
-              <option key={key} value={key}>
+              <label key={key} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={patterns.includes(key)}
+                  onChange={() => togglePattern(key)}
+                  data-testid={`pattern-${key}`}
+                />
                 {tPattern(key)}
-              </option>
+              </label>
             ))}
-          </select>
+          </fieldset>
           <Input
             aria-label={tGame('maxTeams')}
             type="number"
@@ -230,7 +230,11 @@ export default function DecksPage() {
             />
             {tGame('forceLocale')}
           </label>
-          <Button disabled={gameDeckId === ''} onClick={() => void createGame()} data-testid="create-game">
+          <Button
+            disabled={gameDeckId === '' || patterns.length === 0}
+            onClick={() => void createGame()}
+            data-testid="create-game"
+          >
             {tGame('create')}
           </Button>
         </div>

@@ -1,4 +1,5 @@
 import { DomainError } from '@quetzal/core/errors';
+import type { PatternListProblem } from './pattern-list.js';
 
 export class DeckTooSmallError extends DomainError {
   constructor(size: number) {
@@ -84,5 +85,40 @@ export class TeamNotFoundError extends DomainError {
 export class TeamIndexCollisionError extends DomainError {
   constructor(gameId: string, teamIndex: number) {
     super(`Une équipe existe déjà à l index ${teamIndex} de la partie ${gameId}`);
+  }
+}
+
+export class InvalidPatternListError extends Error {
+  /**
+   * Une colonne corrompue en base n'est pas une violation de règle métier
+   * (qui aurait mérité un 400 + DomainError), c'est une donnée cassée qui
+   * exige qu'un humain regarde via Sentry (500 + capture).
+   */
+  constructor(
+    operation: 'lecture' | 'ecriture',
+    raw: string,
+    problem: PatternListProblem,
+  ) {
+    super(`liste de figures invalide (${problem}) en ${operation}: ${raw}`);
+    this.name = this.constructor.name;
+  }
+}
+
+export class PatternIndexOutOfRangeError extends Error {
+  constructor(index: number, length: number) {
+    super(`index de figure hors liste : ${index} sur ${length}`);
+    this.name = this.constructor.name;
+  }
+}
+
+export class UnknownGameStatusError extends Error {
+  /**
+   * Une colonne `status` corrompue en base n'est pas une violation de règle
+   * métier, c'est une donnée cassée : 500 + Sentry, pour la même raison que
+   * InvalidPatternListError.
+   */
+  constructor(raw: string) {
+    super(`statut de partie inconnu en base : ${raw}`);
+    this.name = this.constructor.name;
   }
 }

@@ -17,6 +17,7 @@ export const manifest: QuetzalModuleManifest = {
     { name: 'loto.game.started', typeRef: 'LotoGameStartedEvent' },
     { name: 'loto.card.drawn', typeRef: 'LotoCardDrawnEvent' },
     { name: 'loto.claim.rejected', typeRef: 'LotoClaimRejectedEvent' },
+    { name: 'loto.pattern.won', typeRef: 'LotoPatternWonEvent' },
     { name: 'loto.game.finished', typeRef: 'LotoGameFinishedEvent' },
   ],
   permissions: {

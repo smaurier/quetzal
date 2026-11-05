@@ -47,7 +47,7 @@ test('une partie entière, de la création à la victoire d un invité', async (
   // doit pas se bloquer elle-même.
   const createRes = await page.request.post('/api/modules/loto/games', {
     headers: auth,
-    data: { deckId: deck?.id, pattern: 'linea', maxTeams: 6, falseClaimPenaltyDraws: 0 },
+    data: { deckId: deck?.id, patterns: ['linea'], maxTeams: 6, falseClaimPenaltyDraws: 0 },
   });
   expect(createRes.ok()).toBeTruthy();
   const game = (await createRes.json()) as { id: string; joinCode: string };

@@ -73,4 +73,13 @@ export class LotoBroadcaster {
       drawCount: snapshot.game.lastDrawOrder,
     });
   }
+
+  async patternChanged(gameId: string): Promise<void> {
+    const snapshot = await this.snapshot.execute({ gameId });
+    this.server?.to(this.room(gameId)).emit('pattern-changed', {
+      pattern: snapshot.game.pattern,
+      position: snapshot.game.patternPosition,
+      total: snapshot.game.patternTotal,
+    });
+  }
 }

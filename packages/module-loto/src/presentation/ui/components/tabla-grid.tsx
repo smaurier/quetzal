@@ -3,7 +3,7 @@ import { CardFace } from './card-face.js';
 
 interface Props {
   cards: { id: string; label: string; imageId: string | null }[];
-  markedCardIds: string[];
+  markedCardIds: readonly string[];
   onToggle: (cardId: string, marked: boolean) => void;
   disabled: boolean;
 }

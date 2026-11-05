@@ -8,8 +8,9 @@ import {
 } from '../domain/errors.js';
 import { ClaimUseCase } from './claim.use-case.js';
 import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
+import type { GameSettings } from '../domain/ports/game.repository.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS: GameSettings = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
 const TABLA = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p'];
 
 async function build(penalty = 3) {
@@ -38,6 +39,57 @@ async function draw(games: FakeGameRepository, gameId: string, cardIds: string[]
   // percuterait les tirages d un appel précédent dans le même test.
   let order = games.draws.get(gameId)?.length ?? 0;
   for (const cardId of cardIds) await games.appendDraw(gameId, ++order, cardId);
+}
+
+const DEUX: GameSettings = { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
+
+/**
+ * Permutation de TABLA où aucune ligne, colonne ni diagonale ne contient les
+ * quatre cartes 'a', 'b', 'c', 'd' ensemble. Nécessaire à buildDeuxEquipes :
+ * le jeu n a que seize cartes, donc les deux équipes ont forcément les mêmes,
+ * et seul l ordre les distingue.
+ */
+const AUTRE_TABLA = ['e', 'a', 'f', 'g', 'b', 'h', 'i', 'j', 'k', 'l', 'm', 'c', 'n', 'o', 'd', 'p'];
+
+async function createRunningGame(settings: GameSettings) {
+  const games = new FakeGameRepository();
+  const bus = new RecordingEventBus();
+  const game = await games.create({
+    deckId: 'deck-1',
+    createdBy: 'u-1',
+    joinCode: 'AAA222',
+    settings,
+  });
+  await games.freezeCards(
+    game.id,
+    TABLA.map((label, i) => ({ rank: i + 1, label, imageId: null })),
+  );
+  await games.setStatus(game.id, 'running');
+  const useCase = new ClaimUseCase(games, bus as unknown as EventBus);
+  return { games, bus, game, useCase };
+}
+
+/**
+ * Monte une partie où la première figure de la liste est déjà gagnable : la
+ * ligne 0 de la tabla ('a', 'b', 'c', 'd') vient d être tirée.
+ */
+async function buildGagnant(settings: GameSettings) {
+  const { games, bus, game, useCase } = await createRunningGame(settings);
+  const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: [...TABLA] });
+  await draw(games, game.id, ['a', 'b', 'c', 'd']);
+  return { games, bus, game, team, useCase };
+}
+
+/**
+ * Deux équipes sur les mêmes seize cartes : team gagne la ligne 0, autre ne
+ * gagne rien avec le même tirage.
+ */
+async function buildDeuxEquipes(settings: GameSettings) {
+  const { games, bus, game, useCase } = await createRunningGame(settings);
+  const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: [...TABLA] });
+  const autre = await games.createTeam(game.id, { teamIndex: 1, cardIds: [...AUTRE_TABLA] });
+  await draw(games, game.id, ['a', 'b', 'c', 'd']);
+  return { games, bus, game, team, autre, useCase };
 }
 
 describe('ClaimUseCase', () => {
@@ -143,5 +195,107 @@ describe('ClaimUseCase', () => {
   it('refuse une partie inconnue', async () => {
     const { team, useCase } = await build();
     await expect(useCase.execute({ gameId: 'absent', teamId: team.id })).rejects.toBeInstanceOf(GameNotFoundError);
+  });
+
+  it('une figure intermediaire gagnee avance l index et laisse la partie courir', async () => {
+    const { games, useCase, game, team } = await buildGagnant({ ...DEUX });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.valid).toBe(true);
+    const apres = await games.findById(game.id);
+    expect(apres?.patternIndex).toBe(1);
+    expect(apres?.status).toBe('running');
+    expect(apres?.wonByTeamId).toBe(team.id);
+  });
+
+  it('la derniere figure gagnee termine la partie', async () => {
+    const { games, useCase, game, team } = await buildGagnant({
+      patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null,
+    });
+
+    await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    const apres = await games.findById(game.id);
+    expect(apres?.status).toBe('finished');
+    expect(apres?.patternIndex).toBe(0);
+  });
+
+  // Decision D5. Deux equipes qui crient ensemble est la situation normale en
+  // classe : la seconde ne gagne pas, mais la punir serait injuste.
+  it('au tirage d une victoire, une reclamation ratee ne bloque personne', async () => {
+    const { games, useCase, game, team, autre } = await buildDeuxEquipes({ ...DEUX });
+    await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: autre.id });
+
+    expect(result.valid).toBe(false);
+    expect(result.blockedUntilDraw).toBe(0);
+    const equipes = await games.teams(game.id);
+    expect(equipes.find((e) => e.id === autre.id)?.blockedUntilDraw).toBe(0);
+  });
+
+  it('hors tirage de victoire, une reclamation ratee bloque toujours', async () => {
+    const { useCase, game, autre } = await buildDeuxEquipes({ ...DEUX });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: autre.id });
+
+    expect(result.valid).toBe(false);
+    expect(result.blockedUntilDraw).toBeGreaterThan(0);
+  });
+
+  it('juge la reclamation contre la figure EN COURS, pas la premiere', async () => {
+    const { games, useCase, game, team } = await buildGagnant({ ...DEUX });
+    await games.advancePattern(game.id, 0);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    // La tabla gagne la linea, pas la llena : apres avance, la meme
+    // reclamation doit echouer.
+    expect(result.valid).toBe(false);
+  });
+
+  // ⭐ Le cas qui manquait : la course du compare-and-set est perdue, mais la
+  // reclamation etait authentiquement gagnante. L equipe n est pas punie, et
+  // elle n est pas non plus la gagnante de cette figure.
+  it('une figure gagnee perdue dans la course n ecrit rien et n emet rien', async () => {
+    const { games, bus, useCase, game, team } = await buildGagnant({ ...DEUX });
+    games.failNextAdvancePattern = true;
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.valid).toBe(true);
+    expect(result.outcome).toBe('pattern-won-by-other');
+    const apres = await games.findById(game.id);
+    expect(apres?.wonByTeamId).toBeNull();
+    expect(apres?.patternIndex).toBe(0);
+    expect(bus.names()).not.toContain('loto.pattern.won');
+  });
+
+  it('outcome pattern-won sur une figure intermediaire gagnee normalement', async () => {
+    const { useCase, game, team } = await buildGagnant({ ...DEUX });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.outcome).toBe('pattern-won');
+  });
+
+  it('outcome game-finished sur la derniere figure gagnee', async () => {
+    const { useCase, game, team } = await buildGagnant({
+      patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null,
+    });
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.outcome).toBe('game-finished');
+  });
+
+  it('outcome rejected sur une reclamation invalide', async () => {
+    const { games, game, team, useCase } = await build();
+    await draw(games, game.id, ['a']);
+
+    const result = await useCase.execute({ gameId: game.id, teamId: team.id });
+
+    expect(result.outcome).toBe('rejected');
   });
 });

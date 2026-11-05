@@ -3,8 +3,9 @@ import type { EventBus } from '@quetzal/core';
 import { GameNotFoundError, InvalidGameTransitionError } from '../domain/errors.js';
 import { FinishGameUseCase } from './finish-game.use-case.js';
 import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
+import type { GameSettings } from '../domain/ports/game.repository.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS: GameSettings = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
 
 async function build(status: 'draft' | 'open' | 'running' | 'finished' = 'running') {
   const games = new FakeGameRepository();

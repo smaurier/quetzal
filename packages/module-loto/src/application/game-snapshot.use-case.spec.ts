@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
 import { GameSnapshotUseCase } from './game-snapshot.use-case.js';
 import { FakeGameRepository } from './testing/fake-repositories.js';
+import type { GameSettings } from '../domain/ports/game.repository.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS: GameSettings = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
 
 async function build() {
   const games = new FakeGameRepository();
@@ -134,5 +135,23 @@ describe('GameSnapshotUseCase', () => {
     const snapshot = await useCase.execute({ gameId: game.id });
 
     expect(snapshot.game.guestLocale).toBe('es');
+  });
+
+  it('transporte la figure en cours et la progression', async () => {
+    const { games, useCase } = await build();
+    const game = await games.create({
+      deckId: 'deck-1',
+      createdBy: 'u-1',
+      joinCode: 'FIG003',
+      settings: { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null },
+    });
+    await games.freezeCards(game.id, [{ rank: 1, label: 'Carta 1', imageId: null }]);
+    await games.advancePattern(game.id, 0);
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.game.pattern).toBe('llena');
+    expect(snapshot.game.patternPosition).toBe(2);
+    expect(snapshot.game.patternTotal).toBe(2);
   });
 });

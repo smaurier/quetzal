@@ -103,42 +103,42 @@ describe('PrismaDeckRepository (intégration)', () => {
 
     expect(await inTenant(b.tenantId, b.ownerId, () => repo.list())).toHaveLength(0);
   });
-
-  // Issue #26, le coeur du defaut : `updateCard` passe par un `updateMany`,
-  // qui ne touche AUCUNE ligne quand le rang n existe pas encore. Les tests
-  // unitaires ne peuvent pas l attraper, ils parlent au faux depot.
-  it('insere une carte dans un jeu vierge, et elle est relue', async () => {
-    const { tenantId, ownerId } = await seedTenant();
-    const repo = new PrismaDeckRepository();
-    const vierge = await inTenant(tenantId, ownerId, () =>
-      repo.create({ name: 'Jeu vierge', isTemplate: false, createdBy: ownerId, cards: [] }),
-    );
-
-    const carte = await inTenant(tenantId, ownerId, () =>
-      repo.addCard(vierge.id, { rank: 1, label: 'El Gallo', imageId: null }),
-    );
-
-    const relu = await inTenant(tenantId, ownerId, () => repo.findById(vierge.id));
-    expect(relu?.cards).toHaveLength(1);
-    expect(relu?.cards[0]?.id).toBe(carte.id);
-    expect(relu?.cards[0]?.label).toBe('El Gallo');
-    expect(relu?.cardCount).toBe(1);
-  });
-
-  // L ancien chemin, garde en regard : il ne cree rien et ne crie pas. C est
-  // ce silence qui a fait croire que le bouton etait casse cote interface.
-  it('updateCard sur un rang absent ne cree rien, et ne leve pas', async () => {
-    const { tenantId, ownerId } = await seedTenant();
-    const repo = new PrismaDeckRepository();
-    const vierge = await inTenant(tenantId, ownerId, () =>
-      repo.create({ name: 'Jeu vierge', isTemplate: false, createdBy: ownerId, cards: [] }),
-    );
-
-    await inTenant(tenantId, ownerId, () => repo.updateCard(vierge.id, 1, { label: 'El Gallo' }));
-
-    expect((await inTenant(tenantId, ownerId, () => repo.findById(vierge.id)))?.cards).toHaveLength(0);
-  });
-
+
+  // Issue #26, le coeur du defaut : `updateCard` passe par un `updateMany`,
+  // qui ne touche AUCUNE ligne quand le rang n existe pas encore. Les tests
+  // unitaires ne peuvent pas l attraper, ils parlent au faux depot.
+  it('insere une carte dans un jeu vierge, et elle est relue', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const repo = new PrismaDeckRepository();
+    const vierge = await inTenant(tenantId, ownerId, () =>
+      repo.create({ name: 'Jeu vierge', isTemplate: false, createdBy: ownerId, cards: [] }),
+    );
+
+    const carte = await inTenant(tenantId, ownerId, () =>
+      repo.addCard(vierge.id, { rank: 1, label: 'El Gallo', imageId: null }),
+    );
+
+    const relu = await inTenant(tenantId, ownerId, () => repo.findById(vierge.id));
+    expect(relu?.cards).toHaveLength(1);
+    expect(relu?.cards[0]?.id).toBe(carte.id);
+    expect(relu?.cards[0]?.label).toBe('El Gallo');
+    expect(relu?.cardCount).toBe(1);
+  });
+
+  // L ancien chemin, garde en regard : il ne cree rien et ne crie pas. C est
+  // ce silence qui a fait croire que le bouton etait casse cote interface.
+  it('updateCard sur un rang absent ne cree rien, et ne leve pas', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const repo = new PrismaDeckRepository();
+    const vierge = await inTenant(tenantId, ownerId, () =>
+      repo.create({ name: 'Jeu vierge', isTemplate: false, createdBy: ownerId, cards: [] }),
+    );
+
+    await inTenant(tenantId, ownerId, () => repo.updateCard(vierge.id, 1, { label: 'El Gallo' }));
+
+    expect((await inTenant(tenantId, ownerId, () => repo.findById(vierge.id)))?.cards).toHaveLength(0);
+  });
+
   // La garantie est plus forte qu un simple << rien ne se passe >> : la cle
   // etrangere composite Loto_Card_deckId_tenantId_fkey REFUSE l insertion. L
   // extension de cloisonnement pose le tenantId de B, et le couple
@@ -158,5 +158,5 @@ describe('PrismaDeckRepository (intégration)', () => {
     ).rejects.toMatchObject({ code: 'P2003' });
 
     expect((await inTenant(a.tenantId, a.ownerId, () => repo.findById(deckA.id)))?.cards).toHaveLength(0);
-  });
+  });
 });

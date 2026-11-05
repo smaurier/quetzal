@@ -3,8 +3,9 @@ import type { EventBus } from '@quetzal/core';
 import { GameNotFoundError, GameNotRunningError, NoCardsLeftError } from '../domain/errors.js';
 import { DrawCardUseCase } from './draw-card.use-case.js';
 import { FakeGameRepository, RecordingEventBus } from './testing/fake-repositories.js';
+import type { GameSettings } from '../domain/ports/game.repository.js';
 
-const SETTINGS = { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null } as const;
+const SETTINGS: GameSettings = { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 6, guestLocale: null };
 
 async function build(cardCount = 54) {
   const games = new FakeGameRepository();

@@ -96,6 +96,28 @@ export function useGameSocket(options: { gameId: string; guestToken?: string }):
             : { ...current, game: { ...current.game, status: 'finished', wonByTeamId: payload.wonByTeamId } },
         ),
       );
+
+      // Issue #30. Le diffuseur emettait `pattern-changed` et personne ne
+      // l ecoutait : l index avancait bien en base, mais l ecran gardait la
+      // figure precedente jusqu a un rechargement. Trouve par l E2E le 05/11,
+      // aucune autre barre ne pouvait le voir.
+      socket.on(
+        'pattern-changed',
+        (payload: { pattern: GameSnapshot['game']['pattern']; position: number; total: number }) =>
+          setSnapshot((current) =>
+            current === null
+              ? current
+              : {
+                  ...current,
+                  game: {
+                    ...current.game,
+                    pattern: payload.pattern,
+                    patternPosition: payload.position,
+                    patternTotal: payload.total,
+                  },
+                },
+          ),
+      );
     })();
 
     return () => {

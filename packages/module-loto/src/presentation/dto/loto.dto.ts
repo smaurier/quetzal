@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { LOCALES } from '@quetzal/i18n';
 import { GAME_STATUSES } from '../../domain/game-status.js';
 import { PATTERN_KEYS } from '../../domain/pattern.js';
+import { isValidPatternList } from '../../domain/pattern-list.js';
 
 export const createDeckSchema = z.object({
   name: z.string().min(1).max(120),
@@ -32,7 +33,11 @@ export const createGameSchema = z.object({
   // Validee ici AUSSI, et pas seulement dans le middleware : celui-ci
   // protege l affichage, pas ce qu on ecrit en base.
   guestLocale: z.enum(LOCALES).nullish(),
-  pattern: z.enum(PATTERN_KEYS),
+  // De une à quatre, sans doublon : `isValidPatternList` porte la règle, le
+  // schéma ne fait que l appeler pour ne pas la dire deux fois.
+  patterns: z
+    .array(z.enum(PATTERN_KEYS))
+    .refine(isValidPatternList, { message: 'liste de figures invalide' }),
   maxTeams: z.number().int().min(1).max(20),
   falseClaimPenaltyDraws: z.number().int().min(0).max(99),
 });

@@ -22,9 +22,10 @@
         "cardImage": "Elegir una imagen para la carta {rank}"
       },
       "game": {
-        "create": "Nueva partida",
-        "pattern": "Figura ganadora",
+        "create": "Nueva partida",
         "maxTeams": "Número máximo de equipos",
+        "patterns": "Figuras a encadenar",
+        "patternProgress": "Figura {position} de {total}: {pattern}",
         "forceLocale": "Todos ven la partida en mi idioma",
         "penalty": "Penalización por falsa lotería, en turnos",
         "open": "Abrir la sala",

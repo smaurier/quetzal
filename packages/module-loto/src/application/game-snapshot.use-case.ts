@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GameNotFoundError, TeamNotFoundError } from '../domain/errors.js';
 import type { GameStatus } from '../domain/game-status.js';
 import type { PatternKey } from '../domain/pattern.js';
+import { patternProgress } from '../domain/pattern-list.js';
 import { teamNameFor, type TeamName } from '../domain/team-name.js';
 import type { DeckCard } from '../domain/ports/deck.repository.js';
 import type { GameRepository } from '../domain/ports/game.repository.js';
@@ -10,6 +11,9 @@ export interface SnapshotGame {
   id: string;
   status: GameStatus;
   pattern: PatternKey;
+  /** A partir de un : ce chiffre est lu par un humain. */
+  patternPosition: number;
+  patternTotal: number;
   joinCode: string;
   maxTeams: number;
   falseClaimPenaltyDraws: number;
@@ -37,7 +41,7 @@ export interface SnapshotDraw {
 export interface SnapshotTabla {
   teamId: string;
   cards: DeckCard[];
-  markedCardIds: string[];
+  markedCardIds: readonly string[];
   blockedUntilDraw: number;
 }
 
@@ -85,11 +89,15 @@ export class GameSnapshotUseCase {
       };
     }
 
+    const progress = patternProgress(game.settings.patterns, game.patternIndex);
+
     return {
       game: {
         id: game.id,
         status: game.status,
-        pattern: game.settings.pattern,
+        pattern: progress.current,
+        patternPosition: progress.position,
+        patternTotal: progress.total,
         joinCode: game.joinCode,
         maxTeams: game.settings.maxTeams,
         guestLocale: game.settings.guestLocale,

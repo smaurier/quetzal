@@ -86,7 +86,7 @@ describe('LotoGateway (intégration)', () => {
       joinCode: 'AAA222',
       // maxTeams: 1 pour que deux invités distincts partagent la même équipe et
       // sa même tabla — condition nécessaire au test de diffusion d équipe.
-      settings: { pattern: 'linea', falseClaimPenaltyDraws: 3, maxTeams: 1, guestLocale: null },
+      settings: { patterns: ['linea'], falseClaimPenaltyDraws: 3, maxTeams: 1, guestLocale: null },
     });
     await games.freezeCards(
       game.id,
