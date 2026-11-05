@@ -8,6 +8,7 @@ import {
   isLastPattern,
   patternProgress,
   patternsDeLaLigne,
+  patternCouranteOuNull,
 } from './pattern-list.js';
 import { InvalidPatternListError, PatternIndexOutOfRangeError } from './errors.js';
 
@@ -158,6 +159,31 @@ describe('patternsDeLaLigne', () => {
 
   it('leve si les deux colonnes sont inexploitables', () => {
     expect(() => patternsDeLaLigne(null, 'inexistante')).toThrow(InvalidPatternListError);
+  });
+});
+
+describe('patternCouranteOuNull', () => {
+  it('liste remplie, index 0, rend la premiere figure', () => {
+    expect(patternCouranteOuNull('linea,llena', 'linea', 0)).toBe('linea');
+  });
+
+  it('liste remplie, index 1, rend la SECONDE figure et non la colonne gelee', () => {
+    // C est le test qui prouve le defaut corrige dans list() : avant la
+    // correction, list() lisait row.pattern (toujours 'linea', gele a la
+    // creation) au lieu de suivre patternIndex.
+    expect(patternCouranteOuNull('linea,llena', 'linea', 1)).toBe('llena');
+  });
+
+  it('liste NULL, replie sur la figure unique', () => {
+    expect(patternCouranteOuNull(null, 'llena', 0)).toBe('llena');
+  });
+
+  it('liste corrompue, rend null plutot que de lever', () => {
+    expect(patternCouranteOuNull(null, 'inexistante', 0)).toBeNull();
+  });
+
+  it('index hors liste, rend null plutot que de lever', () => {
+    expect(patternCouranteOuNull('linea,llena', 'linea', 5)).toBeNull();
   });
 });
 
