@@ -49,6 +49,23 @@ describe('FakeGameRepository, advancePattern', () => {
     const reloaded = await games.findById(game.id);
     expect(reloaded?.patternIndex).toBe(1);
   });
+
+  // Simule une course perdue, comme failNextAppendDraw le fait pour les
+  // tirages : le prochain advancePattern echoue sans rien modifier, puis
+  // l appel suivant redevient normal.
+  it('failNextAdvancePattern force un echec sans rien modifier, puis redevient normal', async () => {
+    const games = new FakeGameRepository();
+    const game = await aGame(games);
+    games.failNextAdvancePattern = true;
+
+    expect(await games.advancePattern(game.id, 0)).toBe(false);
+    const pendant = await games.findById(game.id);
+    expect(pendant?.patternIndex).toBe(0);
+
+    expect(await games.advancePattern(game.id, 0)).toBe(true);
+    const apres = await games.findById(game.id);
+    expect(apres?.patternIndex).toBe(1);
+  });
 });
 
 describe('FakeGameRepository, hasValidClaimAt', () => {
