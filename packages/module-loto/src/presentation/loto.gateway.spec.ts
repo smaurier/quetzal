@@ -22,11 +22,13 @@ class StubClaimUseCase {
   }
 }
 
-// Doublure minimale de LotoBroadcaster : seuls claimResult() et gameFinished()
-// comptent pour handleClaim, et sont les deux seuls enregistres ici.
+// Doublure minimale de LotoBroadcaster : seuls claimResult(), gameFinished()
+// et patternChanged() comptent pour handleClaim, et sont les trois seuls
+// enregistres ici.
 class RecordingBroadcaster {
   readonly claimResultCalls: { gameId: string; teamId: string; result: ClaimResult }[] = [];
   readonly gameFinishedCalls: { gameId: string; wonByTeamId: string }[] = [];
+  readonly patternChangedCalls: { gameId: string }[] = [];
 
   claimResult(gameId: string, teamId: string, result: ClaimResult): void {
     this.claimResultCalls.push({ gameId, teamId, result });
@@ -34,6 +36,10 @@ class RecordingBroadcaster {
 
   async gameFinished(gameId: string, wonByTeamId: string): Promise<void> {
     this.gameFinishedCalls.push({ gameId, wonByTeamId });
+  }
+
+  async patternChanged(gameId: string): Promise<void> {
+    this.patternChangedCalls.push({ gameId });
   }
 }
 
@@ -70,6 +76,7 @@ describe('LotoGateway, handleClaim', () => {
     expect(broadcaster.claimResultCalls).toEqual([
       { gameId: 'g1', teamId: 't1', result: resultat('game-finished') },
     ]);
+    expect(broadcaster.patternChangedCalls).toHaveLength(0);
   });
 
   // Le test qui attrape le defaut : une figure intermediaire gagnee ne doit
@@ -81,6 +88,7 @@ describe('LotoGateway, handleClaim', () => {
 
     expect(broadcaster.gameFinishedCalls).toHaveLength(0);
     expect(broadcaster.claimResultCalls).toHaveLength(1);
+    expect(broadcaster.patternChangedCalls).toEqual([{ gameId: 'g1' }]);
   });
 
   it('ne diffuse pas gameFinished quand outcome vaut pattern-won-by-other', async () => {
@@ -90,6 +98,9 @@ describe('LotoGateway, handleClaim', () => {
 
     expect(broadcaster.gameFinishedCalls).toHaveLength(0);
     expect(broadcaster.claimResultCalls).toHaveLength(1);
+    // La figure a change, mais l equipe qui a gagne la course l a deja
+    // diffusee : un second envoi ferait clignoter les ecrans en double.
+    expect(broadcaster.patternChangedCalls).toHaveLength(0);
   });
 
   it('ne diffuse pas gameFinished quand outcome vaut rejected', async () => {
@@ -99,6 +110,7 @@ describe('LotoGateway, handleClaim', () => {
 
     expect(broadcaster.gameFinishedCalls).toHaveLength(0);
     expect(broadcaster.claimResultCalls).toHaveLength(1);
+    expect(broadcaster.patternChangedCalls).toHaveLength(0);
   });
 
   it('ne fait rien sans gameId ni teamId sur le socket', async () => {
@@ -110,5 +122,6 @@ describe('LotoGateway, handleClaim', () => {
     expect(executeSpy).not.toHaveBeenCalled();
     expect(broadcaster.claimResultCalls).toHaveLength(0);
     expect(broadcaster.gameFinishedCalls).toHaveLength(0);
+    expect(broadcaster.patternChangedCalls).toHaveLength(0);
   });
 });
