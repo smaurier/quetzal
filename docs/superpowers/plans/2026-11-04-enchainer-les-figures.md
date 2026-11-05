@@ -56,7 +56,7 @@ La signature est donc `advancePattern(gameId: string, depuisIndex: number): Prom
 |---|---|
 | `packages/module-loto/src/domain/pattern-list.ts` | Lire, écrire et valider une liste de figures. Pur. |
 | `packages/module-loto/src/domain/pattern-list.spec.ts` | |
-| `packages/core/src/events/loto.ts` | `LotoPatternWonEvent` (le fichier n'existe pas encore) |
+| `packages/core/src/events/loto.ts` | `LotoPatternWonEvent`. ⚠️ Le fichier **existe** et declare deja quatre evenements : mon plan disait le contraire (verifie le 05/11). |
 | migration Prisma | cinq étapes, voir tâche 3 |
 | `e2e/tests/enchainer-les-figures.e2e.spec.ts` | une partie à deux figures, menée jusqu'à la seconde |
 
@@ -1187,6 +1187,15 @@ git commit -m "feat(loto): la reclamation avance la figure ou termine la partie"
 
 `loto.pattern.won` est un contrat public inter-module : il se déclare au manifeste et son type vit dans `@quetzal/core/events`, jamais chez le module (`CLAUDE.md` §3).
 
+⚠️ **Mesure du 05/11 : les types d'evenements de ce module ne sont pas tenus.** Les quatre
+interfaces de `packages/core/src/events/loto.ts` declarent toutes un `tenantId`, et **aucune
+emission reelle ne l'envoie**. Cause : `emit<T = unknown>(name: EventName, payload: T)` laisse `T`
+libre et `EventName` est un gabarit, donc n'importe quel nom avec n'importe quelle charge compile.
+Ces interfaces sont decoratives. Tracé dans l'**issue #53**.
+
+Conséquence pour cette tâche : déclarer `LotoPatternWonEvent` avec **les champs réellement émis**,
+sans `tenantId`, et ne pas entériner la divergence en recopiant le `tenantId` des quatre autres.
+Le tenant est déjà porté par le contexte d'exécution et par le scope Prisma.
 **Files:**
 - Create or modify: `packages/core/src/events/loto.ts`
 - Modify: `packages/module-loto/src/manifest.ts`
