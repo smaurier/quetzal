@@ -1516,6 +1516,12 @@ git commit -m "feat(loto): choisir les figures a enchainer, et voir la progressi
 
 ### Task 11: L'E2E
 
+❓ **Question d'ergonomie laissee a Sylvain, trouvee en ecrivant ce test.** La progression
+n'apparait qu'une fois la partie lancee, parce que l'ecran animateur sort tot pour `draft` et
+`open`. Avant le premier tirage, l'animatrice ne voit donc pas la chaine qu'elle vient de choisir.
+L'afficher des l'ouverture lui permettrait de verifier son reglage pendant que les eleves scannent,
+avant que la classe ne regarde. Ce n'est pas demande par la spec, et ca coute une condition : a
+trancher, pas a decider ici.
 **Files:**
 - Create: `e2e/tests/enchainer-les-figures.e2e.spec.ts`
 
@@ -1586,6 +1592,12 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page }) => {
   expect((await page.request.post(`/api/modules/loto/games/${game.id}/open`, { headers: auth })).ok()).toBeTruthy();
 
   await page.goto(`/modules/loto/games/${game.id}`);
+
+  // ⚠️ Corrige le 05/11 : la progression n existe PAS encore a l ecran ici.
+  // `animator-page.tsx` sort tot pour les statuts `draft` et `open`, et la
+  // ligne `pattern-progress` vit dans le retour final, qui ne couvre que
+  // `running` et `finished`. Il faut donc un premier tirage avant de la lire.
+  await page.getByTestId('draw').click();
   await expect(page.getByTestId('pattern-progress')).toHaveText(PROGRESS_1);
 
   // Tirer jusqu à ce que la progression passe à la seconde figure. La boucle
