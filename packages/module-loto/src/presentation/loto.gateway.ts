@@ -3,6 +3,7 @@ import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -29,7 +30,7 @@ interface SocketData {
 // CORS et authentification du handshake appartiennent à l adaptateur de la
 // plateforme, jamais au module.
 @WebSocketGateway({ namespace: 'ws/loto' })
-export class LotoGateway implements OnGatewayConnection {
+export class LotoGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer() server!: Server;
 
   // Jetons explicites plutôt qu inférence par type : le transform esbuild de
@@ -44,8 +45,15 @@ export class LotoGateway implements OnGatewayConnection {
     @Inject(LotoBroadcaster) private readonly broadcaster: LotoBroadcaster,
   ) {}
 
+  // Issue #34 : `attach()` vivait dans `handleConnection`, donc toute
+  // diffusion anterieure a la premiere connexion partait dans le vide, sans
+  // erreur. `afterInit` tombe a l initialisation du module, avant toute
+  // connexion : c est le bon moment pour donner le serveur au diffuseur.
+  afterInit(server: Server): void {
+    this.broadcaster.attach(server);
+  }
+
   async handleConnection(client: Socket): Promise<void> {
-    this.broadcaster.attach(this.server);
     const data = client.data as SocketData;
 
     // Un invité tient son identifiant de partie de son jeton : il ne peut pas
