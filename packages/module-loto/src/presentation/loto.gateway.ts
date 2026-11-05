@@ -117,7 +117,7 @@ export class LotoGateway implements OnGatewayConnection {
 
     const result = await this.claim.execute({ gameId: data.gameId, teamId: data.teamId });
     this.broadcaster.claimResult(data.gameId, data.teamId, result);
-    if (result.valid) await this.broadcaster.gameFinished(data.gameId, data.teamId);
+    if (result.outcome === 'game-finished') await this.broadcaster.gameFinished(data.gameId, data.teamId);
   }
 }
 
