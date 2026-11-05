@@ -40,3 +40,6 @@ packages/i18n/catalogues/merged.*.json
 .DS_Store
 Thumbs.db
 .superpowers/
+
+# Etat de session partage par le projet playwright `setup` (jamais commite)
+e2e/.auth/

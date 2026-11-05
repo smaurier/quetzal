@@ -1,7 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 
-const EMAIL = process.env['SEED_OWNER_EMAIL'] ?? 'elda@test.dev';
-const PASSWORD = process.env['SEED_OWNER_PASSWORD'] ?? '';
 
 /**
  * Preuve que les cinq contrôles étiquetés sur les écrans de l animatrice
@@ -19,13 +17,6 @@ const PASSWORD = process.env['SEED_OWNER_PASSWORD'] ?? '';
  * ce budget avec le smoke test et le parcours invité.
  */
 
-async function login(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.getByLabel(/e-mail|email/i).fill(EMAIL);
-  await page.getByLabel(/password|mot de passe|contraseña/i).fill(PASSWORD);
-  await page.getByRole('button', { name: /sign in|se connecter|iniciar/i }).click();
-  await page.waitForURL(/\/dashboard/);
-}
 
 async function bearer(page: Page): Promise<string> {
   const res = await page.request.get('/api/auth/token');
@@ -74,7 +65,6 @@ interface Deck extends DeckSummary {
 test('écrans animatrice du Lotería : liste des jeux et éditeur exposent leurs champs par label', async ({
   page,
 }) => {
-  await login(page);
 
   // --- Liste des jeux de cartes : le champ de la tâche 38 (formulaire de
   // création), un champ texte sans role particulier, atteignable seulement

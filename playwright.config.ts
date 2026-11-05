@@ -11,6 +11,26 @@ export default defineConfig({
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
+
+  // Deux projets, et c est une contrainte de Better-Auth qui l impose : il
+  // limite les tentatives de connexion par fenetre glissante, budget trois.
+  // Chaque test qui se connectait lui-meme rapprochait la suite du mur ; le
+  // 05/11, le quatrieme l a franchi et `loto-teacher` est tombe sur
+  // « Too many requests ». Desormais `setup` se connecte une fois et les tests
+  // reprennent son etat : leur nombre n entre plus dans le budget.
+  projects: [
+    {
+      name: 'setup',
+      testDir: './e2e',
+      testMatch: /auth\.setup\.ts/,
+    },
+    {
+      name: 'e2e',
+      dependencies: ['setup'],
+      use: { storageState: 'e2e/.auth/owner.json' },
+    },
+  ],
+
   webServer: process.env['CI'] ? undefined : {
     command: 'pnpm dev',
     port: 3000,
