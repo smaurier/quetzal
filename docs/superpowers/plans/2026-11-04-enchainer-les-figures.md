@@ -1674,15 +1674,42 @@ git commit -m "test(e2e): une partie enchaine deux figures sans etre recreee"
 
 ## Clôture
 
-- [ ] `pnpm turbo run lint typecheck` → attendu 26/26
-- [ ] `pnpm turbo run test` → attendu 17/17 tâches
-- [ ] `pnpm turbo run test:integration` → attendu 12/12
-- [ ] `pnpm audit --prod --audit-level high` → attendu 0 high, sortie 0
-- [ ] `pnpm --filter @quetzal/auth generate && git diff --exit-code -- packages/auth/prisma/auth.prisma` → aucune dérive
-- [ ] **Avant de fusionner** : compter les lignes que la migration a remplies en production, comme pour la migration d'unicité du 03/11. Une réclamation sans figure après migration serait un remplissage manqué.
-- [ ] ⛔ **Les onze tâches partent en UNE SEULE pull request squashée.** La migration de la tâche 3
-      et l'adaptateur de la tâche 5 doivent arriver en production dans le même déploiement. Déployer
-      la migration seule casserait toute création et toute lecture de partie : c'est mesuré, la suite
-      d'intégration tombe à 16 échecs sur 33 dans cet état intermédiaire.
-- [ ] **Après le déploiement**, ouvrir le second temps : issue #52 (`patterns` en `NOT NULL`, retrait de
-      `Loto_Game.pattern`, de la double écriture et du repli de lecture).
+**Mesurée le 05/11/2026, sur le poste perso.**
+
+- [x] `pnpm turbo run lint typecheck` → **26/26** (2 avertissements préexistants dans `@quetzal/db`, hors périmètre)
+- [x] `pnpm turbo run test` → **17/17**
+- [x] `pnpm turbo run test:integration` → **12/12**, dont **39 pour `module-loto`**
+- [x] `pnpm audit --prod --audit-level high` → **0 high** (2 low, 10 moderate), sortie 0
+- [x] dérive du schéma `auth.prisma` généré → **aucune**
+- [x] `CI=1 pnpm exec playwright test` → **14/14, deux exécutions de suite**
+- [x] base locale laissée propre : **zéro partie non terminée**
+
+- [ ] **Avant de fusionner** : compter les lignes que la migration a remplies en production, comme
+      pour la migration d'unicité du 03/11. Une réclamation sans figure après migration serait un
+      remplissage manqué.
+- [x] ⛔ **Les tâches partent en UNE SEULE pull request squashée.** La migration de la tâche 3 et
+      l'adaptateur de la tâche 5 doivent arriver en production dans le même déploiement.
+- [ ] **Après le déploiement**, ouvrir le second temps : issue **#52** (`patterns` en `NOT NULL`,
+      retrait de `Loto_Game.pattern`, de la double écriture et du repli de lecture).
+- [ ] **Dette relevée en route**, à traiter hors de ce chantier : issue **#53** (les types
+      d'événements ne sont pas tenus), et **aucun `tsconfig` ne couvre `e2e/`** — c'est ce qui a
+      laissé `loto-guest` envoyer l'ancien contrat d'entrée sans qu'aucune barre ne bronche.
+
+## Ce que ce plan s'est trompé, et ce que ça apprend
+
+**Treize défauts de ce plan ont été trouvés pendant l'exécution**, par les relectures, par les
+exécutants, ou par la mesure. Trois familles :
+
+| famille | exemples |
+|---|---|
+| signaux prédits de mémoire | typecheck annoncé rouge alors qu'il était vert, et l'inverse ; étendue du rouge mal estimée |
+| dénombrements écrits sans compter | « dix specs » pour neuf, « deux méthodes » pour trois |
+| code s'appuyant sur ce qui n'existe pas | `this.emit()` du diffuseur, `tGame`/`tPattern` de l'écran animateur, `loto.ts` annoncé absent |
+
+Et deux trous de conception, les plus coûteux : le **résultat du compare-and-set était jeté**
+alors que ce plan consacre trois paragraphes à son importance, et **`pattern-changed` était émis
+sans qu'aucun écran ne l'écoute**, donc la fonctionnalité marchait en base et pas à l'écran.
+
+La leçon pour le prochain plan : **ne jamais écrire une attente de vérification sans l'avoir
+mesurée**, et **ne jamais écrire un nombre sans avoir lancé le `grep`**. Un plan qui affirme fait
+recopier son erreur par l'exécutant.
