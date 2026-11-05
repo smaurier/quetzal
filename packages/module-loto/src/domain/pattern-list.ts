@@ -57,6 +57,27 @@ export function patternsDeLaLigne(patterns: string | null, pattern: string): rea
   return parsePatternList(patterns ?? pattern);
 }
 
+/**
+ * La figure en cours d une ligne de partie, ou `null` si la ligne est
+ * inexploitable. Sert `list()`, qui saute une ligne corrompue plutot que
+ * de faire echouer tout le tableau de bord ; `toState` leve, lui, parce
+ * qu il ne rend qu une partie et que l appelant doit le savoir. C est le
+ * seul endroit du module ou rattraper InvalidPatternListError et
+ * PatternIndexOutOfRangeError est legitime.
+ */
+export function patternCouranteOuNull(
+  patterns: string | null,
+  pattern: string,
+  index: number,
+): PatternKey | null {
+  try {
+    return patternAt(patternsDeLaLigne(patterns, pattern), index);
+  } catch (err) {
+    if (err instanceof InvalidPatternListError || err instanceof PatternIndexOutOfRangeError) return null;
+    throw err;
+  }
+}
+
 export interface PatternProgress {
   current: PatternKey;
   /** A partir de un : ce chiffre est lu par un humain. */
