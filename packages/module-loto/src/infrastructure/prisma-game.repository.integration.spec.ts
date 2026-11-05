@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaDeckRepository } from './prisma-deck.repository.js';
 import { PrismaGameRepository } from './prisma-game.repository.js';
 import { TRADITIONAL_CARDS, TRADITIONAL_DECK_NAME } from './traditional-deck.js';
-import { TeamIndexCollisionError } from '../domain/errors.js';
+import { PatternIndexOutOfRangeError, TeamIndexCollisionError } from '../domain/errors.js';
 
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -386,5 +386,25 @@ describe('PrismaGameRepository (intégration)', () => {
     const list = await inTenant(tenantId, ownerId, () => games.list());
     const entry = list.find((g) => g.id === game.id);
     expect(entry?.pattern).toBe('llena');
+  });
+
+  // Defaut trouve en relecture, symetrique de celui de list() : toState() ne
+  // verifiait pas que patternIndex tombe dans la liste qu il vient de lire.
+  // Contrairement a list() qui saute une ligne corrompue, findById() doit le
+  // dire franchement : une partie unique rendue sans erreur sur une ligne
+  // desynchronisee irait jusqu au client sans capture Sentry.
+  it('leve si l index de la partie deborde de sa liste de figures', async () => {
+    const { tenantId, ownerId, games, game } = await aGame();
+
+    // Produit une ligne desynchronisee : le depot ne permet pas d ecrire un
+    // tel etat (c est voulu), donc on passe par le client Prisma que ce
+    // fichier a deja sous la main pour forcer la corruption.
+    await inTenant(tenantId, ownerId, () =>
+      getTenantScopedPrisma().loto_Game.updateMany({ where: { id: game.id }, data: { patternIndex: 2 } }),
+    );
+
+    await expect(inTenant(tenantId, ownerId, () => games.findById(game.id))).rejects.toBeInstanceOf(
+      PatternIndexOutOfRangeError,
+    );
   });
 });
