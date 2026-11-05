@@ -363,4 +363,28 @@ describe('PrismaGameRepository (intégration)', () => {
     );
     expect(row?.pattern).toBe('llena');
   });
+
+  // Defaut trouve en relecture : list() lisait la colonne `pattern` (gelee a
+  // la creation) au lieu de suivre patternIndex. Une fois la figure avancee,
+  // le tableau de bord de l animatrice affichait encore la premiere figure.
+  it('liste la figure en cours, pas la figure gelee a la creation', async () => {
+    const { tenantId, ownerId, decks, games } = await aGame();
+    const deck = await inTenant(tenantId, ownerId, () =>
+      decks.create({ name: 'Jeu avance', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
+    );
+    const game = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: deck.id,
+        createdBy: ownerId,
+        joinCode: 'FIG004',
+        settings: { patterns: ['linea', 'llena'], falseClaimPenaltyDraws: 0, maxTeams: 6, guestLocale: null },
+      }),
+    );
+
+    await inTenant(tenantId, ownerId, () => games.advancePattern(game.id, 0));
+
+    const list = await inTenant(tenantId, ownerId, () => games.list());
+    const entry = list.find((g) => g.id === game.id);
+    expect(entry?.pattern).toBe('llena');
+  });
 });
