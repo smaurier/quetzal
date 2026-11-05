@@ -9,6 +9,7 @@ import {
   patternProgress,
   patternsDeLaLigne,
   patternCouranteOuNull,
+  estIndexDansLaListe,
 } from './pattern-list.js';
 import { InvalidPatternListError, PatternIndexOutOfRangeError } from './errors.js';
 
@@ -111,6 +112,28 @@ describe('la raison diagnostique', () => {
     expect(() => serializePatternList(['linea', 'linea'] as unknown as PatternKey[])).toThrow(
       /doublon\) en ecriture/,
     );
+  });
+});
+
+describe('estIndexDansLaListe', () => {
+  it('index 0 sur une liste d un, vrai', () => {
+    expect(estIndexDansLaListe(['linea'], 0)).toBe(true);
+  });
+
+  it('index 1 sur une liste de deux, vrai', () => {
+    expect(estIndexDansLaListe(['linea', 'llena'], 1)).toBe(true);
+  });
+
+  it('index egal a la longueur, faux', () => {
+    expect(estIndexDansLaListe(['linea', 'llena'], 2)).toBe(false);
+  });
+
+  it('index negatif, faux', () => {
+    expect(estIndexDansLaListe(['linea'], -1)).toBe(false);
+  });
+
+  it('index non entier, faux', () => {
+    expect(estIndexDansLaListe(['linea', 'llena'], 1.5)).toBe(false);
   });
 });
 
