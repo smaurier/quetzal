@@ -11,7 +11,10 @@ const PROGRESS_2 = /(figure 2 sur 2|pattern 2 of 2|figura 2 de 2)/i;
  * rescanner. La preuve tient en trois temps : un invité rejoint comme dans
  * `loto-guest.e2e.spec.ts`, la première figure (esquinas) est gagnée par une
  * réclamation réelle passée par le serveur, et la seconde figure (linea)
- * s affiche sans que le joinCode ni le statut `running` n aient changé.
+ * s affiche à l écran de l animatrice en direct, le code d entrée inchangé.
+ *
+ * Le statut n est volontairement pas asserti : voir le commentaire en fin de
+ * test. Ce qui prouve la non-recréation est le code d entrée, pas le statut.
  */
 
 async function login(page: Page): Promise<void> {
@@ -96,33 +99,45 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   await page.getByTestId('draw').click();
   await expect(page.getByTestId('pattern-progress')).toHaveText(PROGRESS_1);
 
-  // Tirer jusqu à ce que la progression passe à la seconde figure, en
-  // réclamant à chaque tour comme le ferait un élève qui croit avoir gagné.
-  // Le serveur ignore tout marquage client (décision D1 du domaine, cf.
-  // claim.ts) : seules les cartes réellement tirées comptent, donc réclamer
-  // sans rien marquer sur la tabla est fidèle à ce que le serveur vérifie
-  // vraiment. La boucle ne calcule pas quand `esquinas` est complète : elle
-  // tire et réclame, ce qui ne duplique pas la règle du domaine dans le test.
-  for (let i = 0; i < 54; i++) {
-    const progress = await page.getByTestId('pattern-progress').textContent();
-    if (PROGRESS_2.test(progress ?? '')) break;
-    // La partie peut se terminer entre ce contrôle et le clic, ou pendant le
-    // clic lui-même : le bouton se désactive alors et Playwright réessaierait
-    // longtemps avant d échouer sur un message trompeur. Un délai court et
-    // une sortie propre valent mieux qu un garde préalable.
+  // Tirer par l API et reclamer par l ecran de l eleve, jusqu a ce que le
+  // serveur dise que la figure a change.
+  //
+  // ⚠️ Pourquoi l API pour tirer, alors qu un E2E devrait passer par l ecran.
+  // Mesure du 05/11 : une boucle qui cliquait le bouton de tirage avec un
+  // delai de quatre secondes sortait parfois tot, et le test echouait une fois
+  // sur deux sans que rien ne soit casse. Le tirage n est pas le sujet de ce
+  // test et il est deja couvert par `loto-teacher` et `loto-guest` ; ce qui est
+  // teste ici, c est l enchainement des figures et son arrivee a l ecran. On
+  // rend donc deterministe ce qui n est que decor, et on garde l interface la
+  // ou elle prouve quelque chose : la reclamation de l eleve, et la lecture
+  // finale de la progression.
+  //
+  // Le serveur ignore tout marquage client (decision D1 du domaine, cf.
+  // claim.ts) : seules les cartes reellement tirees comptent, donc reclamer
+  // sans rien marquer sur la tabla est fidele a ce que le serveur verifie.
+  // La boucle ne calcule jamais quand `esquinas` est complete : elle tire,
+  // reclame, et demande au serveur ou il en est.
+  let avance = false;
+  for (let i = 0; i < 54 && !avance; i++) {
+    const tirage = await page.request.post(`/api/modules/loto/games/${game.id}/draw`, { headers: auth });
+    if (!tirage.ok()) break; // paquet epuise
+
     try {
-      await page.getByTestId('draw').click({ timeout: 4000 });
+      await guest.getByTestId('claim').click({ timeout: 3000 });
     } catch {
-      break;
+      // Bloque par une penalite, ou partie finie : rien a faire ce tour.
     }
-    await guest.waitForTimeout(60);
-    try {
-      await guest.getByTestId('claim').click({ timeout: 2000 });
-    } catch {
-      // Bouton bloqué par une pénalité ou partie finie : rien à faire ce tour.
-    }
-    await guest.waitForTimeout(60);
+
+    const vu = await page.request.get(`/api/modules/loto/games/${game.id}`, { headers: auth });
+    const etat = (await vu.json()) as { game: { patternPosition: number } };
+    avance = etat.game.patternPosition === 2;
   }
+
+  expect(avance, 'la premiere figure doit avoir ete gagnee et l index avance').toBe(true);
+
+  // Et la preuve qui compte vraiment : l ecran de l animatrice l a appris en
+  // direct, par la socket, sans rechargement. C est cette assertion qui a
+  // trouve le 05/11 que `pattern-changed` etait emis et ecoute par personne.
 
   await expect(page.getByTestId('pattern-progress')).toHaveText(PROGRESS_2);
 
@@ -132,7 +147,32 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   expect(relu.ok()).toBeTruthy();
   const apres = (await relu.json()) as { game: { joinCode: string; status: string } };
   expect(apres.game.joinCode).toBe(codeInitial);
-  expect(apres.game.status).toBe('running');
+
+  // Le statut n est PAS asserti a `running`, et c est delibere. Mesure du
+  // 05/11 : l eleve gagne souvent la seconde figure dans la foulee, et la
+  // partie se termine alors legitimement. Exiger `running` ici faisait echouer
+  // le test sur un succes. Ce que l issue #30 doit prouver est ailleurs : le
+  // code d entree n a pas change, donc la partie n a pas ete recreee, donc les
+  // telephones n ont rien eu a rescanner. La progression lue plus haut
+  // (figure 2 sur 2) prouve l enchainement lui-meme.
+  expect(['running', 'finished']).toContain(apres.game.status);
+
+  // Terminer la partie avant de rendre la main. Sans ça, ce test laisse une
+  // partie en cours sur le jeu semé, et `requireUnlocked` leve alors
+  // `DeckLockedError` sur toute modification de ce jeu : `loto-teacher`, qui y
+  // ajoute une carte, echouait avec 54 cartes au lieu de 55. Mesure du 05/11.
+  // Les tests ne sont pas isoles (`fullyParallel: false`, une seule base), donc
+  // celui qui laisse de l etat durable casse ses voisins.
+  if (apres.game.status !== 'finished') {
+    const fin = await page.request.post(`/api/modules/loto/games/${game.id}/finish`, { headers: auth });
+    expect(fin.ok(), 'la partie doit se terminer pour ne pas verrouiller le jeu').toBeTruthy();
+  }
+
+  // Le jeu doit etre libre en sortant, sinon le voisin casse. On le verifie
+  // plutot que de l esperer : relire la partie et exiger `finished`.
+  const verif = await page.request.get(`/api/modules/loto/games/${game.id}`, { headers: auth });
+  const final = (await verif.json()) as { game: { status: string } };
+  expect(final.game.status, 'le jeu reste verrouille si la partie court encore').toBe('finished');
 
   await guestContext.close();
 });
