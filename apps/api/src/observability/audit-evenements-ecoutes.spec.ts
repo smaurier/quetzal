@@ -1,6 +1,5 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { join, relative } from 'node:path';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
 /**
@@ -27,7 +26,24 @@ import { describe, it, expect } from 'vitest';
  * Il lit les SOURCES, parce qu un nom écouté sans émetteur compile très bien.
  */
 
-const racineDepot = fileURLToPath(new URL('../../../..', import.meta.url));
+/**
+ * ⚠️ Pas `import.meta.url` ici : `apps/api` compile en CommonJS pour NestJS, et
+ * `tsc` refuse (`TS1343`). Vitest le tolérait, le typecheck non — donc l erreur
+ * n apparaissait qu au typecheck, jamais à l exécution des tests.
+ *
+ * On remonte donc depuis le répertoire courant jusqu au marqueur de la racine,
+ * ce qui ne dépend ni du module système ni de l endroit d où la commande part.
+ */
+function racineDuDepot(): string {
+  let courant = process.cwd();
+  for (let i = 0; i < 8; i += 1) {
+    if (existsSync(join(courant, 'pnpm-workspace.yaml'))) return courant;
+    courant = dirname(courant);
+  }
+  throw new Error('racine du depot introuvable : pnpm-workspace.yaml non trouve en remontant');
+}
+
+const racineDepot = racineDuDepot();
 const ABONNE = 'apps/api/src/observability/audit.subscriber.ts';
 
 /** Les noms dont on SAIT qu ils n ont pas d emetteur, et c est le sujet de #60. */
