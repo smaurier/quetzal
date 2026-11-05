@@ -25,6 +25,8 @@
         "create": "Nouvelle partie",
         "pattern": "Figure gagnante",
         "maxTeams": "Nombre maximum d équipes",
+        "patterns": "Figures à enchaîner",
+        "patternProgress": "Figure {position} sur {total} : {pattern}",
         "forceLocale": "Tous les participants voient la partie dans ma langue",
         "penalty": "Pénalité de fausse réclamation, en tours",
         "open": "Ouvrir la salle",

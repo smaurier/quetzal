@@ -19,6 +19,7 @@ type Props = Readonly<Record<string, string>>;
 
 export default function AnimatorPage(props: Props) {
   const t = useTranslations('module.loto');
+  const tPattern = useTranslations('module.loto.pattern');
   const gameId = props['gameId'];
   const { snapshot, error } = useGameSocket({ gameId: gameId ?? '' });
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
@@ -149,6 +150,16 @@ export default function AnimatorPage(props: Props) {
 
   return (
     <Card className="p-8 space-y-6">
+      {game.patternTotal > 1 && (
+        <p className="text-center text-lg text-muted-foreground" data-testid="pattern-progress">
+          {t('game.patternProgress', {
+            position: game.patternPosition,
+            total: game.patternTotal,
+            pattern: tPattern(game.pattern),
+          })}
+        </p>
+      )}
+
       {lastDraw !== undefined && (
         <div className="text-center" data-testid="last-draw">
           <CardFace label={lastDraw.label} imageId={null} size="xl" />
