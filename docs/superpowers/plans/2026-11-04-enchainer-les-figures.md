@@ -1473,10 +1473,23 @@ Et le corps envoyé porte `patterns` au lieu de `pattern`. Le bouton de créatio
 
 Dans `animator-page.tsx`, afficher la progression à côté de la figure, en lisant l'instantané :
 
+⚠️ **Corrige le 05/11 : ce bloc utilisait `tGame` et `tPattern`, qui n'existent pas dans cet
+ecran.** `animator-page.tsx` n'a qu'un seul traducteur, `const t = useTranslations('module.loto')`,
+et appelle ses cles en `t('game.xxx')`. Il faut donc ajouter le traducteur de figures, sur le modele
+de `decks-page.tsx` qui fait deja exactement ca :
+
+```tsx
+  const tPattern = useTranslations('module.loto.pattern');
+```
+
+Ce motif evite une cle dynamique : l'espace est deja reduit, et `snapshot.game.pattern` est un
+`PatternKey`, donc une union fermee. Ne construis **jamais** la cle par concatenation
+(`t('pattern.' + ...)`), ce serait une chaine libre que le typage ne retient plus.
+
 ```tsx
         {snapshot.game.patternTotal > 1 && (
           <p data-testid="pattern-progress">
-            {tGame('patternProgress', {
+            {t('game.patternProgress', {
               position: snapshot.game.patternPosition,
               total: snapshot.game.patternTotal,
               pattern: tPattern(snapshot.game.pattern),
