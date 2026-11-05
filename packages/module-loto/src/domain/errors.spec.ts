@@ -106,3 +106,49 @@ describe('erreurs d infrastructure', () => {
     expect(err.message).toContain('archive');
   });
 });
+
+/**
+ * CHAQUE ERREUR PORTE SON NOM DE CLASSE, SANS EXCEPTION (issue #33).
+ *
+ * L issue #33 inscrit que le commit `e7581d4` a ecrase son cycle TDD : test et
+ * implementation dans le meme commit, donc aucun rouge n a jamais ete vu. Le
+ * cycle est irrattrapable, mais ce qu il devait garantir se verifie encore.
+ *
+ * Fait le 05/11, par mutation sur les quatre classes de ce commit :
+ * - retirer l heritage de `DomainError`        -> 2 rouges
+ * - retirer le contexte chiffre d un message   -> 1 rouge, pour chacune des
+ *   trois classes essayees
+ * - faire perdre a `TeamBlockedError` son nom de classe -> **AUCUN rouge**
+ *
+ * La derniere est le trou : le nom n etait verifie que pour huit classes sur
+ * dix-sept. Ce test ferme le trou sans liste a maintenir — il ENUMERE les
+ * classes exportees, donc une classe ajoutee demain est couverte d office.
+ *
+ * Ce n est pas cosmetique : `global-exception.filter.ts` distingue les erreurs
+ * par leur nom. Une classe qui perd le sien devient indistinguable d une autre
+ * dans les journaux et dans Sentry. Et les trois erreurs d infrastructure
+ * ci-dessus posent `this.name` A LA MAIN, puisqu elles n heritent pas de
+ * `DomainError` qui le ferait pour elles : ce sont les plus exposees.
+ */
+describe('toutes les erreurs du module', () => {
+  it('portent leur propre nom de classe', async () => {
+    const module = (await import('./errors.js')) as Record<string, unknown>;
+
+    const classes = Object.entries(module).filter(
+      ([, valeur]) => typeof valeur === 'function' && valeur.prototype instanceof Error,
+    );
+
+    expect(classes.length, 'aucune classe trouvee : ce test ne garderait rien').toBeGreaterThan(10);
+
+    const fautives = classes
+      .map(([nom, Classe]) => {
+        // Sans argument : le message contiendra « undefined », ce qui est sans
+        // importance ici. Seul le nom est en cause.
+        const instance = new (Classe as new () => Error)();
+        return instance.name === nom ? null : `${nom} se nomme « ${instance.name} »`;
+      })
+      .filter((x): x is string => x !== null);
+
+    expect(fautives, 'ces classes ne portent pas leur nom').toEqual([]);
+  });
+});
