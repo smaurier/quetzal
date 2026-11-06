@@ -27,7 +27,8 @@
       "system": "System"
     },
     "brand": {
-      "name": "Quetzal"
+      "name": "Quetzal",
+      "position": "Modular platform"
     }
   },
   "nav": {
@@ -47,7 +48,13 @@
       "title": "Sign in",
       "email": "Email",
       "password": "Password",
-      "submit": "Sign in"
+      "submit": "Sign in",
+      "space": "Teacher area",
+      "forgot": "Forgot?"
+    },
+    "brand": {
+      "tagline": "One platform, as many modules as you need.",
+      "pitch": "Lotería, quizzes, spaced review. All your classes, one account."
     }
   },
   "guest": {

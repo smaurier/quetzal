@@ -23,6 +23,10 @@ const PAIRS: readonly (readonly [string, string, number])[] = [
   ['input', 'background', 3],
   ['input', 'card', 3],
   ['ring', 'background', 3],
+  // Le panneau d'identité est constant dans les deux modes, mais son texte doit
+  // passer le seuil comme n'importe quel autre.
+  ['panel-foreground', 'panel', 4.5],
+  ['panel-muted', 'panel', 4.5],
 ];
 
 describe.each([
