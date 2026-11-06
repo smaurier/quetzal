@@ -1,39 +1,28 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
 /**
- * L INVENTAIRE DES ÉVÉNEMENTS ÉCOUTÉS PAR L AUDIT (issue #60).
+ * CE QUI ÉCRIT DANS LE JOURNAL D AUDIT SAIT CE QU IL ÉCRIT (issue #60).
  *
- * `AuditSubscriber` écoute onze noms. Mesuré le 05/11 : **un seul est émis**
- * dans le code applicatif. Les dix autres n ont aucun émetteur, et ce n est pas
- * une implémentation en retard — c est un chemin qui n existe pas :
+ * Avant : `AuditSubscriber` portait une liste de onze noms d événements.
+ * Mesuré le 05/11 — **un seul était émis**, et les dix autres ne pouvaient pas
+ * l être : le bus est in-process (`CLAUDE.md` §6), Better-Auth vit dans le
+ * host, et host et API sont deux processus. Un `emit('user.login')` depuis les
+ * hooks de session n atteignait jamais cet abonné.
  *
- * - le bus est in-process (`CLAUDE.md` §6, EventEmitter2, dette Redis en v2) ;
- * - `betterAuth()` vit dans `packages/auth/src/config.ts`, servi par des Route
- *   Handlers Next (§7 : `/api/auth/*` n est pas réécrit vers Nest) ;
- * - host et API sont deux processus (`next start` et `node dist/main.js`).
+ * Et le seul nom qui marchait était persisté **deux fois** : son contrôleur
+ * écrivait la ligne en direct — avec l adresse IP, que `persistAudit` ne pose
+ * pas — puis émettait l événement, que l abonné persistait à son tour.
  *
- * Donc un `emit('user.login', …)` placé dans les hooks de session n atteindrait
- * jamais cet abonné, qui vit de l autre côté de la frontière.
+ * Après : chaque action est écrite par celui qui en connaît le contexte, du bon
+ * côté de la frontière. Le bus ne sert plus qu aux `audit.security.*`, émis
+ * depuis l API donc atteignables.
  *
- * ⚠️ CE TEST NE CORRIGE RIEN, et c est voulu. La décision — émettre depuis le
- * host en écrivant directement, ou retirer les noms morts — appartient à
- * Sylvain et attend dans l issue #60. Ce que ce test empêche, c est que le
- * contrat reste faux **en silence** : il fige l inventaire d aujourd hui et
- * échoue si quelqu un ajoute un nom sans émetteur, ou en émet un sans le dire.
- *
- * Il lit les SOURCES, parce qu un nom écouté sans émetteur compile très bien.
+ * ⚠️ Ce test lit les SOURCES. Une liste de noms morts compile parfaitement, et
+ * c est précisément ce qui l a laissée mentir pendant des mois.
  */
 
-/**
- * ⚠️ Pas `import.meta.url` ici : `apps/api` compile en CommonJS pour NestJS, et
- * `tsc` refuse (`TS1343`). Vitest le tolérait, le typecheck non — donc l erreur
- * n apparaissait qu au typecheck, jamais à l exécution des tests.
- *
- * On remonte donc depuis le répertoire courant jusqu au marqueur de la racine,
- * ce qui ne dépend ni du module système ni de l endroit d où la commande part.
- */
 function racineDuDepot(): string {
   let courant = process.cwd();
   for (let i = 0; i < 8; i += 1) {
@@ -43,84 +32,65 @@ function racineDuDepot(): string {
   throw new Error('racine du depot introuvable : pnpm-workspace.yaml non trouve en remontant');
 }
 
-const racineDepot = racineDuDepot();
+const racine = racineDuDepot();
 const ABONNE = 'apps/api/src/observability/audit.subscriber.ts';
 
-/** Les noms dont on SAIT qu ils n ont pas d emetteur, et c est le sujet de #60. */
-const SANS_EMETTEUR = [
-  'user.login',
-  'user.logout',
-  'user.signup',
-  'guest.left',
-  'guest.kicked',
-  'session.created',
-  'session.ended',
-  'module.installed',
-  'module.enabled',
-  'module.disabled',
-] as const;
+/** Chaque action auditée, et le SEUL fichier qui a le droit de l écrire. */
+const ECRIVAINS: ReadonlyArray<readonly [action: string, fichier: string]> = [
+  ['user.login', 'packages/auth/src/audit-auth.ts'],
+  ['user.signup', 'packages/auth/src/audit-auth.ts'],
+  ['guest.joined', 'apps/api/src/guest/guest-token.controller.ts'],
+];
 
-/** Les noms reellement emis quelque part dans le code applicatif. */
-const AVEC_EMETTEUR = ['guest.joined'] as const;
-
-function sourcesApplicatives(): string[] {
-  const trouves: string[] = [];
-  const explorer = (dossier: string): void => {
-    for (const entree of readdirSync(dossier)) {
-      if (entree === 'node_modules' || entree === 'dist' || entree === '.next') continue;
-      const chemin = join(dossier, entree);
-      if (statSync(chemin).isDirectory()) {
-        explorer(chemin);
-        continue;
-      }
-      if (!/\.tsx?$/.test(entree)) continue;
-      if (/\.spec\.tsx?$/.test(entree)) continue;
-      const relatif = relative(racineDepot, chemin).split('\\').join('/');
-      if (relatif === ABONNE) continue; // il porte la LISTE, pas une emission
-      trouves.push(chemin);
-    }
-  };
-  for (const racine of ['apps/api/src', 'apps/host/src', 'packages']) {
-    explorer(join(racineDepot, racine));
-  }
-  return trouves;
+function lire(relatif: string): string {
+  return readFileSync(join(racine, relatif), 'utf8');
 }
 
-function emetteursDe(nom: string, sources: string[]): string[] {
-  return sources
-    .filter((chemin) => readFileSync(chemin, 'utf8').includes(`emit('${nom}'`))
-    .map((chemin) => relative(racineDepot, chemin).split('\\').join('/'));
-}
-
-describe('inventaire des evenements ecoutes par l audit', () => {
-  const sources = sourcesApplicatives();
-
-  it('explore bien quelque chose, sinon il ne garde rien', () => {
-    expect(sources.length).toBeGreaterThan(50);
-  });
-
-  it.each(AVEC_EMETTEUR)('%s est emis par le code applicatif', (nom) => {
-    expect(emetteursDe(nom, sources), `${nom} n est plus emis : l audit ne le verra plus`).not.toEqual([]);
-  });
-
-  it.each(SANS_EMETTEUR)('%s n a toujours aucun emetteur (issue #60)', (nom) => {
+describe('ce qui ecrit dans le journal d audit', () => {
+  it.each(ECRIVAINS)('%s est ecrite par %s', (action, fichier) => {
+    // ⚠️ On cherche `action: 'nom'`, la forme du CODE, et non le nom seul.
+    // Premiere version ecrite avec `toContain(action)` : elle restait verte
+    // alors que j avais renomme l action, parce que le nom figurait encore
+    // dans le commentaire du fichier. Deuxieme fois que ce piege se presente
+    // dans ce test — un commentaire n est pas une garantie.
     expect(
-      emetteursDe(nom, sources),
-      `${nom} a maintenant un emetteur. Si c est voulu, retire-le de SANS_EMETTEUR et ` +
-        `verifie qu il est emis du BON cote de la frontiere : un emit depuis le host ` +
-        `n atteindra jamais AuditSubscriber, qui vit dans l autre processus (issue #60).`,
-    ).toEqual([]);
+      lire(fichier),
+      `${fichier} n ecrit plus l action ${action} : elle n est plus auditee`,
+    ).toContain(`action: '${action}'`);
   });
 
-  it('la liste du test couvre exactement celle de l abonne', () => {
-    const source = readFileSync(join(racineDepot, ABONNE), 'utf8');
-    const bloc = source.slice(source.indexOf('AUDIT_EVENTS'), source.indexOf('] as const'));
-    const ecoutes = [...bloc.matchAll(/'([a-z]+\.[a-z.]+)'/g)].map((m) => m[1]).sort();
-    const connus = [...SANS_EMETTEUR, ...AVEC_EMETTEUR].sort();
-
+  it('l abonne ne porte plus de liste de noms a ecouter', () => {
+    // Le garde-fou central : c est cette liste qui a menti pendant des mois, en
+    // declarant une couverture que la frontiere des processus rendait
+    // impossible. Qu elle ne revienne pas.
     expect(
-      ecoutes,
-      'un nom a ete ajoute ou retire de AUDIT_EVENTS sans que cet inventaire suive',
-    ).toEqual(connus);
+      lire(ABONNE),
+      'une liste de noms est revenue dans l abonne. Verifie que chacun est emis depuis l API, ' +
+        'et non depuis le host : le bus est in-process, les deux ne se parlent pas (issue #60).',
+    ).not.toContain('AUDIT_EVENTS');
+  });
+
+  it('l abonne ne persiste que les audit.security, par le joker', () => {
+    const source = lire(ABONNE);
+    expect(source).toContain("startsWith('audit.security.')");
+    // Aucun abonnement a un nom litteral : seul le joker reste.
+    const abonnementsLitteraux = [...source.matchAll(/eventBus\.on\('([a-z][a-z.]*)'/g)]
+      .map((m) => m[1])
+      .filter((nom) => nom !== '*.*');
+    expect(abonnementsLitteraux, 'un abonnement a un nom precis est revenu').toEqual([]);
+  });
+
+  it('guest.joined n est plus ecrite deux fois', () => {
+    // Son controleur ecrit en direct ET emet l evenement. L emission reste
+    // legitime — un futur abonne peut en avoir besoin — mais l abonne d audit
+    // ne doit plus la persister, sinon chaque invite laisse deux lignes.
+    const controleur = lire('apps/api/src/guest/guest-token.controller.ts');
+    expect(controleur).toContain('auditLog.create');
+
+    // ⚠️ On cherche l ABONNEMENT, pas le nom. Premiere version ecrite avec
+    // `.not.toContain('guest.joined')` : elle echouait sur le commentaire de
+    // l abonne, qui raconte justement cette histoire. Un test incapable de
+    // distinguer un commentaire d un appel ne garde pas ce qu il croit.
+    expect(lire(ABONNE)).not.toContain("eventBus.on('guest.joined'");
   });
 });
