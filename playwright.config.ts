@@ -8,8 +8,20 @@ export default defineConfig({
   reporter: [['html', { outputFolder: 'playwright-report' }]],
   use: {
     baseURL: process.env['E2E_HOST_URL'] ?? 'http://localhost:3000',
-    trace: 'on-first-retry',
+
+    // `on-first-retry` etait de la configuration morte : `retries` n est pas
+    // defini, donc il vaut 0, donc il n y a jamais de premiere reprise et
+    // aucune trace n a jamais ete produite. Mesure du 07/11 : deux tests
+    // tombaient par intermittence sur `main` depuis le 05/11 et chaque enquete
+    // repartait de zero, faute du moindre artefact.
+    //
+    // ⛔ Et on ne met PAS `retries` a 1 pour autant. Une reprise automatique
+    // rendrait les deux echecs invisibles au lieu de les rendre lisibles : un
+    // test instable passerait en vert au second essai et la suite mentirait.
+    // Ce qui manquait n est pas une seconde chance, c est une preuve.
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
 
   // Deux projets, et c est une contrainte de Better-Auth qui l impose : il

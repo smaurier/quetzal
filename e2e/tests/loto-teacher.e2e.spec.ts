@@ -83,12 +83,30 @@ test('écrans animatrice du Lotería : liste des jeux et éditeur exposent leurs
   const decksRes = await page.request.get('/api/modules/loto/decks', { headers: auth });
   expect(decksRes.ok()).toBeTruthy();
   const { decks } = (await decksRes.json()) as { decks: DeckSummary[] };
-  const deckSummary = decks.find((candidate) => candidate.cardCount >= 54);
-  expect(deckSummary, 'le seed doit avoir posé la lotería traditionnelle à 54 cartes').toBeDefined();
 
-  const deckRes = await page.request.get(`/api/modules/loto/decks/${deckSummary?.id ?? ''}`, { headers: auth });
-  expect(deckRes.ok()).toBeTruthy();
-  const deck = (await deckRes.json()) as Deck;
+  // `isTemplate` et non `cardCount >= 54` : le compte n identifie rien d unique
+  // des lors que des copies de travail existent, et `find` prendrait la
+  // premiere venue — y compris une copie qu un autre test a laissee derriere
+  // lui, peut-etre verrouillee par une partie en cours. Le gabarit du seed est
+  // le seul jeu dont `isTemplate` soit vrai : `duplicate` le met a `false`.
+  const gabarit = decks.find((candidate) => candidate.isTemplate);
+  expect(gabarit, 'le seed doit avoir posé la lotería traditionnelle comme gabarit').toBeDefined();
+
+  // ⚠️ Ce test AJOUTE une carte, et `addCard` passe par `requireUnlocked`. Les
+  // deux faits en font un danger pour les autres tests s il travaille sur le
+  // gabarit : mesure du 07/11, la base locale portait 58 cartes au lieu de 54,
+  // soit quatre executions qui avaient chacune laisse la leur. Un test qui
+  // modifie une donnee partagee rend l ordre des tests significatif, et la
+  // suite devient instable sans que rien ne soit casse dans le produit.
+  // D ou une copie, que ce test possede et supprime en partant. Dupliquer ne
+  // prend aucun verrou, c est explicitement prevu pour ca.
+  const copieRes = await page.request.post('/api/modules/loto/decks', {
+    headers: auth,
+    data: { name: `e2e animatrice ${Date.now()}`, duplicateOf: gabarit?.id },
+  });
+  expect(copieRes.ok(), 'la copie de travail doit pouvoir être créée').toBeTruthy();
+  const deck = (await copieRes.json()) as Deck;
+  expect(deck.cards.length, 'la copie doit porter les cartes du gabarit').toBeGreaterThanOrEqual(54);
 
   // Deux cartes choisies loin l une de l autre dans l ordre des rangs : rien
   // ne garantit qu elles soient adjacentes, et le point à prouver est que
@@ -154,4 +172,9 @@ test('écrans animatrice du Lotería : liste des jeux et éditeur exposent leurs
   const apres = (await relu.json()) as Deck;
   expect(apres.cards).toHaveLength(avant + 1);
   expect(apres.cards.at(-1)?.rank).toBe(avant + 1);
+
+  // Rendre la base telle qu on l a trouvee. Sans ca, chaque execution laisse
+  // une copie derriere elle et `list()` se remplit de jeux morts.
+  const menage = await page.request.delete(`/api/modules/loto/decks/${deck.id}`, { headers: auth });
+  expect(menage.ok(), 'la copie de travail doit pouvoir être supprimée').toBeTruthy();
 });
