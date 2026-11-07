@@ -134,3 +134,59 @@ describe('JoinGameUseCase', () => {
     ).rejects.toBeInstanceOf(GameNotRunningError);
   });
 });
+
+/**
+ * Issue #32 : le comportement au-delà de trente-cinq joueurs n'était pas mesuré.
+ *
+ * Il l'est maintenant, par `scripts/mesurer-la-charge.mjs`, et le résultat n'est
+ * pas une latence mais un REFUS. Quarante téléphones lancés d'un coup, sur une
+ * pile locale, le 07/11/2026 :
+ *
+ *   ENTRÉE — 6 invités entrés, 34 refusés
+ *     motifs de refus : refus du serveur : TeamIndexCollisionError
+ *
+ * Le serveur n'est pas lent : les six qui entrent le font en 743 ms de médiane,
+ * et la diffusion d'un tirage leur arrive en 43 ms. C'est l'ENTRÉE qui échoue.
+ *
+ * Le plafond de rattrapage valait 5, et son commentaire disait pour quoi il
+ * avait été dimensionné : « trente téléphones ». Or le nombre de concurrents
+ * réels n'est pas le nombre d'élèves — c'est le nombre d'équipes à créer, donc
+ * `maxTeams`. Cinq essais pour vingt créations concurrentes ne peuvent pas
+ * suffire, et une classe de quarante verrait trente-quatre élèves refusés.
+ */
+describe('JoinGameUseCase, une classe entière qui scanne en même temps', () => {
+  it('fait entrer les vingt arrivants d une vague, sans en refuser un seul', async () => {
+    const { games, game, useCase } = await build({ maxTeams: 20 });
+
+    const resultats = await Promise.all(
+      Array.from({ length: 20 }, (_, i) =>
+        useCase.execute({ gameId: game.id, guestId: `g-${i}`, displayName: `Eleve ${i}` }),
+      ),
+    );
+
+    expect(resultats, 'aucun arrivant ne doit etre refuse').toHaveLength(20);
+    expect(await games.teams(game.id), 'vingt equipes, une par arrivant').toHaveLength(20);
+  });
+
+  /**
+   * Le cas de la classe de quarante : vingt équipes au plus, donc vingt
+   * créations concurrentes puis vingt arrivants qui rejoignent l'existant.
+   * C'est la première moitié qui se dispute l'index.
+   */
+  it('fait entrer quarante arrivants sur vingt equipes', async () => {
+    const { games, game, useCase } = await build({ maxTeams: 20 });
+
+    const resultats = await Promise.all(
+      Array.from({ length: 40 }, (_, i) =>
+        useCase.execute({ gameId: game.id, guestId: `g-${i}`, displayName: `Eleve ${i}` }),
+      ),
+    );
+
+    expect(resultats).toHaveLength(40);
+    expect(await games.teams(game.id)).toHaveLength(20);
+    expect(
+      new Set(resultats.map((r) => r.teamId)).size,
+      'les quarante se repartissent sur les vingt equipes',
+    ).toBe(20);
+  });
+});
