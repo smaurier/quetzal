@@ -130,6 +130,21 @@ jobs:
       - run: pnpm --filter quetzal-host start &
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test
+
+      # Sans ceci, un echec e2e ne laisse RIEN : traces, captures et contexte
+      # d erreur restaient sur le disque du runner et disparaissaient avec lui.
+      # Les deux tests instables du 05 au 07/11 ont donc ete diagnostiques par
+      # raisonnement faute de preuves. `if: failure()` : on n archive que
+      # lorsqu il y a quelque chose a regarder.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         if: always()
         with:
