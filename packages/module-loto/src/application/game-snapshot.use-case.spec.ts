@@ -155,3 +155,45 @@ describe('GameSnapshotUseCase', () => {
     expect(snapshot.game.patternTotal).toBe(2);
   });
 });
+
+/**
+ * Issue #29. Ce test garde un trou que le compilateur ne peut PAS garder :
+ * `teamNameFor` prend `chosenName` en parametre OPTIONNEL, donc oublier de le
+ * passer depuis l instantane compile sans broncher — et le nom choisi
+ * n atteindrait jamais l ecran, en silence. C est le seul endroit ou la
+ * verification doit etre un test.
+ */
+describe('GameSnapshotUseCase, le nom choisi d une equipe', () => {
+  it('fait remonter le nom choisi jusqu a l instantane', async () => {
+    const { games, game, useCase } = await build();
+    const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: ['c-1'] });
+    await games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' });
+    await games.renameTeam(team.id, 'Los jaguares');
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.teams[0]?.name).toEqual({ kind: 'custom', label: 'Los jaguares' });
+  });
+
+  it('rend le nom derive quand aucun nom n a ete choisi', async () => {
+    const { games, game, useCase } = await build();
+    const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: ['c-1'] });
+    await games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' });
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.teams[0]?.name).toEqual({ kind: 'member', displayName: 'Ana' });
+  });
+
+  it('retrouve son nom derive quand le nom choisi est effacé', async () => {
+    const { games, game, useCase } = await build();
+    const team = await games.createTeam(game.id, { teamIndex: 0, cardIds: ['c-1'] });
+    await games.addMember({ gameId: game.id, teamId: team.id, guestId: 'g-1', displayName: 'Ana' });
+    await games.renameTeam(team.id, 'Los jaguares');
+    await games.renameTeam(team.id, null);
+
+    const snapshot = await useCase.execute({ gameId: game.id });
+
+    expect(snapshot.teams[0]?.name).toEqual({ kind: 'member', displayName: 'Ana' });
+  });
+});

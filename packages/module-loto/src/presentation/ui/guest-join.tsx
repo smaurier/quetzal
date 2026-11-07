@@ -5,6 +5,7 @@ import type { GuestJoinProps } from '@quetzal/core';
 import { Button, Card, Input, Label } from '@quetzal/ui';
 import { TablaGrid } from './components/tabla-grid.js';
 import { CardFace } from './components/card-face.js';
+import { teamLabel } from './team-label.js';
 import { useGameSocket } from './use-game-socket.js';
 import type { GameSnapshot } from '../../application/game-snapshot.use-case.js';
 
@@ -152,12 +153,7 @@ function outcome(
 
   const winner = snapshot.teams.find((team) => team.id === wonByTeamId);
   if (winner === undefined) return t('game.stopped');
-  return t('game.wonBy', {
-    team:
-      winner.name.kind === 'member'
-        ? winner.name.displayName
-        : t('team.numbered', { number: winner.name.number }),
-  });
+  return t('game.wonBy', { team: teamLabel(winner.name, t) });
 }
 
 /**

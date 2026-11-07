@@ -230,6 +230,7 @@ export class FakeGameRepository implements GameRepository {
     const team: TeamState = {
       id: nextId('team'),
       teamIndex: input.teamIndex,
+      chosenName: null,
       memberDisplayNames: [],
       cardIds: input.cardIds,
       markedCardIds: [],
@@ -250,6 +251,17 @@ export class FakeGameRepository implements GameRepository {
 
   async setMarks(teamId: string, markedCardIds: string[]): Promise<void> {
     this.patchTeam(teamId, { markedCardIds });
+  }
+
+  async renameTeam(teamId: string, name: string | null): Promise<void> {
+    for (const [gameId, teams] of this.teamsByGame) {
+      if (!teams.some((team) => team.id === teamId)) continue;
+      this.teamsByGame.set(
+        gameId,
+        teams.map((team) => (team.id === teamId ? { ...team, chosenName: name } : team)),
+      );
+      return;
+    }
   }
 
   async blockTeam(teamId: string, untilDraw: number): Promise<void> {

@@ -6,6 +6,8 @@ import { apiClient, getCurrentTenantId } from '@quetzal/core/client';
 import { Button, Card } from '@quetzal/ui';
 import { CardFace } from './components/card-face.js';
 import { DrawRibbon } from './components/draw-ribbon.js';
+import type { TeamName } from '../../domain/team-name.js';
+import { teamLabel } from './team-label.js';
 import { useGameSocket } from './use-game-socket.js';
 
 // Le composant de route ne reçoit que les paramètres capturés par le manifeste
@@ -124,7 +126,7 @@ export default function AnimatorPage(props: Props) {
         <ul className="flex flex-wrap gap-3" data-testid="teams">
           {teams.map((team) => (
             <li key={team.id} className="rounded-lg border px-4 py-2 text-xl">
-              {team.name.kind === 'member' ? team.name.displayName : t('team.numbered', { number: team.name.number })}
+              {teamLabel(team.name, t)}
               {team.memberCount > 1 ? ` (${String(team.memberCount)})` : ''}
             </li>
           ))}
@@ -192,11 +194,11 @@ export default function AnimatorPage(props: Props) {
 }
 
 function nameOf(
-  teams: { id: string; name: { kind: 'member'; displayName: string } | { kind: 'numbered'; number: number } }[],
+  teams: readonly { id: string; name: TeamName }[],
   teamId: string,
   t: (key: string, values?: Record<string, string | number>) => string,
 ): string {
   const team = teams.find((candidate) => candidate.id === teamId);
   if (team === undefined) return '';
-  return team.name.kind === 'member' ? team.name.displayName : t('team.numbered', { number: team.name.number });
+  return teamLabel(team.name, t);
 }

@@ -93,6 +93,10 @@ model Loto_Team {
   tenantId         String
   gameId           String
   teamIndex        Int
+  /// Issue #29 : le nom CHOISI par l'animatrice. NULL est le cas normal, pas un
+  /// cas degrade — l'equipe porte alors son nom derive (membre unique, ou
+  /// numero), cf. `teamNameFor`. Jamais une cle de traduction : un texte tape.
+  name             String? @db.VarChar(40)
   cardIds          Json
   markedCardIds    Json
   blockedUntilDraw Int     @default(0)
