@@ -47,6 +47,25 @@ const API_PAR_DEFAUT = 'https://quetzal-api-dsx1.onrender.com';
  *  page d'authentification Vercel et la sonde lirait un faux rouge. */
 const HOST_PAR_DEFAUT = 'https://quetzal-theta.vercel.app';
 
+/** Les deux instances posent la MEME question, et leurs messages diffèrent sur
+ *  un seul point : ce qu'il faut aller regarder quand l'une est en retard. */
+const INSTANCE_API = "l'API Render";
+const INSTANCE_HOST = 'le host Vercel';
+
+const SANTE_API = '/api/health';
+
+/**
+ * ⛔ `/api/host/health`, et SURTOUT PAS `/api/health` sur le host.
+ *
+ * `apps/host/next.config.ts` REECRIT `/api/health` vers l'API Render. Interroger
+ * ce chemin sur le host interroge donc Render une seconde fois, en croyant
+ * mesurer Vercel. Mesure du 07/11 : les deux URL rendaient la meme empreinte,
+ * `a772cc6451f0` — un temoin pose la aurait repondu vert quoi qu il arrive au
+ * host, et c'est aussi pourquoi personne n'avait vu que le host n'en avait pas :
+ * il avait l'air d'en avoir un.
+ */
+const SANTE_HOST = '/api/host/health';
+
 const LONGUEUR_EMPREINTE = 12;
 /** Render free eteint l'instance au repos : le premier appel peut mettre 60 s. */
 const DELAI_MS = 120_000;
@@ -108,7 +127,7 @@ async function verifierLOrigine(host) {
 }
 
 /** LA PROD SERT-ELLE CE QUE DIT `main` ? */
-async function verifierLeCommit(base) {
+async function verifierLeCommit(base, quoi, chemin) {
 
   // `origin/main` et non `HEAD` : ce qui est fusionne est ce qui doit tourner,
   // pas ce que cette machine a sous la main. Un local en retard donnerait un
@@ -117,13 +136,23 @@ async function verifierLeCommit(base) {
   const attendu = git('rev-parse', 'origin/main');
   const sujet = git('log', '-1', '--format=%s', 'origin/main');
 
-  const reponse = await fetch(`${base}/api/health`, {
+  const reponse = await fetch(`${base}${chemin}`, {
     signal: AbortSignal.timeout(DELAI_MS),
   });
   if (!reponse.ok) {
-    console.error(`ROUGE  ${base}/api/health rend HTTP ${reponse.status}`);
-    console.error('       Si c est 404, l instance ne porte pas la PR 43, donc elle est');
-    console.error('       anterieure au 29/10. Si c est 502, le build a echoue.');
+    console.error(`ROUGE  ${base}${chemin} rend HTTP ${reponse.status}`);
+    if (quoi === INSTANCE_API) {
+      console.error('       Si c est 404, l instance ne porte pas la PR 43, donc elle est');
+      console.error('       anterieure au 29/10. Si c est 502, le build a echoue.');
+    } else {
+      // Le cas qu on verra le PLUS souvent, et une seule fois : entre la fusion
+      // de l issue #69 et le deploiement Vercel qui la met en ligne.
+      console.error('       Si c est 404, le deploiement en cours est anterieur a');
+      console.error('       l issue #69 : la route n existe pas encore cote host.');
+      console.error('       Attendre que Vercel ait deploye, puis rejouer. Si c est');
+      console.error('       401, l URL sondee n est pas l ALIAS de production mais');
+      console.error('       une URL de deploiement, protegee par Vercel.');
+    }
     return false;
   }
   const sante = await reponse.json();
@@ -131,19 +160,21 @@ async function verifierLeCommit(base) {
   const attenduCourt = empreinte(attendu);
   const aJour = sante.build === attenduCourt;
 
-  console.log(`instance          : ${base}`);
+  console.log(`instance          : ${base}  (${quoi})`);
   console.log(`origin/main       : ${attendu.slice(0, 7)}  ${sujet}`);
   console.log(`empreinte attendue: ${attenduCourt}`);
   console.log(`empreinte servie  : ${sante.build}`);
 
   if (aJour) {
-    console.log('\nVERT   la prod sert bien origin/main.');
+    console.log(`\nVERT   ${quoi} sert bien origin/main.`);
     return true;
   }
 
   if (sante.build === 'unknown') {
-    console.error('\nROUGE  l instance n expose aucun commit : la variable RENDER_GIT_COMMIT');
-    console.error('       n est pas injectee. C est la variable qu il faut declarer.');
+    const variable = quoi === INSTANCE_API ? 'RENDER_GIT_COMMIT' : 'VERCEL_GIT_COMMIT_SHA';
+    console.error(`\nROUGE  ${quoi} n expose aucun commit : la variable ${variable}`);
+    console.error('       n est pas injectee. C est la variable qu il faut declarer,');
+    console.error('       pas le code qu il faut changer.');
     return false;
   }
 
@@ -161,7 +192,7 @@ async function verifierLeCommit(base) {
     /* un clone peu profond n'a pas de quoi chercher : on reste sur l'empreinte */
   }
 
-  console.error('\nROUGE  la prod est en retard sur origin/main.');
+  console.error(`\nROUGE  ${quoi} est en retard sur origin/main.`);
   if (identifie) {
     const quoi = git('log', '-1', '--format=%h %ci %s', identifie);
     const retard = git('rev-list', '--count', `${identifie}..origin/main`);
@@ -171,10 +202,18 @@ async function verifierLeCommit(base) {
     console.error("       aucun commit connu ne donne cette empreinte : clone incomplet,");
     console.error('       ou instance construite depuis un autre depot.');
   }
-  console.error('\n       ⚠️ Le schema n est migre QUE par le build Render. Une API en');
-  console.error('       retard veut donc dire un schema en retard, pendant que le host');
-  console.error('       Vercel, lui, est deja a jour. Verifier le log du dernier');
-  console.error('       deploiement de `quetzal-api` avant toute autre hypothese.');
+  if (quoi === INSTANCE_API) {
+    console.error('\n       ⚠️ Le schema n est migre QUE par le build Render. Une API en');
+    console.error('       retard veut donc dire un schema en retard, pendant que le host');
+    console.error('       Vercel, lui, est deja a jour. Verifier le log du dernier');
+    console.error('       deploiement de `quetzal-api` avant toute autre hypothese.');
+  } else {
+    console.error('\n       ⚠️ Un host en retard sert l ANCIEN code. Verifier dans Vercel');
+    console.error('       que le deploiement de production est READY et que l alias');
+    console.error('       pointe dessus : un deploiement encore en BUILDING laisse le');
+    console.error('       precedent en place, et une sonde lancee a cet instant juge');
+    console.error('       le mauvais bundle. C est arrive le 07/11.');
+  }
   return false;
 }
 
@@ -187,11 +226,35 @@ async function main() {
   const api = (process.argv[2] ?? API_PAR_DEFAUT).replace(/\/$/, '');
   const host = (process.argv[3] ?? HOST_PAR_DEFAUT).replace(/\/$/, '');
 
-  const commitAJour = await verifierLeCommit(api);
-  console.log(`\n${'-'.repeat(68)}\n`);
+  const trait = () => console.log(`\n${'-'.repeat(68)}\n`);
+
+  // L API d abord, parce qu elle seule migre le schema : si elle est en retard,
+  // tout le reste se lit a la lumiere de ca.
+  const apiAJour = await verifierLeCommit(api, INSTANCE_API, SANTE_API);
+  trait();
+
+  // Issue #69 : le host avait droit a la meme question, et ne l avait pas. Le
+  // script n interrogeait que Render, alors que #64 vivait dans le host — et il
+  // repondait « la prod sert bien origin/main » pendant que personne ne pouvait
+  // se connecter. Il a fallu, le 07/11, sortir du depot et interroger l API de
+  // Vercel avec un jeton pour savoir quel commit l alias servait.
+  const hostAJour = await verifierLeCommit(host, INSTANCE_HOST, SANTE_HOST);
+  trait();
   const origineAcceptee = await verifierLOrigine(host);
 
-  if (!commitAJour || !origineAcceptee) process.exit(1);
+  /**
+   * `process.exitCode` et NON `process.exit(1)`. Mesure du 07/11/2026 : sur
+   * Node 23 / Windows, sortir en force avec des descripteurs encore ouverts
+   * fait echouer une assertion de libuv
+   * (`!(handle->flags & UV_HANDLE_CLOSING)`, async.c) et le processus rend
+   * **127**, pas 1 — alors que l en-tete de ce fichier promet 1.
+   *
+   * Defaut PREEXISTANT, pas introduit ici : la version d avant rendait 127
+   * aussi. Non-zero, donc un cron voyait bien l echec, mais 127 veut dire
+   * « commande introuvable » et enverrait n importe qui chercher au mauvais
+   * endroit. Laisser Node sortir seul rend le code annonce.
+   */
+  if (!apiAJour || !hostAJour || !origineAcceptee) process.exitCode = 1;
 }
 
 await main();

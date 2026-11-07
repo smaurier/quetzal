@@ -8,6 +8,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./errors": "./dist/errors.js",
+    "./empreinte-du-build": "./dist/empreinte-du-build.js",
     "./events/*": "./dist/events/*.js",
     "./schemas/*": "./dist/schemas/*.js",
     "./testing/*": "./dist/testing/*.js",
