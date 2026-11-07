@@ -85,7 +85,27 @@ test('une partie entière, de la création à la victoire d un invité', async (
   await page.getByTestId('draw').click();
   await expect(guest.getByTestId('claim')).toBeEnabled();
   await guest.getByTestId('claim').click();
-  await expect(guest.getByRole('alert')).toBeVisible();
+
+  /**
+   * ⛔ `getByTestId('claim-rejected')` et NON `getByRole('alert')`, et ce n est
+   * pas un detail de style : cette assertion passait POUR LA MAUVAISE RAISON.
+   *
+   * Next rend en permanence son annonceur de route, un
+   * `<div role="alert" aria-live="assertive" id="__next-route-announcer__">`
+   * vide, de 1x1 px et visuellement masque — mais bien dans l arbre
+   * d accessibilite, donc `getByRole('alert')` le trouve, et `toBeVisible()`
+   * l accepte puisque sa boite n est pas nulle.
+   *
+   * Consequence, mesuree le 07/11 : quand le message de refus N apparaissait
+   * PAS, le role ne trouvait qu un element — l annonceur — et le test passait
+   * VERT en ne prouvant rien. Quand il apparaissait, le role en trouvait deux
+   * et le mode strict faisait echouer le test. Autrement dit, cette assertion
+   * rougissait exactement quand le produit marchait.
+   *
+   * Un identifiant de test ne vise que le message, et il ne peut pas etre
+   * satisfait par autre chose.
+   */
+  await expect(guest.getByTestId('claim-rejected')).toBeVisible();
 
   // Puis tirer jusqu à la victoire. La boucle réclame à chaque tour plutôt que
   // de calculer quand la figure est complète : le test ne doit pas

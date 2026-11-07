@@ -126,7 +126,16 @@ function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: strin
       </Button>
 
       {blocked && <p role="status">{t('player.blocked', { draw: tabla.blockedUntilDraw })}</p>}
-      {rejected && !blocked && <p role="alert">{t('player.rejected')}</p>}
+      {/* `data-testid` et pas seulement `role="alert"` : apres que l eleve a
+          rejoint, Next ajoute son annonceur de route — un `<div role="alert">`
+          vide, de 1x1 px — et `getByRole('alert')` en trouve alors DEUX sur
+          cette page. Voir le commentaire de `loto-guest.e2e.spec.ts` : un test
+          qui visait le role passait quand ce message n apparaissait PAS. */}
+      {rejected && !blocked && (
+        <p role="alert" data-testid="claim-rejected">
+          {t('player.rejected')}
+        </p>
+      )}
       {game.status === 'finished' && (
         <p role="status" data-testid="finished">
           {outcome(snapshot, tabla.teamId, t)}
