@@ -11,7 +11,8 @@
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
     "clean": "turbo run clean && rimraf node_modules",
-    "verifier:prod": "node scripts/verifier-la-prod.mjs"
+    "verifier:prod": "node scripts/verifier-la-prod.mjs",
+    "mesurer:charge": "node scripts/mesurer-la-charge.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
