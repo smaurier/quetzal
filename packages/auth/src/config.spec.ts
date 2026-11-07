@@ -16,7 +16,20 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
  * construire la config ne touche aucune base. On lit `auth.options` et non
  * `auth.$context`, qui lui initialiserait l adaptateur.
  */
-describe('config auth', () => {
+/**
+ * ⚠️ Le délai n'est pas un pansement sur une course : chaque cas réimporte
+ * `./config.js` pour relire `process.env`, et cet import CONSTRUIT la vraie
+ * instance Better-Auth — adaptateur Prisma, greffon d'organisation, greffon JWT
+ * avec sa configuration de paire RS256. Mesuré le 07/11 : 3,8 s au premier
+ * import, et quatre imports par fichier.
+ *
+ * Le défaut de Vitest est de 5 s, donc ce fichier vivait sur le fil. Il est
+ * tombé le 07/11 dans un `pnpm test` complet, où les paquets tournent en
+ * parallèle — « Test timed out in 5000ms » — après être passé trois fois en CI
+ * par chance. Un test dont le SUJET coûte quatre secondes à construire n'a rien
+ * à faire sous un plafond de cinq.
+ */
+describe('config auth', { timeout: 30_000 }, () => {
   const PROD = 'quetzal-theta.vercel.app';
   const APERCU = 'quetzal-abc123-smauriers-projects.vercel.app';
 
