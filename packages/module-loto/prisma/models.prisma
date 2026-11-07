@@ -48,10 +48,10 @@ model Loto_Game {
   status                 String   @db.VarChar(16) @default("draft")
   /// Obsolete. Conservee le temps d'un deploiement : l'ancienne instance la
   /// lit encore pendant que la base est deja migree. Retiree a l'issue #52.
-  pattern                String   @db.VarChar(16)
-  /// Nullable le temps d'un deploiement : l'ancienne instance cree des
-  /// parties sans la connaitre. Passe NOT NULL a l'issue #52.
-  patterns               String?  @db.VarChar(64)
+  /// La liste ordonnee des figures, serialisee en CSV (cf. `pattern-list.ts`).
+  /// NOT NULL depuis l'issue #52 : la colonne `pattern` d'origine, et le repli
+  /// de lecture qui allait avec, sont partis au second temps de la bascule.
+  patterns               String   @db.VarChar(64)
   patternIndex           Int      @default(0)
   falseClaimPenaltyDraws Int      @default(0)
   maxTeams               Int      @default(6)

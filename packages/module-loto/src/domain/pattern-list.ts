@@ -55,29 +55,20 @@ export function patternAt(list: readonly PatternKey[], index: number): PatternKe
 }
 
 /**
- * Lit la liste d une ligne de partie pendant la bascule expand / contract
- * (issue #52). `patterns` vaut NULL sur une ligne ecrite par l ancien code,
- * qui ne connaissait que la figure unique : on replie dessus.
- */
-export function patternsDeLaLigne(patterns: string | null, pattern: string): readonly PatternKey[] {
-  return parsePatternList(patterns ?? pattern);
-}
-
-/**
  * La figure en cours d une ligne de partie, ou `null` si la ligne est
  * inexploitable. Sert `list()`, qui saute une ligne corrompue plutot que
  * de faire echouer tout le tableau de bord ; `toState` leve, lui, parce
  * qu il ne rend qu une partie et que l appelant doit le savoir. C est le
  * seul endroit du module ou rattraper InvalidPatternListError et
  * PatternIndexOutOfRangeError est legitime.
+ *
+ * Issue #52 : plus de repli sur `Loto_Game.pattern`. La colonne est partie,
+ * et avec elle la seule raison pour laquelle cette fonction prenait deux
+ * colonnes au lieu d une.
  */
-export function patternCouranteOuNull(
-  patterns: string | null,
-  pattern: string,
-  index: number,
-): PatternKey | null {
+export function patternCouranteOuNull(patterns: string, index: number): PatternKey | null {
   try {
-    return patternAt(patternsDeLaLigne(patterns, pattern), index);
+    return patternAt(parsePatternList(patterns), index);
   } catch (err) {
     if (err instanceof InvalidPatternListError || err instanceof PatternIndexOutOfRangeError) return null;
     throw err;
