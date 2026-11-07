@@ -111,6 +111,11 @@ export class GameSnapshotUseCase {
         name: teamNameFor({
           memberDisplayNames: team.memberDisplayNames,
           teamIndex: team.teamIndex,
+          // Issue #29. `chosenName` est optionnel chez `teamNameFor`, donc
+          // l oublier ici compilerait et le nom choisi n atteindrait jamais
+          // l ecran. Un test de ce fichier garde ce passage, faute de
+          // compilateur pour le faire.
+          chosenName: team.chosenName,
         }),
         memberCount: team.memberDisplayNames.length,
         blockedUntilDraw: team.blockedUntilDraw,

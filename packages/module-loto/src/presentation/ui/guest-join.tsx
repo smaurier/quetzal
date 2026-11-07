@@ -5,6 +5,7 @@ import type { GuestJoinProps } from '@quetzal/core';
 import { Button, Card, Input, Label } from '@quetzal/ui';
 import { TablaGrid } from './components/tabla-grid.js';
 import { CardFace } from './components/card-face.js';
+import { teamLabel } from './team-label.js';
 import { useGameSocket } from './use-game-socket.js';
 import type { GameSnapshot } from '../../application/game-snapshot.use-case.js';
 
@@ -125,7 +126,16 @@ function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: strin
       </Button>
 
       {blocked && <p role="status">{t('player.blocked', { draw: tabla.blockedUntilDraw })}</p>}
-      {rejected && !blocked && <p role="alert">{t('player.rejected')}</p>}
+      {/* `data-testid` et pas seulement `role="alert"` : apres que l eleve a
+          rejoint, Next ajoute son annonceur de route — un `<div role="alert">`
+          vide, de 1x1 px — et `getByRole('alert')` en trouve alors DEUX sur
+          cette page. Voir le commentaire de `loto-guest.e2e.spec.ts` : un test
+          qui visait le role passait quand ce message n apparaissait PAS. */}
+      {rejected && !blocked && (
+        <p role="alert" data-testid="claim-rejected">
+          {t('player.rejected')}
+        </p>
+      )}
       {game.status === 'finished' && (
         <p role="status" data-testid="finished">
           {outcome(snapshot, tabla.teamId, t)}
@@ -152,12 +162,7 @@ function outcome(
 
   const winner = snapshot.teams.find((team) => team.id === wonByTeamId);
   if (winner === undefined) return t('game.stopped');
-  return t('game.wonBy', {
-    team:
-      winner.name.kind === 'member'
-        ? winner.name.displayName
-        : t('team.numbered', { number: winner.name.number }),
-  });
+  return t('game.wonBy', { team: teamLabel(winner.name, t) });
 }
 
 /**

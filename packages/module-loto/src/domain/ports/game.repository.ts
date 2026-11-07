@@ -36,13 +36,23 @@ export interface GameState {
 export interface TeamState {
   id: string;
   /**
-   * Rang de création, à partir de zéro. Le nom de l équipe n est pas stocké :
-   * il se dérive de teamIndex et des membres via `teamNameFor` (spec 6.1). Une
-   * équipe d un porte le nom de son membre, au-delà elle porte son numéro — en
-   * stockant le nom, ce passage de un à deux membres deviendrait une transition
-   * à gérer, et un libellé traduit finirait en base.
+   * Rang de création, à partir de zéro. Il sert le nom DÉRIVÉ de l équipe, via
+   * `teamNameFor` (spec 6.1) : une équipe d un porte le nom de son membre,
+   * au-delà elle porte son numéro.
    */
   teamIndex: number;
+  /**
+   * Le nom CHOISI par l animatrice, ou `null` — issue #29.
+   *
+   * `null` est le cas normal et non un cas dégradé : l équipe porte alors son
+   * nom dérivé, exactement comme avant que cette colonne existe. Les deux
+   * raisons qui avaient fait refuser un nom stocké tiennent toujours, et c est
+   * pour ça qu il s ajoute au dérivé au lieu de le remplacer — un nom choisi ne
+   * bouge pas avec la composition de l équipe, donc le passage de un à deux
+   * membres reste sans transition à gérer ; et ce n est pas un libellé traduit
+   * mais un texte tapé, ce que `TeamName.kind === 'custom'` dit à l écran.
+   */
+  chosenName: string | null;
   memberDisplayNames: readonly string[];
   cardIds: readonly string[];
   /**
@@ -93,6 +103,11 @@ export interface GameRepository {
   createTeam(gameId: string, input: { teamIndex: number; cardIds: readonly string[] }): Promise<TeamState>;
   setMarks(teamId: string, markedCardIds: readonly string[]): Promise<void>;
   blockTeam(teamId: string, untilDraw: number): Promise<void>;
+  /**
+   * Issue #29. `null` efface le nom choisi et rend l équipe à son nom dérivé :
+   * c est ainsi qu on annule un renommage, sans second geste à prévoir.
+   */
+  renameTeam(teamId: string, name: string | null): Promise<void>;
 
   findMember(gameId: string, guestId: string): Promise<{ teamId: string } | null>;
   addMember(input: { gameId: string; teamId: string; guestId: string; displayName: string }): Promise<void>;

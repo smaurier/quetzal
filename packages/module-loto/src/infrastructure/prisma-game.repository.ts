@@ -86,6 +86,7 @@ export class PrismaGameRepository implements GameRepository {
     return {
       id: row.id,
       teamIndex: row.teamIndex,
+      chosenName: row.name,
       memberDisplayNames,
       cardIds: toStringArray(row.cardIds),
       markedCardIds: toStringArray(row.markedCardIds),
@@ -224,6 +225,16 @@ export class PrismaGameRepository implements GameRepository {
 
   async setMarks(teamId: string, markedCardIds: string[]): Promise<void> {
     await this.prisma.loto_Team.updateMany({ where: { id: teamId }, data: { markedCardIds } });
+  }
+
+  /**
+   * Issue #29. `updateMany` et non `update` : `Loto_Team` a une cle composite
+   * `@@id([id, tenantId])`, et l extension de cloisonnement fusionne `tenantId`
+   * a plat dans les variantes *Many — meme raison que partout ailleurs dans ce
+   * fichier.
+   */
+  async renameTeam(teamId: string, name: string | null): Promise<void> {
+    await this.prisma.loto_Team.updateMany({ where: { id: teamId }, data: { name } });
   }
 
   async blockTeam(teamId: string, untilDraw: number): Promise<void> {

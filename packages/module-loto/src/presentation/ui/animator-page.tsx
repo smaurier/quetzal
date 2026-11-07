@@ -6,6 +6,8 @@ import { apiClient, getCurrentTenantId } from '@quetzal/core/client';
 import { Button, Card } from '@quetzal/ui';
 import { CardFace } from './components/card-face.js';
 import { DrawRibbon } from './components/draw-ribbon.js';
+import type { TeamName } from '../../domain/team-name.js';
+import { teamLabel } from './team-label.js';
 import { useGameSocket } from './use-game-socket.js';
 
 // Le composant de route ne reçoit que les paramètres capturés par le manifeste
@@ -78,6 +80,20 @@ export default function AnimatorPage(props: Props) {
     await apiClient().apiFetch(`/api/modules/loto/games/${gameId}/${path}`, { method: 'POST' });
   }
 
+  /**
+   * Issue #29. `null` efface le nom choisi et rend l équipe à son nom dérivé :
+   * c est le même geste que renommer, avec une valeur de moins. L écran ne
+   * remet pas l instantané à jour lui-même — la socket renvoie `team-renamed`
+   * et c est elle qui fait foi, comme pour tout le reste de cet écran.
+   */
+  async function renommer(teamId: string, name: string | null): Promise<void> {
+    await apiClient().apiFetch(`/api/modules/loto/games/${gameId}/teams/${teamId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+  }
+
   if (game.status === 'draft' || game.status === 'open') {
     return (
       <Card className="p-8 space-y-8">
@@ -124,8 +140,13 @@ export default function AnimatorPage(props: Props) {
         <ul className="flex flex-wrap gap-3" data-testid="teams">
           {teams.map((team) => (
             <li key={team.id} className="rounded-lg border px-4 py-2 text-xl">
-              {team.name.kind === 'member' ? team.name.displayName : t('team.numbered', { number: team.name.number })}
-              {team.memberCount > 1 ? ` (${String(team.memberCount)})` : ''}
+              <TeamNameField
+                label={teamLabel(team.name, t)}
+                chosen={team.name.kind === 'custom' ? team.name.label : ''}
+                memberCount={team.memberCount}
+                onRename={(name) => void renommer(team.id, name)}
+                t={t}
+              />
             </li>
           ))}
         </ul>
@@ -192,11 +213,96 @@ export default function AnimatorPage(props: Props) {
 }
 
 function nameOf(
-  teams: { id: string; name: { kind: 'member'; displayName: string } | { kind: 'numbered'; number: number } }[],
+  teams: readonly { id: string; name: TeamName }[],
   teamId: string,
   t: (key: string, values?: Record<string, string | number>) => string,
 ): string {
   const team = teams.find((candidate) => candidate.id === teamId);
   if (team === undefined) return '';
-  return team.name.kind === 'member' ? team.name.displayName : t('team.numbered', { number: team.name.number });
+  return teamLabel(team.name, t);
+}
+
+/**
+ * Le champ de renommage d'une équipe (issue #29).
+ *
+ * Le libellé reste affiché tant qu'on n'édite pas : cet écran est projeté au
+ * tableau, et une rangée de champs de saisie permanents y serait illisible. Le
+ * bouton porte le nom de l'équipe dans son libellé accessible — `team.rename`
+ * attend `{name}` — parce que « Renommer » répété six fois ne dit à un lecteur
+ * d'écran laquelle il renomme.
+ */
+function TeamNameField(props: {
+  label: string;
+  chosen: string;
+  memberCount: number;
+  onRename: (name: string | null) => void;
+  t: (key: string, values?: Record<string, string | number>) => string;
+}) {
+  const { label, chosen, memberCount, onRename, t } = props;
+  const [edition, setEdition] = useState(false);
+  const [valeur, setValeur] = useState(chosen);
+
+  if (!edition) {
+    return (
+      <span className="flex items-center gap-2">
+        <span>
+          {label}
+          {memberCount > 1 ? ` (${String(memberCount)})` : ''}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={t('team.rename', { name: label })}
+          onClick={() => {
+            setValeur(chosen);
+            setEdition(true);
+          }}
+        >
+          {t('team.renameAction')}
+        </Button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-2">
+      <input
+        className="rounded border px-2 py-1 text-lg"
+        aria-label={t('team.renamePlaceholder')}
+        value={valeur}
+        maxLength={40}
+        onChange={(event) => setValeur(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            onRename(valeur);
+            setEdition(false);
+          }
+          if (event.key === 'Escape') setEdition(false);
+        }}
+      />
+      <Button
+        size="sm"
+        onClick={() => {
+          onRename(valeur);
+          setEdition(false);
+        }}
+      >
+        {t('team.renameSave')}
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          // `null` et non la chaîne vide : c est la valeur que la route attend
+          // pour effacer, et le domaine traiterait de toute façon un nom blanc
+          // comme une absence. Dire `null` explicitement garde les deux
+          // couches d accord.
+          onRename(null);
+          setEdition(false);
+        }}
+      >
+        {t('team.renameClear')}
+      </Button>
+    </span>
+  );
 }

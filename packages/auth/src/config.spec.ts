@@ -49,37 +49,50 @@ describe('config auth', { timeout: 30_000 }, () => {
     return auth.options;
   }
 
-  it('fait confiance au domaine de production malgre un HOST_URL faux', async () => {
+  /**
+   * DEUX imports, et non quatre.
+   *
+   * Chaque cas appelle `vi.resetModules()` puis réimporte `./config.js`, ce qui
+   * vide le registre et refait payer TOUTE la chaîne. Mesuré le 07/11, et ce
+   * n est pas là où on l attend : `import 'better-auth'` coûte **3,5 s** et ses
+   * greffons **1,4 s**, contre 0,45 s pour `@quetzal/db` — le gros du temps est
+   * le chargement de la bibliothèque sous la transformation de Vitest, pas la
+   * construction de la config.
+   *
+   * Quatre cas faisaient donc quatre fois cinq secondes : ce fichier passait
+   * seul et dépassait **30 s** dans un `pnpm test` complet, où les paquets
+   * tournent en parallèle. Le plafond était déjà passé de 5 à 30 s ; le relever
+   * une seconde fois serait traiter le symptôme deux fois. Le seul vrai levier
+   * est le NOMBRE d imports.
+   *
+   * D où UN seul, et c est suffisant parce que la question posée ici est
+   * BINAIRE : `config.ts` passe-t-il `process.env` à la dérivation, oui ou non.
+   * Un environnement de production y répond pour `baseURL` et pour
+   * `trustedOrigins` à la fois. Le repli sur `HOST_URL` hors de Vercel emprunte
+   * exactement le même chemin de code, et ses cas sont épinglés par
+   * `origines-de-confiance.spec.ts`, pur et instantané — un second import ne
+   * prouverait rien de plus et coûterait cinq secondes de contention.
+   *
+   * Ce que ce fichier doit prouver est le BRANCHEMENT — que `config.ts`
+   * consomme bien la dérivation — et un seul environnement de production le
+   * prouve pour `baseURL` ET `trustedOrigins` à la fois. La matrice des cas
+   * (aperçu, branche, hôte nu, doublon, joker) vit dans
+   * `origines-de-confiance.spec.ts`, qui est pur et instantané : c est là
+   * qu elle coûte le moins et qu elle se lit le mieux.
+   */
+  it('derive baseURL ET les origines de confiance, malgre un HOST_URL faux', async () => {
     const options = await optionsAvec({
       VERCEL_ENV: 'production',
       VERCEL_URL: APERCU,
       VERCEL_PROJECT_PRODUCTION_URL: PROD,
     });
+
+    expect(options.baseURL, 'le domaine de production, pas celui du deploiement').toBe(
+      `https://${PROD}`,
+    );
     expect(options.trustedOrigins).toContain(`https://${PROD}`);
-  });
-
-  it('fait confiance a l apercu qui sert la requete', async () => {
-    const options = await optionsAvec({
-      VERCEL_ENV: 'preview',
-      VERCEL_URL: APERCU,
-      VERCEL_PROJECT_PRODUCTION_URL: PROD,
-    });
-    expect(options.trustedOrigins).toContain(`https://${APERCU}`);
-  });
-
-  it('prend le domaine de production comme baseURL en production', async () => {
-    const options = await optionsAvec({
-      VERCEL_ENV: 'production',
-      VERCEL_URL: APERCU,
-      VERCEL_PROJECT_PRODUCTION_URL: PROD,
-    });
-    expect(options.baseURL).toBe(`https://${PROD}`);
-  });
-
-  it('garde HOST_URL hors de Vercel, ou il est la seule source', async () => {
-    vi.stubEnv('HOST_URL', 'http://localhost:3010');
-    const options = await optionsAvec({});
-    expect(options.baseURL).toBe('http://localhost:3010');
-    expect(options.trustedOrigins).toContain('http://localhost:3010');
+    expect(options.trustedOrigins, 'l apercu qui sert la requete reste accepte').toContain(
+      `https://${APERCU}`,
+    );
   });
 });

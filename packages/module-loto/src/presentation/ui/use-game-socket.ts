@@ -66,6 +66,19 @@ export function useGameSocket(options: { gameId: string; guestToken?: string }):
               },
         ),
       );
+      // Issue #29. En PLACE, contrairement a `team-joined` juste au-dessus :
+      // celui-ci filtre puis rajoute en fin de liste, ce qui deplacerait
+      // l equipe renommee sous les yeux de la classe.
+      socket.on('team-renamed', (team: GameSnapshot['teams'][number]) =>
+        setSnapshot((current) =>
+          current === null
+            ? current
+            : {
+                ...current,
+                teams: current.teams.map((t) => (t.id === team.id ? team : t)),
+              },
+        ),
+      );
       socket.on('mark-changed', (payload: { cardId: string; marked: boolean }) =>
         setSnapshot((current) => {
           if (current === null || current.tabla === null) return current;

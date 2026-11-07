@@ -33,6 +33,10 @@ export const manifest: QuetzalModuleManifest = {
     'http:POST /api/modules/loto/games/:id/open': ['owner', 'creator'],
     'http:POST /api/modules/loto/games/:id/draw': ['owner', 'creator'],
     'http:POST /api/modules/loto/games/:id/finish': ['owner', 'creator'],
+    // Issue #29 : nommer une equipe est un geste d animatrice, jamais d eleve.
+    // Un invite qui pourrait renommer l equipe d en face aurait trouve un jeu
+    // dans le jeu, et l ecran est projete devant la classe.
+    'http:PATCH /api/modules/loto/games/:id/teams/:teamId': ['owner', 'creator'],
     'http:POST /api/modules/loto/decks/:id/cards/:rank/image': ['owner', 'creator'],
     'http:GET /api/modules/loto/images/:hash': ['owner', 'creator', 'learner', 'guest'],
     'ws:mark': ['guest', 'learner'],

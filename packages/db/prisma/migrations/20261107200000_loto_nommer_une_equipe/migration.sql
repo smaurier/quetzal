@@ -1,0 +1,12 @@
+-- Issue #29 : l'animatrice peut nommer une equipe.
+--
+-- Nullable, et c'est le point : l'absence de nom n'est pas un cas degrade mais
+-- le cas NORMAL. Une equipe sans nom choisi porte son nom derive — celui de son
+-- membre unique, ou son numero — exactement comme avant cette colonne. Aucun
+-- remplissage n'est donc necessaire, et aucune ligne existante ne change de
+-- comportement.
+--
+-- 40 caracteres : c'est un nom d'equipe lu de loin sur un videoprojecteur, pas
+-- un champ libre. La borne vit aussi dans le schema Zod de la route, qui refuse
+-- avant d'atteindre la base ; celle-ci est le dernier rempart.
+ALTER TABLE "Loto_Team" ADD COLUMN "name" VARCHAR(40);

@@ -55,6 +55,20 @@ export class LotoBroadcaster {
     this.emit(this.room(gameId), 'team-joined', team);
   }
 
+  /**
+   * Issue #29. Un evenement DISTINCT de `team-joined`, et pas par gout de la
+   * symetrie : le client traite `team-joined` par un filtre puis un ajout en
+   * fin de liste, ce qui deplace l equipe. Acceptable a l arrivee d une equipe,
+   * pas a un renommage — la liste projetee au tableau se reorganiserait sous
+   * les yeux de la classe.
+   */
+  async teamRenamed(gameId: string, teamId: string): Promise<void> {
+    const snapshot = await this.snapshot.execute({ gameId });
+    const team = snapshot.teams.find((candidate) => candidate.id === teamId);
+    if (team === undefined) return;
+    this.emit(this.room(gameId), 'team-renamed', team);
+  }
+
   async cardDrawn(gameId: string, order: number, card: DeckCard): Promise<void> {
     this.emit(this.room(gameId), 'card-drawn', {
       order,
