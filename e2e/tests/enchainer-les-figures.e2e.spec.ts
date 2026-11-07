@@ -138,7 +138,13 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
     `/api/modules/loto/games/${game.id}/draw`,
     { headers: auth },
   );
-  expect(premierTirage.ok(), 'le premier tirage doit passer').toBeTruthy();
+  // Le corps dans le message, pas seulement `ok()` : un `toBeTruthy` nu dit
+  // « Received: false » et laisse chercher. Mesure du 07/11 : c est exactement
+  // ce qui est arrive, et il a fallu une execution de plus pour savoir quoi.
+  expect(
+    premierTirage.ok(),
+    `le premier tirage doit passer — HTTP ${premierTirage.status()} ${await premierTirage.text()}`,
+  ).toBeTruthy();
   const progression = page.getByTestId('pattern-progress');
   await expect(progression).toHaveText(PROGRESS_1);
 
@@ -289,7 +295,10 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   // celui qui laisse de l etat durable casse ses voisins.
   if (apres.game.status !== 'finished') {
     const fin = await page.request.post(`/api/modules/loto/games/${game.id}/finish`, { headers: auth });
-    expect(fin.ok(), 'la partie doit se terminer pour ne pas verrouiller le jeu').toBeTruthy();
+    expect(
+      fin.ok(),
+      `la partie doit se terminer pour ne pas verrouiller le jeu — HTTP ${fin.status()} ${await fin.text()}`,
+    ).toBeTruthy();
   }
 
   // Le jeu doit etre libre en sortant, sinon le voisin casse. On le verifie
