@@ -7,7 +7,6 @@ import {
   patternAt,
   isLastPattern,
   patternProgress,
-  patternsDeLaLigne,
   patternCouranteOuNull,
   estIndexDansLaListe,
 } from './pattern-list.js';
@@ -170,43 +169,42 @@ describe('isLastPattern', () => {
   });
 });
 
-describe('patternsDeLaLigne', () => {
-  it('lit la liste quand la colonne est remplie', () => {
-    expect(patternsDeLaLigne('linea,llena', 'linea')).toEqual(['linea', 'llena']);
-  });
-
-  it('replie sur la figure unique quand la liste est NULL', () => {
-    // Une partie creee par l ancienne instance pendant la bascule.
-    expect(patternsDeLaLigne(null, 'llena')).toEqual(['llena']);
-  });
-
-  it('leve si les deux colonnes sont inexploitables', () => {
-    expect(() => patternsDeLaLigne(null, 'inexistante')).toThrow(InvalidPatternListError);
-  });
-});
-
+/**
+ * Issue #52, second temps de la bascule expand / contract.
+ *
+ * `patternsDeLaLigne` n existe plus : son seul role etait de replier sur
+ * `Loto_Game.pattern` quand `patterns` valait NULL, c est-a-dire sur une ligne
+ * ecrite par l ancienne instance pendant la fenetre de deploiement. La colonne
+ * est partie, la fenetre est fermee, et un alias d une ligne au-dessus de
+ * `parsePatternList` ne garderait plus rien. Les appelants lisent donc
+ * directement `parsePatternList(row.patterns)`.
+ *
+ * `patternCouranteOuNull` perd son parametre de repli pour la meme raison. Ce
+ * qu elle garde, et qui n a rien a voir avec la bascule : rendre `null` plutot
+ * que lever, pour que `list()` saute une ligne corrompue sans faire tomber tout
+ * le tableau de bord.
+ */
 describe('patternCouranteOuNull', () => {
-  it('liste remplie, index 0, rend la premiere figure', () => {
-    expect(patternCouranteOuNull('linea,llena', 'linea', 0)).toBe('linea');
+  it('index 0, rend la premiere figure', () => {
+    expect(patternCouranteOuNull('linea,llena', 0)).toBe('linea');
   });
 
-  it('liste remplie, index 1, rend la SECONDE figure et non la colonne gelee', () => {
-    // C est le test qui prouve le defaut corrige dans list() : avant la
-    // correction, list() lisait row.pattern (toujours 'linea', gele a la
-    // creation) au lieu de suivre patternIndex.
-    expect(patternCouranteOuNull('linea,llena', 'linea', 1)).toBe('llena');
-  });
-
-  it('liste NULL, replie sur la figure unique', () => {
-    expect(patternCouranteOuNull(null, 'llena', 0)).toBe('llena');
+  it('index 1, rend la SECONDE figure', () => {
+    // Ce test prouve le defaut corrige dans list() par #30 : elle lisait
+    // `row.pattern`, gelee a la creation, au lieu de suivre `patternIndex`.
+    expect(patternCouranteOuNull('linea,llena', 1)).toBe('llena');
   });
 
   it('liste corrompue, rend null plutot que de lever', () => {
-    expect(patternCouranteOuNull(null, 'inexistante', 0)).toBeNull();
+    expect(patternCouranteOuNull('inexistante', 0)).toBeNull();
+  });
+
+  it('liste vide, rend null plutot que de lever', () => {
+    expect(patternCouranteOuNull('', 0)).toBeNull();
   });
 
   it('index hors liste, rend null plutot que de lever', () => {
-    expect(patternCouranteOuNull('linea,llena', 'linea', 5)).toBeNull();
+    expect(patternCouranteOuNull('linea,llena', 5)).toBeNull();
   });
 });
 
