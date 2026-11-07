@@ -11,3 +11,4 @@ export { InMemoryGuestRegistry, guestRegistry, type GuestEntry, type GuestRegist
 export { TenantScopeViolationError } from '@quetzal/db';
 export { DomainError, TenantContextMissingError } from './errors.js';
 export { resolveSocketIdentity, canEmitWsEvent, WsUnauthenticatedError, type HandshakeAuth, type NamespacePolicy, type HandshakeVerifiers, type SocketIdentity, type UserTokenClaims } from './ws/handshake.js';
+export { empreinteDuBuild, VARIABLES_DE_COMMIT, type EnvironnementDeCommit } from './empreinte-du-build.js';
