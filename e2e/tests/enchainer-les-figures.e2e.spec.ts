@@ -26,6 +26,7 @@ async function bearer(page: Page): Promise<string> {
 
 interface DeckSummary {
   id: string;
+  isTemplate: boolean;
   cardCount: number;
 }
 
@@ -39,8 +40,28 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   const decksRes = await page.request.get('/api/modules/loto/decks', { headers: auth });
   expect(decksRes.ok()).toBeTruthy();
   const { decks } = (await decksRes.json()) as { decks: DeckSummary[] };
-  const deck = decks.find((candidate) => candidate.cardCount >= 54);
-  expect(deck, 'le seed du Lotería doit avoir posé la lotería traditionnelle').toBeDefined();
+
+  // `isTemplate` et non `cardCount >= 54` : une fois que des copies de travail
+  // existent, le compte n identifie plus rien d unique et `find` prendrait la
+  // premiere venue. `duplicate` met `isTemplate` a `false`, donc le gabarit du
+  // seed reste le seul a le porter.
+  const gabarit = decks.find((candidate) => candidate.isTemplate);
+  expect(gabarit, 'le seed du Lotería doit avoir posé la lotería traditionnelle').toBeDefined();
+
+  // ⚠️ Ce test ouvre une partie, et une partie `draft`/`open`/`running`
+  // VERROUILLE son jeu : `ManageDecksUseCase.addCard` passe par
+  // `requireUnlocked` et leve `DeckLockedError`. Ouvrir la partie sur le
+  // gabarit rendrait donc le jeu semé inmodifiable pour tout test qui suit,
+  // selon que celui-ci finit sa partie ou pas — c est-a-dire un couplage dont
+  // l effet depend de l ordre et du hasard. La partie se joue sur une copie.
+  const copieRes = await page.request.post('/api/modules/loto/decks', {
+    headers: auth,
+    data: { name: `e2e enchainement ${Date.now()}`, duplicateOf: gabarit?.id },
+  });
+  expect(copieRes.ok(), 'la copie de travail doit pouvoir être créée').toBeTruthy();
+  const deck = (await copieRes.json()) as DeckSummary & { cards: unknown[] };
+  const nbCartes = deck.cards.length;
+  expect(nbCartes, 'la copie doit porter les cartes du gabarit').toBeGreaterThanOrEqual(54);
 
   // `esquinas` puis `linea` : les deux tombent avant la fin du paquet de
   // cinquante-quatre cartes. La `llena` demanderait presque tout le paquet
@@ -48,7 +69,7 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   const createRes = await page.request.post('/api/modules/loto/games', {
     headers: auth,
     data: {
-      deckId: deck?.id,
+      deckId: deck.id,
       patterns: ['esquinas', 'linea'],
       maxTeams: 6,
       falseClaimPenaltyDraws: 0,
@@ -86,8 +107,46 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   // La progression n existe PAS encore à l écran ici : le composant sort tôt
   // pour les statuts `draft` et `open`, et la ligne vit dans le retour final,
   // qui ne couvre que `running` et `finished`. D où ce premier tirage.
-  await page.getByTestId('draw').click();
-  await expect(page.getByTestId('pattern-progress')).toHaveText(PROGRESS_1);
+  //
+  /**
+   * ⛔ LA CAUSE DOMINANTE, ET ELLE TENAIT A CE SEUL CLIC. Mesure du 07/11/2026.
+   *
+   * Ce premier tirage etait le dernier a passer par le bouton, tous les autres
+   * allant deja par l API — et c est lui qui faisait tomber le test une fois
+   * sur deux en local. L artefact le disait sans ambiguite : echec sur
+   * `PROGRESS_1`, `pattern-progress` **introuvable**, alors que l ecran
+   * montrait le code d entree, l equipe arrivee et le bouton de tirage. Or
+   * cette ligne n existe qu aux statuts `running` et `finished` : la partie
+   * etait donc restee `open`, donc le clic n avait rien tire.
+   *
+   * Le clic part avant que le client soit en mesure de le traiter — le tirage
+   * voyage par la socket, et `click()` ne garantit ni que le gestionnaire soit
+   * accroche ni que la socket soit ouverte. Rien ne le signale : un clic dans
+   * le vide reussit.
+   *
+   * Le test avait deja tranche ce debat pour les tirages suivants, et sa
+   * raison s applique mot pour mot ici : « on rend deterministe ce qui n est
+   * que decor, et on garde l interface la ou elle prouve quelque chose ». Le
+   * bouton de tirage est prouve par `loto-teacher` et `loto-guest`. Ce qui se
+   * joue ici est l enchainement des figures, pas le tirage.
+   *
+   * Ce qui reste prouve par l ecran, et c est l essentiel : la progression
+   * s affiche chez l animatrice en DIRECT, par la socket, sans rechargement —
+   * l assertion ci-dessous l attend sur un tirage qu elle n a pas declenche.
+   */
+  const premierTirage = await page.request.post(
+    `/api/modules/loto/games/${game.id}/draw`,
+    { headers: auth },
+  );
+  // Le corps dans le message, pas seulement `ok()` : un `toBeTruthy` nu dit
+  // « Received: false » et laisse chercher. Mesure du 07/11 : c est exactement
+  // ce qui est arrive, et il a fallu une execution de plus pour savoir quoi.
+  expect(
+    premierTirage.ok(),
+    `le premier tirage doit passer — HTTP ${premierTirage.status()} ${await premierTirage.text()}`,
+  ).toBeTruthy();
+  const progression = page.getByTestId('pattern-progress');
+  await expect(progression).toHaveText(PROGRESS_1);
 
   // Tirer par l API, reclamer par l ecran de l eleve, et demander au serveur
   // ou il en est. Deux choix a expliquer.
@@ -124,11 +183,36 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   // s arretait donc avant d avoir tire les quatre coins de la tabla, et le test
   // echouait sans que rien ne soit casse. Un nombre en dur sur une donnee qui
   // bouge est un test qui mentira un jour.
-  const plafond = (deck?.cardCount ?? 54) + 1;
+  const plafond = nbCartes + 1;
+
+  /**
+   * ⛔ LA CADENCE SEULE NE SUFFIT PAS, ET C EST CE QUI RENDAIT CE TEST
+   * INSTABLE. Mesure du 07/11/2026.
+   *
+   * Reclamer un tour sur quatre laisse les DERNIERS tirages sans reclamation :
+   * sur un paquet de 54, la derniere tentative tombait apres le 52e tirage.
+   * Si le quatrieme coin de la tabla sortait au 53e ou au 54e, personne ne
+   * reclamait plus jamais, `esquinas` restait a gagner et l index ne bougeait
+   * pas — alors que rien n etait casse.
+   *
+   * Ce n est pas une question de charge ni de delai : les quatre coins
+   * occupent quatre positions au hasard parmi 54, et
+   *   P(la plus haute depasse 52) = 1 - C(52,4)/C(54,4) = 1 - (50*49)/(54*53)
+   * soit **14,4 %** des executions. Monte-Carlo sur 200 000 tirages : 14,38 %.
+   * C est l ordre de grandeur exact de ce qu on observait sur `main`, qui
+   * alternait vert et rouge sans raison apparente.
+   *
+   * ⛔ Ne jamais « reparer » ca en rallongeant un delai : le defaut n a aucune
+   * composante temporelle. Reclamer aussi sur chacun des `PAS` derniers
+   * tirages suffit, et rend l echec impossible : le quatrieme coin est sorti
+   * au plus tard au dernier tirage, et ce tirage-la porte desormais sa
+   * reclamation. Le meme Monte-Carlo donne 0,00 %.
+   */
+  const premierDesDerniers = nbCartes - PAS;
   for (let i = 0; i < plafond && !avance; i++) {
     const tirage = await page.request.post(`/api/modules/loto/games/${game.id}/draw`, { headers: auth });
     if (!tirage.ok()) break; // paquet epuise
-    if (i % PAS !== PAS - 1) continue;
+    if (i % PAS !== PAS - 1 && i < premierDesDerniers) continue;
 
     try {
       await guest.getByTestId('claim').click({ timeout: 3000 });
@@ -136,25 +220,63 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
       // Bloque par une penalite, ou partie finie : rien a faire ce tour.
     }
 
-    const vu = await page.request.get(`/api/modules/loto/games/${game.id}`, { headers: auth });
-    const etat = (await vu.json()) as { game: { patternPosition: number } };
-    avance = etat.game.patternPosition === 2;
+    /**
+     * ⛔ LA SECONDE CAUSE D INSTABILITE, ET LA DOMINANTE. Mesure du 07/11/2026.
+     *
+     * `click()` rend la main des que le clic est emis, PAS quand le serveur a
+     * statue — et la reclamation ne voyage meme pas en HTTP : `guest-join.tsx`
+     * fait `socket.emit('claim')` et la reponse revient plus tard en
+     * `claim-result`. Lire l etat une seule fois juste apres le clic, c est
+     * donc courir contre un aller-retour de socket.
+     *
+     * Ce que ca donnait : l instantane d echec du 07/11 montrait
+     * « Pattern 2 of 2: Línea » a l ecran de l animatrice, donc une figure
+     * bel et bien gagnee, pendant que le test avait lu 1 et concluait
+     * l inverse. Il echouait sur une partie qu il venait de faire gagner.
+     *
+     * On attend donc la CONSEQUENCE au lieu de la lire au vol. La boucle sort
+     * des que la position a bouge ; le plafond n est pas une estimation du
+     * temps que ca prend, c est seulement ce qui garantit qu un vrai echec
+     * finisse par rendre la main.
+     *
+     * La boucle ne fait donc plus office d oracle : elle tire et reclame, et
+     * c est l assertion APRES la boucle qui juge, parce que `toHaveText`
+     * reessaie tout seul et absorbe l aller-retour de socket. La lecture ici
+     * n a plus qu un seul role, et il n est pas de prouver quoi que ce soit :
+     * sortir avant que l eleve gagne `linea` aussi, car « figure 2 sur 2 » ne
+     * serait alors plus a l ecran.
+     *
+     * Une lecture nue, sans attente : deux tentatives intermediaires qui
+     * attendaient chacune leur tour ajoutaient une vingtaine de secondes a un
+     * test deja le plus lourd de la suite, et la lenteur est precisement ce
+     * qui avait fait tomber `loto-teacher` le 05/11. Manquer la bonne lecture
+     * ne coute qu un tour de boucle de plus.
+     */
+    avance = PROGRESS_2.test((await progression.textContent()) ?? '');
   }
 
-  expect(avance, 'la premiere figure doit avoir ete gagnee et l index avance').toBe(true);
-
-  // Et la preuve qui compte vraiment : l ecran de l animatrice l a appris en
-  // direct, par la socket, sans rechargement. C est cette assertion qui a
-  // trouve le 05/11 que `pattern-changed` etait emis et ecoute par personne.
-
-  await expect(page.getByTestId('pattern-progress')).toHaveText(PROGRESS_2);
+  // L ORACLE, et il attend. C est ici, et non dans la boucle, que se decide si
+  // la figure a avance : `toHaveText` reessaie, la ou la lecture nue de la
+  // boucle ne reessayait pas. C est aussi la preuve qui compte vraiment —
+  // l ecran de l animatrice l a appris en direct, par la socket, sans
+  // rechargement — et c est elle qui a trouve le 05/11 que `pattern-changed`
+  // etait emis et ecoute par personne.
+  await expect(progression).toHaveText(PROGRESS_2);
 
   // Tout l objet de l issue : la partie n a pas été recréée, donc les
   // téléphones n ont rien à rescanner.
   const relu = await page.request.get(`/api/modules/loto/games/${game.id}`, { headers: auth });
   expect(relu.ok()).toBeTruthy();
-  const apres = (await relu.json()) as { game: { joinCode: string; status: string } };
+  const apres = (await relu.json()) as {
+    game: { joinCode: string; status: string; patternPosition: number };
+  };
   expect(apres.game.joinCode).toBe(codeInitial);
+
+  // Le serveur, et pas seulement l ecran. Lu ICI et non dans la boucle : a ce
+  // point l assertion ci-dessus a deja attendu que l evenement arrive, donc
+  // plus rien ne court contre la socket. `>=` et non `===` : rien n interdit a
+  // l eleve d avoir gagne `linea` aussi.
+  expect(apres.game.patternPosition).toBeGreaterThanOrEqual(2);
 
   // Le statut n est PAS asserti a `running`, et c est delibere. Mesure du
   // 05/11 : l eleve gagne souvent la seconde figure dans la foulee, et la
@@ -173,7 +295,10 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   // celui qui laisse de l etat durable casse ses voisins.
   if (apres.game.status !== 'finished') {
     const fin = await page.request.post(`/api/modules/loto/games/${game.id}/finish`, { headers: auth });
-    expect(fin.ok(), 'la partie doit se terminer pour ne pas verrouiller le jeu').toBeTruthy();
+    expect(
+      fin.ok(),
+      `la partie doit se terminer pour ne pas verrouiller le jeu — HTTP ${fin.status()} ${await fin.text()}`,
+    ).toBeTruthy();
   }
 
   // Le jeu doit etre libre en sortant, sinon le voisin casse. On le verifie

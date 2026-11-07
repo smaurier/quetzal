@@ -130,8 +130,17 @@ jobs:
       - run: pnpm --filter quetzal-host start &
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm exec playwright test
+
+      # `test-results/` en plus du rapport HTML : c est lui qui porte les
+      # traces, les videos et les `error-context.md`, et c est dans un
+      # `error-context.md` qu on a lu le 07/11 que `pattern-progress` etait
+      # introuvable — donc qu un clic de tirage n avait rien tire.
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
-          path: playwright-report/
+          name: playwright-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+          if-no-files-found: ignore
