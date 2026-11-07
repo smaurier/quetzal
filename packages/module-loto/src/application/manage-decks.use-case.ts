@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DeckLockedError, DeckNotFoundError } from '../domain/errors.js';
+import type { CardImageStore } from '../domain/ports/card-image.store.js';
 import type {
   Deck,
   DeckCard,
@@ -9,7 +10,10 @@ import type {
 
 @Injectable()
 export class ManageDecksUseCase {
-  constructor(private readonly decks: DeckRepository) {}
+  constructor(
+    private readonly decks: DeckRepository,
+    private readonly images: CardImageStore,
+  ) {}
 
   async list(): Promise<DeckSummary[]> {
     return this.decks.list();
@@ -73,6 +77,9 @@ export class ManageDecksUseCase {
   async delete(input: { deckId: string }): Promise<void> {
     await this.requireUnlocked(input.deckId);
     await this.decks.delete(input.deckId);
+    // APRES, et jamais avant : tant que le jeu est la, ses cartes referencent
+    // encore leurs images et le ramassage ne trouverait rien. Issue #27.
+    await this.images.deleteOrphans();
   }
 
   private async require(deckId: string): Promise<Deck> {

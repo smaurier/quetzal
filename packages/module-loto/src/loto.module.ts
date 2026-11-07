@@ -12,6 +12,7 @@ import { OpenGameUseCase } from './application/open-game.use-case.js';
 import { ToggleMarkUseCase } from './application/toggle-mark.use-case.js';
 import type { DeckRepository } from './domain/ports/deck.repository.js';
 import type { GameRepository } from './domain/ports/game.repository.js';
+import type { CardImageStore } from './domain/ports/card-image.store.js';
 import { PrismaCardImageStore } from './infrastructure/prisma-card-image.store.js';
 import { PrismaDeckRepository } from './infrastructure/prisma-deck.repository.js';
 import { PrismaGameRepository } from './infrastructure/prisma-game.repository.js';
@@ -35,8 +36,9 @@ const IMAGES = 'LotoCardImageStore';
     { provide: IMAGES, useClass: PrismaCardImageStore },
     {
       provide: ManageDecksUseCase,
-      useFactory: (decks: DeckRepository) => new ManageDecksUseCase(decks),
-      inject: [DECKS],
+      useFactory: (decks: DeckRepository, images: CardImageStore) =>
+        new ManageDecksUseCase(decks, images),
+      inject: [DECKS, IMAGES],
     },
     {
       provide: CreateGameUseCase,
