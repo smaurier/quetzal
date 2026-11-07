@@ -272,6 +272,15 @@ Ce qui reste exigé, et ne bouge pas : **le premier adaptateur d'un Port doit ar
 - Description : contexte + changement + test plan
 - Reviewer minimum = correcteur-labs à jalons
 - CI verte obligatoire pour merge (voir §12)
+- **⛔ Une PR qui corrige une issue DOIT la fermer mécaniquement** : `Closes #<n>` en
+  première ligne de la description. Le mot-clé est `Closes`, `Fixes` ou `Resolves` — GitHub
+  n'en reconnaît **aucun en français**. « Ferme #64 » est du texte ordinaire : la PR #65 a
+  corrigé l'issue #64, l'a laissée ouverte, et il a fallu un humain pour le remarquer. Le
+  reste de la description reste en français. Plusieurs issues = une clause chacune
+  (`Closes #12, closes #13`) ; un seul mot-clé ne couvre pas deux numéros.
+- `.github/pull_request_template.md` porte cette ligne et les trois sections. Un template ne
+  fait que **proposer** : une PR ouverte avec `gh pr create --body` l'écrase sans prévenir,
+  donc la règle vit ici, pas seulement dans le gabarit.
 
 ## 11. Convention tests
 
