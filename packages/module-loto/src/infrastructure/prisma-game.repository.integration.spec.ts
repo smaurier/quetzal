@@ -337,10 +337,18 @@ describe('PrismaGameRepository (intégration)', () => {
     expect(await inTenant(tenantId, ownerId, () => games.hasValidClaimAt(game.id, 8))).toBe(false);
   });
 
-  // Seul test qui garde la double ecriture de l issue #52 : tant que l
-  // ancienne instance existe, elle ne connait que la colonne `pattern`.
-  // Sans ce test, rien n empeche un refactor de ne plus l ecrire.
-  it('ecrit la premiere figure dans la colonne pattern, pour la compatibilite descendante', async () => {
+  /**
+   * Ce test gardait la double ecriture du PREMIER temps de la bascule (#30) :
+   * tant que l ancienne instance tournait, elle ne connaissait que la colonne
+   * `pattern`. L issue #52 est le second temps, et il garde l inverse — la
+   * liste seule, et rien d autre.
+   *
+   * Que la colonne ait disparu n est pas asserti ici mais tenu par le
+   * compilateur : `row.pattern` ne compile plus (TS2551, « Did you mean
+   * 'patterns'? »), parce que le client Prisma est regenere depuis le modele.
+   * Verifie par mutation, resultat dans le message du commit.
+   */
+  it('ecrit la liste des figures, et plus la figure unique', async () => {
     const { tenantId, ownerId, decks, games } = await aGame();
     const deck = await inTenant(tenantId, ownerId, () =>
       decks.create({ name: 'Jeu retro', isTemplate: false, createdBy: ownerId, cards: [...TRADITIONAL_CARDS] }),
@@ -355,13 +363,13 @@ describe('PrismaGameRepository (intégration)', () => {
       }),
     );
 
-    // Lecture par le client Prisma directement : le port n expose pas la
-    // colonne `pattern`, et c est voulu (tache 5b la retirera). Ce test
+    // Lecture par le client Prisma directement : le port expose un tableau, la
+    // base une chaine, et c est cette traduction qu on verifie ici. Un test
     // d infrastructure a le droit de regarder sous le port.
     const row = await inTenant(tenantId, ownerId, () =>
       getTenantScopedPrisma().loto_Game.findFirst({ where: { id: game.id } }),
     );
-    expect(row?.pattern).toBe('llena');
+    expect(row?.patterns).toBe('llena,linea');
   });
 
   // Defaut trouve en relecture : list() lisait la colonne `pattern` (gelee a
