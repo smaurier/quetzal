@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Param, Post, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Patch, Post, BadRequestException } from '@nestjs/common';
 import { getCurrentTenant } from '@quetzal/core';
 import { CreateGameUseCase } from '../application/create-game.use-case.js';
 import { DrawCardUseCase } from '../application/draw-card.use-case.js';
@@ -7,7 +7,8 @@ import { GameSnapshotUseCase } from '../application/game-snapshot.use-case.js';
 import { ListGamesUseCase } from '../application/list-games.use-case.js';
 import { OpenGameUseCase } from '../application/open-game.use-case.js';
 import { LotoBroadcaster } from './loto.broadcaster.js';
-import { createGameSchema } from './dto/loto.dto.js';
+import { RenameTeamUseCase } from '../application/rename-team.use-case.js';
+import { createGameSchema, renameTeamSchema } from './dto/loto.dto.js';
 
 @Controller('api/modules/loto/games')
 export class GameController {
@@ -21,6 +22,7 @@ export class GameController {
     @Inject(FinishGameUseCase) private readonly finishGame: FinishGameUseCase,
     @Inject(GameSnapshotUseCase) private readonly snapshot: GameSnapshotUseCase,
     @Inject(ListGamesUseCase) private readonly listGames: ListGamesUseCase,
+    @Inject(RenameTeamUseCase) private readonly renameTeam: RenameTeamUseCase,
     @Inject(LotoBroadcaster) private readonly broadcaster: LotoBroadcaster,
   ) {}
 
@@ -80,5 +82,24 @@ export class GameController {
     const game = await this.finishGame.execute({ gameId: id });
     await this.broadcaster.gameFinished(id, null);
     return game;
+  }
+
+  /**
+   * Issue #29. L identifiant de partie est dans le chemin ET sert a verifier
+   * que l equipe lui appartient : c est le cas d usage qui le fait, parce que
+   * le cloisonnement Prisma borne au locataire et non a la partie.
+   */
+  @Patch(':id/teams/:teamId')
+  async rename(
+    @Param('id') id: string,
+    @Param('teamId') teamId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = renameTeamSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
+
+    await this.renameTeam.execute({ gameId: id, teamId, name: parsed.data.name });
+    await this.broadcaster.teamRenamed(id, teamId);
+    return { ok: true };
   }
 }

@@ -22,7 +22,7 @@
         "cardImage": "Choose an image for card {rank}"
       },
       "game": {
-        "create": "New game",
+        "create": "New game",
         "maxTeams": "Maximum number of teams",
         "patterns": "Patterns to chain",
         "patternProgress": "Pattern {position} of {total}: {pattern}",
@@ -51,7 +51,12 @@
         "llena": "Lotería llena"
       },
       "team": {
-        "numbered": "Team {number}"
+        "numbered": "Team {number}",
+        "rename": "Rename team {name}",
+        "renamePlaceholder": "Team name",
+        "renameSave": "Save",
+        "renameClear": "Back to the default name",
+        "renameAction": "Rename"
       },
       "player": {
         "claim": "¡Lotería!",

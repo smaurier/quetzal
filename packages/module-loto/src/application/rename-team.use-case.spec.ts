@@ -51,7 +51,7 @@ describe('RenameTeamUseCase', () => {
    * pas a la partie. L equipe doit appartenir a la partie nommee dans l appel.
    */
   it('refuse une equipe qui n appartient pas a cette partie', async () => {
-    const { games, useCase } = await build();
+    const { games, game, useCase } = await build();
     const autre = await games.create({
       deckId: 'deck-2',
       createdBy: 'u-2',
@@ -61,9 +61,8 @@ describe('RenameTeamUseCase', () => {
     const sienne = await games.createTeam(autre.id, { teamIndex: 0, cardIds: ['c-9'] });
 
     // On cite la PREMIERE partie, mais l equipe de la SECONDE.
-    const premiere = (await games.list())[0];
     await expect(
-      useCase.execute({ gameId: premiere?.id ?? '', teamId: sienne.id, name: 'Pirates' }),
+      useCase.execute({ gameId: game.id, teamId: sienne.id, name: 'Pirates' }),
     ).rejects.toThrow(TeamNotFoundError);
 
     const [intacte] = await games.teams(autre.id);

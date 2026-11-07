@@ -22,7 +22,7 @@
         "cardImage": "Elegir una imagen para la carta {rank}"
       },
       "game": {
-        "create": "Nueva partida",
+        "create": "Nueva partida",
         "maxTeams": "Número máximo de equipos",
         "patterns": "Figuras a encadenar",
         "patternProgress": "Figura {position} de {total}: {pattern}",
@@ -51,7 +51,12 @@
         "llena": "Lotería llena"
       },
       "team": {
-        "numbered": "Equipo {number}"
+        "numbered": "Equipo {number}",
+        "rename": "Renombrar el equipo {name}",
+        "renamePlaceholder": "Nombre del equipo",
+        "renameSave": "Guardar",
+        "renameClear": "Volver al nombre predeterminado",
+        "renameAction": "Renombrar"
       },
       "player": {
         "claim": "¡Lotería!",

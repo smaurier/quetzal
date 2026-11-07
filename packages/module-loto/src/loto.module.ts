@@ -8,6 +8,7 @@ import { GameSnapshotUseCase } from './application/game-snapshot.use-case.js';
 import { JoinGameUseCase } from './application/join-game.use-case.js';
 import { ListGamesUseCase } from './application/list-games.use-case.js';
 import { ManageDecksUseCase } from './application/manage-decks.use-case.js';
+import { RenameTeamUseCase } from './application/rename-team.use-case.js';
 import { OpenGameUseCase } from './application/open-game.use-case.js';
 import { ToggleMarkUseCase } from './application/toggle-mark.use-case.js';
 import type { DeckRepository } from './domain/ports/deck.repository.js';
@@ -34,6 +35,11 @@ const IMAGES = 'LotoCardImageStore';
     { provide: DECKS, useClass: PrismaDeckRepository },
     { provide: GAMES, useClass: PrismaGameRepository },
     { provide: IMAGES, useClass: PrismaCardImageStore },
+    {
+      provide: RenameTeamUseCase,
+      useFactory: (games: GameRepository) => new RenameTeamUseCase(games),
+      inject: [GAMES],
+    },
     {
       provide: ManageDecksUseCase,
       useFactory: (decks: DeckRepository, images: CardImageStore) =>
