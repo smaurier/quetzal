@@ -6,6 +6,7 @@ import { defaultStatements } from 'better-auth/plugins/organization/access';
 import { rootPrisma, newId } from '@quetzal/db';
 import { createSessionCreateHook } from './session-hooks.js';
 import { auditConnexion, auditInscription, type LigneAudit } from './audit-auth.js';
+import { originesDeConfiance, urlDeBase } from './origines-de-confiance.js';
 
 const statements = {
   ...defaultStatements,
@@ -74,7 +75,14 @@ async function ecrireAudit(ligne: LigneAudit): Promise<void> {
 
 export const auth = betterAuth({
   database: prismaAdapter(rootPrisma, { provider: 'postgresql' }),
-  baseURL: process.env['HOST_URL'] ?? 'http://localhost:3000',
+  /**
+   * Issue #64 : `trustedOrigins` vaut `[baseURL]` par defaut. Tant que ces
+   * deux valeurs venaient de `HOST_URL`, une variable unique devait couvrir la
+   * production et chaque apercu, que Vercel sert sous des URL differentes.
+   * Elles se derivent maintenant du deploiement. Voir `origines-de-confiance`.
+   */
+  baseURL: urlDeBase(process.env),
+  trustedOrigins: [...originesDeConfiance(process.env)],
   secret: process.env['BETTER_AUTH_SECRET'] ?? '',
   user: {
     additionalFields: {
