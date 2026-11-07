@@ -5,6 +5,7 @@ import type {
   DeckSummary,
   NewDeckCard,
 } from '../../domain/ports/deck.repository.js';
+import type { CardImageStore, StoredImage } from '../../domain/ports/card-image.store.js';
 import type {
   GameRepository,
   GameSettings,
@@ -358,5 +359,34 @@ export class RecordingEventBus {
 
   names(): string[] {
     return this.emitted.map((event) => event.name);
+  }
+}
+
+/**
+ * Issue #27 : un faux store d images qui ne sait qu une chose, mais c est
+ * celle qui compte au niveau du cas d usage — a-t-on demande le ramassage, et
+ * combien de fois. Ce que le ramassage choisit de garder est une question
+ * d infrastructure, et elle se prouve contre un vrai Postgres.
+ */
+export class FakeCardImageStore implements CardImageStore {
+  readonly stored = new Map<string, StoredImage>();
+  ramassages = 0;
+
+  async put(input: { mimeType: string; bytes: Uint8Array }): Promise<StoredImage> {
+    const contentHash = `hash-${input.bytes.length}`;
+    const existante = this.stored.get(contentHash);
+    if (existante !== undefined) return existante;
+    const image: StoredImage = { id: nextId('image'), contentHash, ...input };
+    this.stored.set(contentHash, image);
+    return image;
+  }
+
+  async findByHash(contentHash: string): Promise<StoredImage | null> {
+    return this.stored.get(contentHash) ?? null;
+  }
+
+  async deleteOrphans(): Promise<number> {
+    this.ramassages += 1;
+    return 0;
   }
 }

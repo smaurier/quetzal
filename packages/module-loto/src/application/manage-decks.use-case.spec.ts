@@ -1,12 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { DeckLockedError, DeckNotFoundError } from '../domain/errors.js';
 import { ManageDecksUseCase } from './manage-decks.use-case.js';
-import { FakeDeckRepository, deckOf } from './testing/fake-repositories.js';
+import { FakeCardImageStore, FakeDeckRepository, deckOf } from './testing/fake-repositories.js';
 
 function build() {
   const decks = new FakeDeckRepository();
-  const useCase = new ManageDecksUseCase(decks);
-  return { decks, useCase };
+  const images = new FakeCardImageStore();
+  const useCase = new ManageDecksUseCase(decks, images);
+  return { decks, images, useCase };
 }
 
 describe('ManageDecksUseCase', () => {
@@ -211,5 +212,50 @@ describe('ManageDecksUseCase', () => {
     await expect(useCase.addCard({ deckId: 'deck-1', label: 'X' })).rejects.toBeInstanceOf(
       DeckLockedError,
     );
+  });
+});
+
+/**
+ * Issue #27 : supprimer un jeu laissait ses images en base, sans aucun chemin
+ * de suppression.
+ *
+ * ⚠️ Et il n y a PAS « les images du jeu » : `Loto_CardImage` est dedupliquee
+ * par empreinte (`@@unique([contentHash, tenantId])`), donc une meme image sert
+ * plusieurs cartes, dans plusieurs jeux. Supprimer « celles du jeu » detruirait
+ * l image d un voisin. D ou un ramassage de ce qui n est plus reference, et non
+ * une suppression en cascade — ce que garde ce fichier, c est qu on le DEMANDE
+ * au bon moment. Ce qu il garde ou detruit se prouve contre un vrai Postgres,
+ * dans le spec d integration.
+ */
+describe('ManageDecksUseCase, les images orphelines', () => {
+  it('ramasse les orphelines apres avoir supprime un jeu', async () => {
+    const { decks, images, useCase } = build();
+    decks.add(deckOf(54));
+
+    await useCase.delete({ deckId: 'deck-1' });
+
+    expect(images.ramassages).toBe(1);
+  });
+
+  /**
+   * Le ramassage vient APRES la suppression, pas avant : lance avant, il
+   * compterait les cartes du jeu encore present et ne ramasserait rien.
+   */
+  it('ne ramasse rien quand la suppression est refusee', async () => {
+    const { decks, images, useCase } = build();
+    decks.add(deckOf(54));
+    decks.unfinished.add('deck-1');
+
+    await expect(useCase.delete({ deckId: 'deck-1' })).rejects.toThrow(DeckLockedError);
+
+    expect(images.ramassages, 'un jeu verrouille garde ses cartes, donc ses images').toBe(0);
+  });
+
+  it('ne ramasse rien quand le jeu n existe pas', async () => {
+    const { images, useCase } = build();
+
+    await expect(useCase.delete({ deckId: 'fantome' })).rejects.toThrow(DeckNotFoundError);
+
+    expect(images.ramassages).toBe(0);
   });
 });
