@@ -64,7 +64,12 @@
       "connecting": "Connexion...",
       "loading": "Chargement...",
       "missing_tenant": "tenantId manquant",
-      "connected_as": "Connecté en tant que {name}"
+      "connected_as": "Connecté en tant que {name}",
+      "error": {
+        "session_full": "La séance est complète : {max} élèves y sont déjà. Préviens ton enseignante.",
+        "guests_not_allowed": "Cette activité n accepte pas les invités.",
+        "generic": "Impossible de rejoindre pour le moment. Préviens ton enseignante."
+      }
     }
   }
 }

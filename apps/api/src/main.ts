@@ -10,7 +10,7 @@ import { buildWsRegistry } from './ws/ws-policies';
 import { handshakeVerifiers } from './ws/handshake-verifiers';
 import { WsPermissionsGuard } from './ws/ws-permissions.guard';
 import helmet from 'helmet';
-import { logger, eventBus } from '@quetzal/core';
+import { logger, eventBus, guestPolicies } from '@quetzal/core';
 import { rootPrisma } from '@quetzal/db';
 
 async function bootstrap() {
@@ -23,6 +23,13 @@ async function bootstrap() {
 
   const manifests = await loadManifests(slugs);
   await upsertModuleCatalogue(manifests);
+
+  // Issue #75 : `maxConcurrentPerSession` etait declare et lu par personne.
+  // `POST /api/guest-token` est un controleur d `AppModule`, importe
+  // statiquement, qui ne voit pas ces manifestes : on les lui depose ici.
+  // ⛔ Avant `NestFactory.create`, sinon la premiere requete pourrait arriver
+  // sur un registre vide et `admitGuest` refuserait tout le monde.
+  for (const m of manifests) guestPolicies.register(m.slug, m.guestAccess);
 
   @Module({
     imports: [AppModule, ...composeAppModules(manifests)],

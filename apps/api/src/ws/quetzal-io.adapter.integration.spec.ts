@@ -4,7 +4,7 @@ import type { INestApplication } from '@nestjs/common';
 import { io, type Socket } from 'socket.io-client';
 import { WebSocketGateway, SubscribeMessage, ConnectedSocket } from '@nestjs/websockets';
 import type { Socket as ServerSocket } from 'socket.io';
-import { getCurrentTenant, tryGetCurrentTenant, type QuetzalModuleManifest, type TenantExecutionContext } from '@quetzal/core';
+import { getCurrentTenant, tryGetCurrentTenant, guestRegistry, type QuetzalModuleManifest, type TenantExecutionContext } from '@quetzal/core';
 import { QuetzalIoAdapter } from './quetzal-io.adapter';
 import { buildWsRegistry } from './ws-policies';
 
@@ -107,6 +107,88 @@ describe('QuetzalIoAdapter (integration)', () => {
     return { socket, connected };
   }
 
+  /**
+   * Attend une CONDITION et non un delai : la deconnexion remonte au serveur
+   * quand le transport le dit, pas apres un nombre de millisecondes choisi.
+   * Un sleep fixe rendrait ce test lent ou instable, au choix.
+   */
+  async function jusqua(condition: () => boolean, quoi: string, limiteMs = 5000): Promise<void> {
+    const limite = Date.now() + limiteMs;
+    while (!condition()) {
+      if (Date.now() > limite) throw new Error(`condition jamais atteinte : ${quoi}`);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+
+  /**
+   * ⛔ Issue #75, le trou qui rendait le plafond PIRE que le champ decoratif.
+   * `guestRegistry.remove` existait sur le port et personne ne l appelait :
+   * aucune passerelle n implemente `handleDisconnect`. Le compte etait donc
+   * « jetons jamais emis pour cette seance », jamais « invites presents ».
+   *
+   * Applique tel quel, un plafond de 60 aurait verrouille une classe de 35 en
+   * pleine seance : le scenario de reference est un wifi d etablissement peu
+   * fiable, et chaque reconnexion frappe un nouveau guestId donc consomme une
+   * place de plus.
+   *
+   * Le retrait vit dans l adaptateur de PLATEFORME et non dans la passerelle
+   * du module : l identite invite y est deja resolue, donc tout module a
+   * invites en profite sans rien ecrire.
+   */
+  it('retire un invite du registre quand sa socket se ferme', async () => {
+    // Ce que `POST /api/guest-token` ecrit avant que la socket existe.
+    guestRegistry.add('hello', 's1', { guestId: 'g1', displayName: 'Ana', joinedAt: Date.now() });
+    expect(guestRegistry.count('hello', 's1')).toBe(1);
+
+    const r = await attempt({ guestToken: 'good-guest' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    r.socket.close();
+
+    await jusqua(
+      () => guestRegistry.count('hello', 's1') === 0,
+      'le registre redescend a zero apres la fermeture',
+    );
+  });
+
+  /**
+   * Une animatrice connectee n est pas une invitee : son identite ne porte pas
+   * de `guestId`. Retirer sur sa deconnexion viderait le registre de la seance
+   * et rendrait le plafond inoperant des qu elle rafraichit sa page.
+   *
+   * ⚠️ Ce test et le typecheck gardent deux choses differentes, et il a fallu
+   * se tromper pour le voir. Retirer le `'guestId' in identity` fait rougir le
+   * TYPECHECK (TS2339 : moduleSlug, sessionId et guestId n existent pas sur
+   * l autre branche de l union `SocketIdentity`). Ce test, lui, garde le
+   * COMPORTEMENT : qu une utilisatrice connectee qui rafraichit sa page ne
+   * vide pas le registre de la seance.
+   *
+   * ⛔ Et le piege que la premiere version avait manque : ecrire
+   * `identity.role !== 'guest'` ne discrimine RIEN, parce que les deux branches
+   * portent un `role` et que celui de la branche utilisateur est un
+   * `QuetzalRole`, qui contient `'guest'`. Le typecheck tombait donc avec ET
+   * sans la condition, ce qui m avait fait croire qu elle etait tenue alors
+   * qu elle ne tenait rien.
+   */
+  it('ne touche pas au registre quand une utilisatrice connectee se deconnecte', async () => {
+    // ⚠️ Une AUTRE seance que le test precedent : le registre est un singleton
+    // de module, et celui du dessus y laisse son entree si le retrait ne
+    // marche pas. Partager la cle ferait echouer ce test pour la mauvaise
+    // raison, et masquerait ce qu il garde.
+    guestRegistry.add('hello', 's-anim', { guestId: 'g-reste', displayName: 'Bea', joinedAt: Date.now() });
+
+    const r = await attempt({ token: 'good-jwt' });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    r.socket.close();
+
+    // Laisse au serveur le temps de voir la fermeture, puis verifie que RIEN
+    // n a bouge. On ne peut pas attendre une condition qui doit RESTER fausse,
+    // donc on laisse passer le temps que la fermeture met a remonter.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(guestRegistry.count('hello', 's-anim')).toBe(1);
+    guestRegistry.remove('hello', 's-anim', 'g-reste');
+  });
   it('refuses a handshake without any token', async () => {
     const r = await attempt({});
     expect(r.ok).toBe(false);

@@ -1,7 +1,7 @@
 import { IoAdapter } from '@nestjs/platform-socket.io';
 import type { INestApplicationContext } from '@nestjs/common';
 import type { Namespace, Server, ServerOptions, Socket } from 'socket.io';
-import { resolveSocketIdentity, logger, tenantStore, type HandshakeVerifiers, type TenantExecutionContext } from '@quetzal/core';
+import { resolveSocketIdentity, logger, tenantStore, guestRegistry, type HandshakeVerifiers, type SocketIdentity, type TenantExecutionContext } from '@quetzal/core';
 import { newId } from '@quetzal/db';
 import type { WsRegistry } from './ws-policies.js';
 import { buildSocketTenantContext } from './socket-tenant-context.js';
@@ -35,6 +35,7 @@ export class QuetzalIoAdapter extends IoAdapter {
     // its `next()`/`.then()` order guarantees an entry exists here (possibly `undefined`,
     // for a resolvable-but-tenant-less identity) by the time that callback runs.
     const contexts = new WeakMap<Socket, TenantExecutionContext | undefined>();
+    const identities = new WeakMap<Socket, SocketIdentity>();
 
     if (policy) {
       server.use((socket, next) => {
@@ -43,6 +44,7 @@ export class QuetzalIoAdapter extends IoAdapter {
           .then((identity) => {
             socket.data = { ...socket.data, ...identity };
             contexts.set(socket, buildSocketTenantContext(identity, newId()));
+            identities.set(socket, identity);
             next();
           })
           .catch((err: Error) => {
@@ -56,6 +58,43 @@ export class QuetzalIoAdapter extends IoAdapter {
 
     super.bindClientConnect(server, (socket: Socket) => {
       const context = contexts.get(socket);
+
+      /**
+       * Issue #75. Le registre d'invités n'avait AUCUN retrait : `remove`
+       * existait sur le port et personne ne l'appelait, aucune passerelle
+       * n'implémente `handleDisconnect`. Son compte valait donc « jetons jamais
+       * émis pour cette séance », et jamais « invités présents ».
+       *
+       * ⛔ Appliquer un plafond à ce compte-là aurait été PIRE que de n'en
+       * appliquer aucun : le scénario de référence est un wifi d'établissement
+       * peu fiable, chaque reconnexion frappe un nouveau `guestId`, donc une
+       * classe de trente-cinq aurait épuisé un plafond de soixante en pleine
+       * séance, et des élèves seraient restés dehors sans raison.
+       *
+       * Le retrait vit ici, dans la plateforme, et non dans la passerelle d'un
+       * module : l'identité invitée est résolue ici, donc tout module à invités
+       * en bénéficie sans écrire une ligne.
+       *
+       * ⚠️ Ce qui reste ouvert, et qu'il vaut mieux nommer : un jeton obtenu
+       * puis jamais utilisé garde sa place jusqu'au redémarrage du processus.
+       * Borné en pratique par le throttle de cent jetons par heure sur la route
+       * et par la mise en veille de l'instance Render, pas par du code.
+       */
+      socket.on('disconnect', () => {
+        const identity = identities.get(socket);
+        // ⛔ `'guestId' in identity` et NON `identity.role !== 'guest'` : les
+        // deux branches de `SocketIdentity` portent un `role`, et celui de la
+        // branche utilisateur est un `QuetzalRole`, qui contient `'guest'`.
+        // Tester le role ne discrimine donc rien, et laisse les deux branches
+        // possibles (TS2339 sur moduleSlug, sessionId et guestId). `in` est le
+        // seul des deux qui soit un vrai typeguard ici.
+        if (identity === undefined || !('guestId' in identity)) return;
+        guestRegistry.remove(identity.moduleSlug, identity.sessionId, identity.guestId);
+        logger.info(
+          { moduleSlug: identity.moduleSlug, sessionId: identity.sessionId, guestId: identity.guestId },
+          'guest left',
+        );
+      });
 
       // Runs before each incoming packet is dispatched to its handler (verified against
       // socket.io's `Socket#dispatch`: it schedules the actual event emission via

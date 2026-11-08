@@ -13,6 +13,24 @@ interface TokenResponse {
   token: string;
 }
 
+/**
+ * Issue #75. `POST /api/guest-token` refuse desormais au-dela du plafond du
+ * manifeste, et ce refus arrive sur le telephone d'un eleve.
+ *
+ * ⛔ Avant, cet ecran faisait `setTokenError(String(res.status))` : un refus
+ * aurait affiche « 409 » a un eleve de college. C'est la meme faute que
+ * `joinErrorMessage` plus bas avait corrigee pour les erreurs de la passerelle,
+ * qui montrait « GameNotRunningError ».
+ */
+interface RefusalBody {
+  // `| undefined` explicite, et non seulement `?` : le dépôt compile avec
+  // `exactOptionalPropertyTypes: true`, où `error?: string` veut dire « absente
+  // ou chaîne », jamais « présente et undefined ». `lireRefus` rend justement
+  // la clé présente à undefined, donc sans ça le type ne tient pas (TS2375).
+  error?: string | undefined;
+  max?: number | undefined;
+}
+
 export default function GuestJoin({ tenantId, moduleSlug, sessionId }: GuestJoinProps) {
   const t = useTranslations('module.loto');
   const tGuest = useTranslations('guest.join');
@@ -30,7 +48,7 @@ export default function GuestJoin({ tenantId, moduleSlug, sessionId }: GuestJoin
       body: JSON.stringify({ tenantId, moduleSlug, sessionId, displayName }),
     });
     if (!res.ok) {
-      setTokenError(String(res.status));
+      setTokenError(await refusalMessage(res, tGuest));
       return;
     }
     const { token } = (await res.json()) as TokenResponse;
@@ -143,6 +161,52 @@ function PlayerBoard({ gameId, guestToken }: { gameId: string; guestToken: strin
       )}
     </div>
   );
+}
+
+/**
+ * Lit le corps d'un refus sans jamais `as` : CLAUDE.md §14 interdit le cast
+ * sans typeguard, et ce corps vient du réseau, donc rien ne garantit sa forme.
+ * `in` suffit à TypeScript pour narrower, sans cast.
+ */
+function lireRefus(corps: unknown): RefusalBody {
+  if (typeof corps !== 'object' || corps === null) return {};
+  return {
+    error: 'error' in corps && typeof corps.error === 'string' ? corps.error : undefined,
+    max: 'max' in corps && typeof corps.max === 'number' ? corps.max : undefined,
+  };
+}
+
+/**
+ * Traduit le refus de `POST /api/guest-token` en une phrase que l'élève peut
+ * lire. Le serveur envoie un CODE et non une phrase, parce qu'il ne connaît pas
+ * la langue du téléphone.
+ *
+ * ⛔ Le repli ne montre JAMAIS le statut ni le code : un nombre nu sur l'écran
+ * d'un élève ne lui dit pas quoi faire. Et le corps est lu dans un `try`, parce
+ * qu'un refus d'infrastructure — un 502 d'un proxy, l'instance Render endormie —
+ * n'a pas de JSON du tout.
+ */
+async function refusalMessage(
+  res: Response,
+  t: (key: string, values?: Record<string, string | number>) => string,
+): Promise<string> {
+  let body: RefusalBody;
+  try {
+    body = lireRefus(await res.json());
+  } catch {
+    return t('error.generic');
+  }
+
+  switch (body.error) {
+    case 'guest_session_full':
+      // `max` vient du manifeste, via le corps du refus : l'élève apprend
+      // combien de places il y avait, ce qui rend la phrase actionnable.
+      return t('error.session_full', { max: body.max ?? 0 });
+    case 'guests_not_allowed':
+      return t('error.guests_not_allowed');
+    default:
+      return t('error.generic');
+  }
 }
 
 /**

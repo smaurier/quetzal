@@ -46,7 +46,20 @@ export const manifest: QuetzalModuleManifest = {
     enabled: true,
     tokenTTL: 7200,
     requireDisplayName: true,
-    maxConcurrentPerSession: 40,
+    /**
+     * Issue #75. 60 et non 40, et le nombre vient d une MESURE, pas d une
+     * intuition : scripts/mesurer-la-charge.mjs a fait entrer soixante
+     * telephones sur une partie en 2129 ms de mediane, avec une diffusion a
+     * 215 ms. A quarante, 1608 ms et 89 ms. Zero refus dans les deux cas.
+     *
+     * Durcir a 40 aurait refuse des eleves a un seuil que la mesure dit
+     * atteignable sans peine. Le plafond dit maintenant ce qui a ete tenu.
+     *
+     * ⚠️ Il est desormais APPLIQUE, a POST /api/guest-token, et compare au
+     * nombre d invites PRESENTS et non au nombre de jetons emis : le registre
+     * se vide a la fermeture des sockets depuis la meme issue.
+     */
+    maxConcurrentPerSession: 60,
   },
   prismaModels: 'prisma/models.prisma',
 };
