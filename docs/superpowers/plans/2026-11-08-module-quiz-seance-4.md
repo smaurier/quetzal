@@ -1,4 +1,4 @@
-# Module Quiz — plan 2, suite : la séance (tâches 9 à 12)
+# Module Quiz, plan 2, suite : la séance (tâches 9 et 10)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -83,8 +83,7 @@ describe('ManageSessionUseCase, creation', () => {
       useCase.create({
         deckId: 'fantome', mode: 'defi', maxParticipants: 6,
         defaultTimeLimit: 20, createdBy: 'u-1',
-      }),
-    ).rejects.toThrow();
+      })).rejects.toThrow();
   });
 });
 
@@ -103,8 +102,7 @@ describe('ManageSessionUseCase, ouverture', () => {
     sessions.add(sessionOf({ status: 'en-cours' }));
 
     await expect(useCase.open({ sessionId: 'session-1' })).rejects.toThrow(
-      InvalidSessionTransitionError,
-    );
+      InvalidSessionTransitionError);
   });
 
   it('refuse une seance inconnue', async () => {
@@ -182,8 +180,7 @@ describe('ManageSessionUseCase, demarrage et figement', () => {
     sessions.add(sessionOf({ status: 'ouverte', questions: [], defaultTimeLimit: null }));
 
     await expect(useCase.start({ sessionId: 'session-1' })).rejects.toThrow(
-      TimeLimitUnresolvableError,
-    );
+      TimeLimitUnresolvableError);
   });
 
   it('ne fige rien du tout quand une seule question est irresoluble', async () => {
@@ -214,8 +211,7 @@ describe('ManageSessionUseCase, demarrage et figement', () => {
     sessions.add(sessionOf({ status: 'brouillon', questions: [] }));
 
     await expect(useCase.start({ sessionId: 'session-1' })).rejects.toThrow(
-      InvalidSessionTransitionError,
-    );
+      InvalidSessionTransitionError);
   });
 });
 ```
@@ -271,8 +267,7 @@ export class ManageSessionUseCase {
   constructor(
     private readonly sessions: SessionRepository,
     private readonly banks: QuestionBankRepository,
-    private readonly eventBus?: EventBus,
-  ) {}
+    private readonly eventBus?: EventBus) {}
 
   async create(input: {
     deckId: string;
@@ -314,7 +309,7 @@ export class ManageSessionUseCase {
    *
    * ⛔ Et c'est TOUT OU RIEN : on résout les délais de toutes les questions
    * avant d'écrire la moindre ligne. Une séance à moitié figée est le pire état
-   * possible devant une classe, et refuser ici — avant que l'écran s'allume —
+   * possible devant une classe, et refuser ici, avant que l'écran s'allume,
    * est tout l'intérêt du refus.
    */
   async start(input: { sessionId: string }): Promise<void> {
@@ -454,7 +449,7 @@ refus de délai.
 
 ⚠️ **M3 restera probablement VERTE** : quarante tirages sur un alphabet de 32
 caractères à la puissance 8 ne collisionnent jamais en pratique, donc le test
-« ne frappe pas deux fois le même code » ne garde pas la boucle de réessai — il
+« ne frappe pas deux fois le même code » ne garde pas la boucle de réessai, il
 garde seulement que le code est aléatoire. C'est une limite **réelle** du test,
 pas un faux positif : la noter, et ne pas prétendre que la boucle est prouvée.
 Pour la prouver il faudrait injecter le générateur, ce qui vaut son propre test
@@ -494,7 +489,7 @@ raisonnement que le joinCode du loto.
 Verifie par mutation : rendre le figement incremental, ou transformer le
 refus de delai en repli sur 20 s, font rougir.
 
-⚠️ La boucle de reessai du code d entree n est PAS prouvee par un test —
+⚠️ La boucle de reessai du code d entree n est PAS prouvee par un test,
 quarante tirages sur 32^8 ne collisionnent jamais. Le test garde que le
 code est aleatoire, pas que la boucle sert. Limite notee plutot que
 maquillee."
@@ -548,7 +543,7 @@ describe('JoinSessionUseCase', () => {
   /**
    * ⛔ LA REGLE QUI SAUVE LA SEANCE. Spec §5.4 : « une reconnexion aboutit
    * toujours ». Un meme guestId doit retrouver SON participant, avec son score,
-   * et surtout ne pas en consommer un second — sinon trois coupures wifi par
+   * et surtout ne pas en consommer un second, sinon trois coupures wifi par
    * eleve epuisent le plafond en pleine seance.
    */
   it('rend le MEME participant a une reconnexion du meme invite', async () => {
@@ -567,8 +562,7 @@ describe('JoinSessionUseCase', () => {
     sessions.add(sessionOf({ status: 'en-cours', maxParticipants: 6, participants: [] }));
 
     await expect(
-      useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' }),
-    ).resolves.toMatchObject({ participantIndex: 1 });
+      useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' })).resolves.toMatchObject({ participantIndex: 1 });
   });
 
   it('refuse sur un brouillon', async () => {
@@ -576,8 +570,7 @@ describe('JoinSessionUseCase', () => {
     sessions.add(sessionOf({ status: 'brouillon' }));
 
     await expect(
-      useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' }),
-    ).rejects.toThrow(SessionClosedToJoinError);
+      useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' })).rejects.toThrow(SessionClosedToJoinError);
   });
 
   it('refuse sur une seance terminee', async () => {
@@ -585,15 +578,13 @@ describe('JoinSessionUseCase', () => {
     sessions.add(sessionOf({ status: 'terminee' }));
 
     await expect(
-      useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' }),
-    ).rejects.toThrow(SessionClosedToJoinError);
+      useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' })).rejects.toThrow(SessionClosedToJoinError);
   });
 
   it('refuse une seance inconnue', async () => {
     const { useCase } = build();
     await expect(
-      useCase.execute({ sessionId: 'fantome', guestId: 'g-1', displayName: 'Ana' }),
-    ).rejects.toThrow(SessionNotFoundError);
+      useCase.execute({ sessionId: 'fantome', guestId: 'g-1', displayName: 'Ana' })).rejects.toThrow(SessionNotFoundError);
   });
 
   /**
@@ -610,8 +601,7 @@ describe('JoinSessionUseCase', () => {
     await useCase.execute({ sessionId: 'session-1', guestId: 'g-2', displayName: 'Bea' });
 
     await expect(
-      useCase.execute({ sessionId: 'session-1', guestId: 'g-3', displayName: 'Cal' }),
-    ).rejects.toThrow(SessionFullError);
+      useCase.execute({ sessionId: 'session-1', guestId: 'g-3', displayName: 'Cal' })).rejects.toThrow(SessionFullError);
   });
 
   /**
@@ -692,7 +682,7 @@ export class JoinSessionUseCase {
     // ⛔ La reconnexion est cherchée AVANT le plafond : un élève qui a déjà sa
     // place doit la retrouver même sur une séance pleine. L'ordre inverse
     // l'exclurait pour une coupure réseau, sur un wifi d'établissement peu
-    // fiable — le scénario de référence.
+    // fiable, le scénario de référence.
     const deja = await this.sessions.findParticipantByGuest({
       sessionId: session.id,
       guestId: input.guestId,
@@ -734,7 +724,7 @@ export class JoinSessionUseCase {
 
 ⚠️ Ce cas d'usage ne crée **pas** d'équipes partagées : un invité égale un
 participant. Le mode « équipes » se règle par `maxParticipants` plus petit que le
-nombre d'élèves, auquel cas les surnuméraires sont refusés — ce qui n'est **pas**
+nombre d'élèves, auquel cas les surnuméraires sont refusés, ce qui n'est **pas**
 le partage d'équipe du loto. Si Elda veut de vraies équipes partagées, c'est une
 issue à ouvrir, pas un effet de bord à supposer livré.
 
@@ -808,7 +798,7 @@ git commit -m "feat(quiz): rejoindre une seance, et la retrouver apres une coupu
 
 ⛔ La reconnexion est cherchee AVANT le plafond, et l ordre est tout :
 l inverse exclurait un eleve qui a deja sa place pour une coupure reseau.
-Verifie par mutation — intervertir les deux gardes fait rougir.
+Verifie par mutation, intervertir les deux gardes fait rougir.
 
 ⚠️ Ce cas d usage ne cree PAS d equipes partagees : un invite egale un
 participant, et le mode equipes se regle par un maxParticipants plus

@@ -1,10 +1,10 @@
-# Module Quiz — plan 2, suite : la séance (tâches 11 à 14)
+# Module Quiz, plan 2, suite : la séance (tâches 11 et 12)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Suite de** [`2026-11-08-module-quiz-seance-4.md`](./2026-11-08-module-quiz-seance-4.md). Garde-fous du premier fichier toujours en vigueur.
 
-**L'horloge est injectée, partout dans ces quatre tâches.** Un `Date.now()` appelé dans un cas d'usage rendrait intestables la grâce, l'échéance et le bonus — et ce sont justement les règles qui comptent. Le port est un simple `() => number`.
+**L'horloge est injectée, partout dans ces quatre tâches.** Un `Date.now()` appelé dans un cas d'usage rendrait intestables la grâce, l'échéance et le bonus, et ce sont justement les règles qui comptent. Le port est un simple `() => number`.
 
 ---
 
@@ -228,7 +228,7 @@ import type { FrozenQuestion, Session, SessionRepository } from '../domain/ports
 
 /**
  * L'horloge, injectée. Un `Date.now()` appelé ici rendrait intestables la
- * grâce, l'échéance et le bonus — et ce sont justement les règles qui comptent.
+ * grâce, l'échéance et le bonus, et ce sont justement les règles qui comptent.
  */
 export type Horloge = () => number;
 
@@ -243,8 +243,7 @@ export class RunQuestionUseCase {
   constructor(
     private readonly sessions: SessionRepository,
     private readonly maintenant: Horloge,
-    private readonly eventBus?: EventBus,
-  ) {}
+    private readonly eventBus?: EventBus) {}
 
   /**
    * La question ouverte, ou `null`. Une question est ouverte quand elle a un
@@ -418,7 +417,7 @@ git commit -m "feat(quiz): ouvrir et fermer une question
 
 L echeance vient du delai FIGE et de lui seul (D10). Une question est
 ouverte quand elle a un openedAt sans closedAt : l echeance ne la ferme
-PAS, elle rend seulement les reponses irrecevables — D8, evaluation
+PAS, elle rend seulement les reponses irrecevables, D8, evaluation
 paresseuse.
 
 Verifie par mutation : autoriser deux questions ouvertes, reecrire l
@@ -507,7 +506,7 @@ describe('AnswerQuestionUseCase, mode defi', () => {
 
   /**
    * ⛔ LA GRACE, bout en bout : acceptee, et sans bonus. C'est la rencontre de
-   * la regle de fermeture (D8) et du bareme (D7 propriete 3) — la seule facon
+   * la regle de fermeture (D8) et du bareme (D7 propriete 3), la seule facon
    * de verifier qu'elles sont bien cablees ensemble.
    */
   it('accepte dans la grace, et la paie BASE sans bonus', async () => {
@@ -525,8 +524,7 @@ describe('AnswerQuestionUseCase, mode defi', () => {
     avancerDe(20_000 + GRACE_MS + 1);
 
     await expect(useCase.execute({ ...ANA, optionId: 'o-juste-1' })).rejects.toThrow(
-      AnswerTooLateError,
-    );
+      AnswerTooLateError);
     // ⛔ Et RIEN n'est ecrit : un refus qui enregistrerait quand meme la
     // reponse la ferait apparaitre dans le retour de seance.
     expect(sessions.answers).toHaveLength(0);
@@ -543,8 +541,7 @@ describe('AnswerQuestionUseCase, mode defi', () => {
     avancerDe(5_000);
 
     await expect(useCase.execute({ ...ANA, optionId: 'o-juste-1' })).rejects.toThrow(
-      AnswerTooLateError,
-    );
+      AnswerTooLateError);
   });
 
   /**
@@ -557,8 +554,7 @@ describe('AnswerQuestionUseCase, mode defi', () => {
 
     const premiere = await useCase.execute({ ...ANA, optionId: 'o-juste-1' });
     await expect(useCase.execute({ ...ANA, optionId: 'o-juste-1' })).rejects.toThrow(
-      AlreadyAnsweredError,
-    );
+      AlreadyAnsweredError);
 
     expect((await sessions.findById('session-1'))?.participants[0]?.score).toBe(premiere.points);
     expect(sessions.answers).toHaveLength(1);
@@ -601,8 +597,7 @@ describe('AnswerQuestionUseCase, mode defi', () => {
     const { useCase } = build([frozenQuestionOf(1, { openedAt: null })]);
 
     await expect(useCase.execute({ ...ANA, optionId: 'o-juste-1' })).rejects.toThrow(
-      NoQuestionOpenError,
-    );
+      NoQuestionOpenError);
   });
 
   it('enregistre le temps ecoule, meme quand la reponse est fausse', async () => {
@@ -762,7 +757,7 @@ export interface ReponseEnregistree {
 
 /**
  * Le cœur du module : la seule place où les quatre règles pures se rencontrent.
- * Elle n'en contient aucune — elle les orchestre, dans cet ordre, et l'ordre
+ * Elle n'en contient aucune, elle les orchestre, dans cet ordre, et l'ordre
  * compte.
  */
 @Injectable()
@@ -770,8 +765,7 @@ export class AnswerQuestionUseCase {
   constructor(
     private readonly sessions: SessionRepository,
     private readonly maintenant: Horloge,
-    private readonly eventBus?: EventBus,
-  ) {}
+    private readonly eventBus?: EventBus) {}
 
   async execute(input: {
     sessionId: string;
@@ -782,8 +776,7 @@ export class AnswerQuestionUseCase {
   }): Promise<ReponseEnregistree> {
     const session = await this.require(input.sessionId);
     const question = session.questions.find(
-      (q) => q.openedAt !== null && q.closedAt === null,
-    );
+      (q) => q.openedAt !== null && q.closedAt === null);
     if (question === undefined || question.openedAt === null) {
       throw new NoQuestionOpenError(session.id);
     }
@@ -796,16 +789,14 @@ export class AnswerQuestionUseCase {
         deadlineAt: question.deadlineAt === null ? null : question.deadlineAt.getTime(),
         closedAt: question.closedAt === null ? null : question.closedAt.getTime(),
       },
-      arriveeMs,
-    );
+      arriveeMs);
     // ⛔ Le refus sort AVANT toute écriture : enregistrer une réponse refusée la
     // ferait apparaître dans le retour de séance.
     if (accueil.kind === 'trop-tard') throw new AnswerTooLateError(accueil.raison);
 
     // 2. Juste ? Sur la question FIGÉE, jamais sur la question vivante (D10).
     const isCorrect = estJuste(this.jouable(question), {
-      ...(input.optionId === undefined ? {} : { optionId: input.optionId }),
-      ...(input.value === undefined ? {} : { texte: input.value }),
+      ...(input.optionId === undefined ? {} : { optionId: input.optionId })...(input.value === undefined ? {} : { texte: input.value }),
     });
 
     // 3. Combien ? La grâce est passée au barème en poussant l'arrivée sur
@@ -822,8 +813,7 @@ export class AnswerQuestionUseCase {
         openedAt: question.openedAt.getTime(),
         deadlineAt: question.deadlineAt === null ? null : question.deadlineAt.getTime(),
       },
-      { isCorrect, arriveeMs: arriveePourLeBareme },
-    );
+      { isCorrect, arriveeMs: arriveePourLeBareme });
 
     const elapsedMs = arriveeMs - question.openedAt.getTime();
 

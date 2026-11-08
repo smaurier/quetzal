@@ -1,4 +1,4 @@
-# Module Quiz — plan 2 : la séance
+# Module Quiz, plan 2 : la séance
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -126,7 +126,7 @@ pnpm install
 
 - [ ] **Step 2 : écrire le test du contrat d'événements, qui doit échouer**
 
-`packages/core/src/events/quiz.spec.ts` — copier la structure de
+`packages/core/src/events/quiz.spec.ts`, copier la structure de
 `packages/core/src/events/loto.spec.ts`, qui est le modèle à suivre, et
 remplacer son corps par :
 
@@ -308,8 +308,7 @@ export interface QuizEventPayloads {
 export async function emitQuiz<K extends keyof QuizEventPayloads>(
   bus: EventBus,
   name: K,
-  payload: QuizEventPayloads[K],
-): Promise<void> {
+  payload: QuizEventPayloads[K]): Promise<void> {
   await bus.emit(name, payload);
 }
 ```
@@ -449,8 +448,7 @@ describe('pointsPour, mode defi', () => {
 
   it('donne BASE plus la moitie du bonus a mi-parcours', () => {
     expect(pointsPour(defi, { isCorrect: true, arriveeMs: 10_000 })).toBe(
-      BASE + Math.round(BONUS_MAX / 2),
-    );
+      BASE + Math.round(BONUS_MAX / 2));
   });
 
   /**
@@ -567,7 +565,7 @@ export const BONUS_MAX = BASE / 4;
  * au moment de la fermeture se valide encore.
  *
  * 500 ms, et le nombre a deux bornes. Il doit **dépasser** la latence de
- * diffusion mesurée à soixante téléphones — 215 ms de médiane, issue #32 — pour
+ * diffusion mesurée à soixante téléphones, 215 ms de médiane, issue #32, pour
  * qu'un élève ne paie pas le réseau ; et rester **petit** devant le délai le
  * plus court autorisé, trois secondes (spec § 3.3), sinon ce n'est plus une
  * marge mais une rallonge.
@@ -592,13 +590,12 @@ export interface ReponseChronometree {
 }
 
 /**
- * Combien vaut cette réponse. Pure : aucune base, aucune horloge — l'instant
+ * Combien vaut cette réponse. Pure : aucune base, aucune horloge, l'instant
  * d'arrivée est une donnée d'entrée, mesurée côté serveur (D5).
  */
 export function pointsPour(
   fenetre: FenetreDeQuestion,
-  reponse: ReponseChronometree,
-): number {
+  reponse: ReponseChronometree): number {
   if (!reponse.isCorrect) return 0;
 
   // D6 : le mode contrôle n'a pas de minuteur, donc le temps n'entre dans aucun
@@ -678,18 +675,18 @@ Spec §5.3 et §9. Vu rouge d abord.
 Les trois proprietes de D7 sont des TESTS et non des commentaires, parce
 qu elles sont exactement ce qu une formule mal reglee casse en silence :
 
-1. juste bat TOUJOURS faux — la reponse juste la plus lente bat la fausse
+1. juste bat TOUJOURS faux, la reponse juste la plus lente bat la fausse
    la plus rapide. Sans ca le bareme recompense le reflexe, pas la
    connaissance.
-2. le bonus est PLAFONNE — sinon un delai long rend l ecart de vitesse
+2. le bonus est PLAFONNE, sinon un delai long rend l ecart de vitesse
    dominant, et deux eleves egaux en connaissance sont separes par leur
    reseau.
-3. la GRACE ne rapporte AUCUN bonus — sinon la marge accordee pour une
+3. la GRACE ne rapporte AUCUN bonus, sinon la marge accordee pour une
    raison d accessibilite devient un avantage, et le plancher se retourne
    contre son objet.
 
 Trois tests gardent aussi les constantes elles-memes : BONUS_MAX = BASE/4
-impose par la spec, et GRACE_MS encadree par DEUX bornes — elle doit
+impose par la spec, et GRACE_MS encadree par DEUX bornes, elle doit
 depasser la latence de diffusion mesuree a soixante telephones (215 ms,
 #32) et rester petite devant le delai minimum de trois secondes."
 git add packages/module-quiz/src/domain/scoring.ts packages/module-quiz/src/domain/session-mode.ts
@@ -734,14 +731,12 @@ import { TIME_LIMIT_MAX, TIME_LIMIT_MIN, resoudreLeDelai } from './time-limit.js
 describe('resoudreLeDelai, mode defi', () => {
   it('prend le delai de la question quand elle en porte un', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: 45, sessionDefault: 20 }),
-    ).toEqual({ kind: 'resolu', seconds: 45 });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: 45, sessionDefault: 20 })).toEqual({ kind: 'resolu', seconds: 45 });
   });
 
   it('retombe sur le defaut de la session quand la question n en porte pas', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: 20 }),
-    ).toEqual({ kind: 'resolu', seconds: 20 });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: 20 })).toEqual({ kind: 'resolu', seconds: 20 });
   });
 
   /**
@@ -751,29 +746,24 @@ describe('resoudreLeDelai, mode defi', () => {
    */
   it('refuse quand ni la question ni la session ne donnent de delai', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: null }),
-    ).toEqual({ kind: 'refuse', raison: 'aucun-delai' });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: null })).toEqual({ kind: 'refuse', raison: 'aucun-delai' });
   });
 
   it('refuse un delai sous le plancher de la spec', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MIN - 1, sessionDefault: 20 }),
-    ).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MIN - 1, sessionDefault: 20 })).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
   });
 
   it('refuse un delai au-dessus du plafond de la spec', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MAX + 1, sessionDefault: 20 }),
-    ).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MAX + 1, sessionDefault: 20 })).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
   });
 
   it('accepte les deux bornes elles-memes', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MIN, sessionDefault: null }),
-    ).toEqual({ kind: 'resolu', seconds: TIME_LIMIT_MIN });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MIN, sessionDefault: null })).toEqual({ kind: 'resolu', seconds: TIME_LIMIT_MIN });
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MAX, sessionDefault: null }),
-    ).toEqual({ kind: 'resolu', seconds: TIME_LIMIT_MAX });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: TIME_LIMIT_MAX, sessionDefault: null })).toEqual({ kind: 'resolu', seconds: TIME_LIMIT_MAX });
   });
 
   /**
@@ -783,8 +773,7 @@ describe('resoudreLeDelai, mode defi', () => {
    */
   it('refuse un defaut de session hors bornes', () => {
     expect(
-      resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: 500 }),
-    ).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: 500 })).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
   });
 });
 
@@ -796,20 +785,17 @@ describe('resoudreLeDelai, mode controle', () => {
    */
   it('rend null, meme quand la question porte un delai', () => {
     expect(
-      resoudreLeDelai({ mode: 'controle', questionTimeLimit: 30, sessionDefault: 20 }),
-    ).toEqual({ kind: 'resolu', seconds: null });
+      resoudreLeDelai({ mode: 'controle', questionTimeLimit: 30, sessionDefault: 20 })).toEqual({ kind: 'resolu', seconds: null });
   });
 
   it('rend null sans refuser quand aucun delai n est donne', () => {
     expect(
-      resoudreLeDelai({ mode: 'controle', questionTimeLimit: null, sessionDefault: null }),
-    ).toEqual({ kind: 'resolu', seconds: null });
+      resoudreLeDelai({ mode: 'controle', questionTimeLimit: null, sessionDefault: null })).toEqual({ kind: 'resolu', seconds: null });
   });
 
   it('ne refuse pas un delai de question hors bornes, puisqu il est ignore', () => {
     expect(
-      resoudreLeDelai({ mode: 'controle', questionTimeLimit: 9999, sessionDefault: null }),
-    ).toEqual({ kind: 'resolu', seconds: null });
+      resoudreLeDelai({ mode: 'controle', questionTimeLimit: 9999, sessionDefault: null })).toEqual({ kind: 'resolu', seconds: null });
   });
 });
 ```

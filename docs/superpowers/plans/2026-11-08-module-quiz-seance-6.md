@@ -1,4 +1,4 @@
-# Module Quiz — plan 2, suite : la séance (tâches 13 à 16)
+# Module Quiz, plan 2, suite : la séance (tâches 13 à 16)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -82,7 +82,7 @@ describe('FinishSessionUseCase', () => {
 describe('SessionReportUseCase', () => {
   /**
    * D12 : le retour vit DANS le module, sans port et sans capacite de
-   * plateforme, parce que le retour du loto n'a pas la meme forme — il n'a
+   * plateforme, parce que le retour du loto n'a pas la meme forme, il n'a
    * aucune bonne reponse par eleve. Fabriquer une abstraction au-dessus de deux
    * choses qui ne se ressemblent pas est exactement ce que #28 evite.
    */
@@ -205,8 +205,7 @@ import type { SessionRepository } from '../domain/ports/session.repository.js';
 export class FinishSessionUseCase {
   constructor(
     private readonly sessions: SessionRepository,
-    private readonly eventBus?: EventBus,
-  ) {}
+    private readonly eventBus?: EventBus) {}
 
   async execute(input: { sessionId: string }): Promise<void> {
     const session = await this.sessions.findById(input.sessionId);
@@ -296,8 +295,8 @@ export function labelDuParticipant(participant: Participant): string {
 
 /**
  * D12 : le retour vit DANS le module, sans port et sans capacité de plateforme.
- * Le retour du loto n'a pas la même forme — il n'a aucune bonne réponse par
- * élève — et fabriquer une abstraction au-dessus de deux choses qui ne se
+ * Le retour du loto n'a pas la même forme, il n'a aucune bonne réponse par
+ * élève, et fabriquer une abstraction au-dessus de deux choses qui ne se
  * ressemblent pas est exactement ce que #28 évite en attendant un vrai second
  * consommateur.
  */
@@ -359,8 +358,7 @@ export class SessionReportUseCase {
       // Score décroissant, puis réponses justes, puis label : un classement qui
       // change d'ordre à chaque rechargement se lit mal sur un vidéoprojecteur.
       .sort((a, b) =>
-        b.score - a.score || b.correctCount - a.correctCount || a.label.localeCompare(b.label),
-      );
+        b.score - a.score || b.correctCount - a.correctCount || a.label.localeCompare(b.label));
 
     return {
       sessionId: session.id,
@@ -480,7 +478,7 @@ export const createSessionSchema = z
   // ⛔ Refusé ICI plutôt qu'au démarrage, quand c'est déjà évitable : une séance
   // de défi sans défaut de session ne pourra démarrer que si CHAQUE question
   // porte son propre délai. Le dire à la création épargne un refus devant la
-  // classe — et le refus du démarrage reste, parce que la banque peut changer
+  // classe, et le refus du démarrage reste, parce que la banque peut changer
   // entre les deux.
   .refine((v) => v.mode === 'controle' || v.defaultTimeLimit !== null, {
     message: 'un défi demande un délai par défaut, sauf si chaque question porte le sien',
@@ -525,7 +523,7 @@ import { createSessionSchema, renameParticipantSchema } from './dto/quiz.dto.js'
 
 /**
  * D9 : les commandes passent en HTTP, et la diffusion en WebSocket. Le
- * contrôleur exécute, le diffuseur prévient la salle — une commande mérite un
+ * contrôleur exécute, le diffuseur prévient la salle, une commande mérite un
  * code de retour, un WebSocket ne sert qu'à diffuser.
  */
 @Controller('api/modules/quiz/sessions')
@@ -538,8 +536,7 @@ export class SessionController {
     @Inject(RunQuestionUseCase) private readonly questions: RunQuestionUseCase,
     @Inject(FinishSessionUseCase) private readonly finish: FinishSessionUseCase,
     @Inject(SessionReportUseCase) private readonly report: SessionReportUseCase,
-    @Inject(QuizBroadcaster) private readonly broadcaster: QuizBroadcaster,
-  ) {}
+    @Inject(QuizBroadcaster) private readonly broadcaster: QuizBroadcaster) {}
 
   @Get()
   async list() {
@@ -614,8 +611,7 @@ export class SessionController {
   async renameParticipant(
     @Param('id') id: string,
     @Param('participantId') participantId: string,
-    @Body() body: unknown,
-  ) {
+    @Body() body: unknown) {
     const parsed = renameParticipantSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     await this.sessions.rename({ participantId, name: parsed.data.name });
@@ -760,8 +756,7 @@ export class QuizBroadcaster {
 
   constructor(
     @Inject(ManageSessionUseCase) private readonly sessions: ManageSessionUseCase,
-    @Inject(SessionReportUseCase) private readonly report: SessionReportUseCase,
-  ) {}
+    @Inject(SessionReportUseCase) private readonly report: SessionReportUseCase) {}
 
   attach(server: Server): void {
     this.server = server;
@@ -779,8 +774,7 @@ export class QuizBroadcaster {
     if (this.server === null) {
       logger.error(
         { module: 'quiz', action: 'broadcast.detached', event, room },
-        'quiz: diffusion demandée avant attachement du serveur',
-      );
+        'quiz: diffusion demandée avant attachement du serveur');
       return;
     }
     this.server.to(room).emit(event, payload);
@@ -856,8 +850,7 @@ export class QuizBroadcaster {
   answerAcknowledged(
     sessionId: string,
     participantId: string,
-    payload: { isCorrect: boolean; points: number; dansLaGrace: boolean },
-  ): void {
+    payload: { isCorrect: boolean; points: number; dansLaGrace: boolean }): void {
     // Vers le seul participant : lui dire juste ou faux pendant que les autres
     // répondent encore ne doit pas fuiter dans la salle.
     this.emit(rooms.subgroup('quiz', sessionId, participantId), 'answer-result', payload);
@@ -907,8 +900,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
     @Inject(AnswerQuestionUseCase) private readonly answer: AnswerQuestionUseCase,
     @Inject(RunQuestionUseCase) private readonly questions: RunQuestionUseCase,
     @Inject(ManageSessionUseCase) private readonly sessions: ManageSessionUseCase,
-    @Inject(QuizBroadcaster) private readonly broadcaster: QuizBroadcaster,
-  ) {}
+    @Inject(QuizBroadcaster) private readonly broadcaster: QuizBroadcaster) {}
 
   // `afterInit` et non `handleConnection` : issue #34 du loto, toute diffusion
   // antérieure à la première connexion partait sinon dans le vide, sans erreur.
@@ -989,8 +981,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
   @SubscribeMessage('answer')
   async handleAnswer(
     @MessageBody() body: { optionId?: string; value?: string },
-    @ConnectedSocket() client: Socket,
-  ): Promise<void> {
+    @ConnectedSocket() client: Socket): Promise<void> {
     const data = client.data as SocketData;
     if (data.sessionId === undefined || data.participantId === undefined) return;
     if (data.guestId === undefined) return;
@@ -999,9 +990,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
       const r = await this.answer.execute({
         sessionId: data.sessionId,
         participantId: data.participantId,
-        guestId: data.guestId,
-        ...(body.optionId === undefined ? {} : { optionId: body.optionId }),
-        ...(body.value === undefined ? {} : { value: body.value }),
+        guestId: data.guestId...(body.optionId === undefined ? {} : { optionId: body.optionId })...(body.value === undefined ? {} : { value: body.value }),
       });
       // Diffusé vers le seul participant, jamais retourné : Nest transformerait
       // un retour {event, data} en événement, et le résultat irait à la salle.
@@ -1196,7 +1185,7 @@ dans le vide, sans erreur."
 
 - [ ] **Step 1 : le crochet de socket, copié du loto**
 
-`packages/module-quiz/src/presentation/ui/use-quiz-socket.ts` — reprendre
+`packages/module-quiz/src/presentation/ui/use-quiz-socket.ts`, reprendre
 `packages/module-loto/src/presentation/ui/use-game-socket.ts` à l'identique et
 remplacer `loto` par `quiz`, `gameId` par `sessionId`. ⚠️ Ne pas réécrire : ce
 fichier porte des correctifs d'issues (reconnexion, nettoyage à la sortie) qu'une
@@ -1284,8 +1273,7 @@ export default function HostSession({ sessionId }: { sessionId: string }) {
         // `null` est une valeur VOULUE : c'est ainsi qu'on annule un renommage
         // et que le participant retrouve son nom dérivé (issue #29 du loto).
         body: JSON.stringify({ name: saisi === '' ? null : saisi }),
-      },
-    );
+      });
   }
 
   const session: SessionVue | null = state?.session ?? null;

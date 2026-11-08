@@ -1,4 +1,4 @@
-# Module Quiz — plan 2, suite : la séance (tâches 4 à 20)
+# Module Quiz, plan 2, suite : la séance (tâches 4 à 6)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -167,13 +167,12 @@ export type AccueilDeReponse =
  */
 export function accueilDeLaReponse(
   fenetre: FenetreOuverte,
-  arriveeMs: number,
-): AccueilDeReponse {
+  arriveeMs: number): AccueilDeReponse {
   // Le geste de l'animatrice passe AVANT l'échéance : sans ça, « on passe à la
   // suite » n'aurait aucun effet tant que le délai n'est pas écoulé.
   if (fenetre.closedAt !== null) return { kind: 'trop-tard', raison: 'question-fermee' };
 
-  // Mode contrôle : rien n'expire, et surtout pas de grâce — il n'y a rien dont
+  // Mode contrôle : rien n'expire, et surtout pas de grâce, il n'y a rien dont
   // elle serait la marge.
   if (fenetre.deadlineAt === null) return { kind: 'a-temps' };
 

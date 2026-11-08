@@ -1,4 +1,4 @@
-# Module Quiz — plan 2, suite : la séance (tâches 7 à 12)
+# Module Quiz, plan 2, suite : la séance (tâches 7 et 8)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -150,8 +150,7 @@ import type { SessionStatus } from '../../domain/session-status.js';
 
 export function frozenQuestionOf(
   rank: number,
-  overrides: Partial<FrozenQuestion> = {},
-): FrozenQuestion {
+  overrides: Partial<FrozenQuestion> = {}): FrozenQuestion {
   return {
     id: nextId('sq'),
     rank,
@@ -169,8 +168,7 @@ export function frozenQuestionOf(
     acceptedAnswers: [],
     openedAt: null,
     deadlineAt: null,
-    closedAt: null,
-    ...overrides,
+    closedAt: null...overrides,
   };
 }
 
@@ -185,8 +183,7 @@ export function sessionOf(overrides: Partial<Session> = {}): Session {
     defaultTimeLimit: 20,
     guestLocale: null,
     questions: [frozenQuestionOf(1), frozenQuestionOf(2)],
-    participants: [],
-    ...overrides,
+    participants: []...overrides,
   };
 }
 
@@ -260,8 +257,7 @@ export class FakeSessionRepository implements SessionRepository {
 
   async freezeQuestions(
     sessionId: string,
-    questions: readonly Omit<FrozenQuestion, 'id'>[],
-  ): Promise<void> {
+    questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void> {
     this.muter(sessionId, (session) => ({
       ...session,
       questions: questions.map((q) => ({ ...q, id: nextId('sq') })),
@@ -280,8 +276,7 @@ export class FakeSessionRepository implements SessionRepository {
       questions: session.questions.map((q) =>
         q.id === input.sessionQuestionId
           ? { ...q, openedAt: input.openedAt, deadlineAt: input.deadlineAt }
-          : q,
-      ),
+          : q),
     }));
   }
 
@@ -291,8 +286,7 @@ export class FakeSessionRepository implements SessionRepository {
     this.muter(trouve.session.id, (session) => ({
       ...session,
       questions: session.questions.map((q) =>
-        q.id === input.sessionQuestionId ? { ...q, closedAt: input.closedAt } : q,
-      ),
+        q.id === input.sessionQuestionId ? { ...q, closedAt: input.closedAt } : q),
     }));
   }
 
@@ -335,8 +329,7 @@ export class FakeSessionRepository implements SessionRepository {
                   ? p.memberNames
                   : [...p.memberNames, input.displayName],
               }
-            : p,
-        ),
+            : p),
       }));
       return;
     }
@@ -360,8 +353,7 @@ export class FakeSessionRepository implements SessionRepository {
       this.muter(session.id, (courante) => ({
         ...courante,
         participants: courante.participants.map((p) =>
-          p.id === input.participantId ? { ...p, name: input.name } : p,
-        ),
+          p.id === input.participantId ? { ...p, name: input.name } : p),
       }));
       return;
     }
@@ -374,8 +366,7 @@ export class FakeSessionRepository implements SessionRepository {
     const deja = this.answers.some(
       (a) =>
         a.sessionQuestionId === answer.sessionQuestionId &&
-        a.participantId === answer.participantId,
-    );
+        a.participantId === answer.participantId);
     if (deja) return null;
 
     const ligne: AnswerRow = { ...answer, id: nextId('answer') };
@@ -389,8 +380,7 @@ export class FakeSessionRepository implements SessionRepository {
       this.muter(session.id, (courante) => ({
         ...courante,
         participants: courante.participants.map((p) =>
-          p.id === input.participantId ? { ...p, score: p.score + input.points } : p,
-        ),
+          p.id === input.participantId ? { ...p, score: p.score + input.points } : p),
       }));
       return;
     }
@@ -439,7 +429,7 @@ recordAnswer rend null plutot que de lever : l unicite est garantie par
 cas d usage decide quoi en faire.
 
 addMember est idempotent, parce qu une reconnexion ne doit pas creer un
-second membre — et le scenario de reference est un wifi peu fiable."
+second membre, et le scenario de reference est un wifi peu fiable."
 ```
 
 ---
@@ -499,8 +489,7 @@ describe('PrismaSessionRepository (intégration)', () => {
     const { PrismaQuestionBankRepository } = await import('./prisma-question-bank.repository.js');
     const banques = new PrismaQuestionBankRepository();
     const banque = await inTenant(tenantId, ownerId, () =>
-      banques.create({ name: 'Vocabulaire', isTemplate: false, createdBy: ownerId, questions: [] }),
-    );
+      banques.create({ name: 'Vocabulaire', isTemplate: false, createdBy: ownerId, questions: [] }));
     return banque.id;
   }
 
@@ -518,8 +507,7 @@ describe('PrismaSessionRepository (intégration)', () => {
         guestLocale: null,
         joinCode: 'ABCD1234',
         createdBy: ownerId,
-      }),
-    );
+      }));
 
     const relue = await inTenant(tenantId, ownerId, () => repo.findByJoinCode('ABCD1234'));
     expect(relue?.id).toBe(creee.id);
@@ -539,8 +527,7 @@ describe('PrismaSessionRepository (intégration)', () => {
       repo.create({
         deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
         guestLocale: null, joinCode: 'FIGE0001', createdBy: ownerId,
-      }),
-    );
+      }));
 
     await inTenant(tenantId, ownerId, () => repo.freezeQuestions(session.id, [FIGEE]));
     const relue = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
@@ -558,8 +545,7 @@ describe('PrismaSessionRepository (intégration)', () => {
       repo.create({
         deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
         guestLocale: null, joinCode: 'ORDRE001', createdBy: ownerId,
-      }),
-    );
+      }));
 
     // Inserees a l'envers, exprès : un ORDER BY absent rendrait cet ordre.
     await inTenant(tenantId, ownerId, () =>
@@ -567,8 +553,7 @@ describe('PrismaSessionRepository (intégration)', () => {
         { ...FIGEE, rank: 3, prompt: 'troisieme' },
         { ...FIGEE, rank: 1, prompt: 'premiere' },
         { ...FIGEE, rank: 2, prompt: 'deuxieme' },
-      ]),
-    );
+      ]));
     const relue = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
 
     expect(relue?.questions.map((q) => q.prompt)).toEqual([
@@ -590,14 +575,12 @@ describe('PrismaSessionRepository (intégration)', () => {
       repo.create({
         deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
         guestLocale: null, joinCode: 'UNIQ0001', createdBy: ownerId,
-      }),
-    );
+      }));
     await inTenant(tenantId, ownerId, () => repo.freezeQuestions(session.id, [FIGEE]));
     const avecQuestions = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
     const sqId = avecQuestions!.questions[0]!.id;
     const participant = await inTenant(tenantId, ownerId, () =>
-      repo.addParticipant({ sessionId: session.id, participantIndex: 1 }),
-    );
+      repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
 
     const base = {
       sessionQuestionId: sqId,
@@ -626,23 +609,18 @@ describe('PrismaSessionRepository (intégration)', () => {
       repo.create({
         deckId, mode: 'controle', maxParticipants: 6, defaultTimeLimit: null,
         guestLocale: null, joinCode: 'RECO0001', createdBy: ownerId,
-      }),
-    );
+      }));
     const participant = await inTenant(tenantId, ownerId, () =>
-      repo.addParticipant({ sessionId: session.id, participantIndex: 1 }),
-    );
+      repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
 
     await inTenant(tenantId, ownerId, () =>
-      repo.addMember({ participantId: participant.id, guestId: 'g-7', displayName: 'Ana' }),
-    );
+      repo.addMember({ participantId: participant.id, guestId: 'g-7', displayName: 'Ana' }));
     // Deux fois : une reconnexion ne doit pas creer un second membre.
     await inTenant(tenantId, ownerId, () =>
-      repo.addMember({ participantId: participant.id, guestId: 'g-7', displayName: 'Ana' }),
-    );
+      repo.addMember({ participantId: participant.id, guestId: 'g-7', displayName: 'Ana' }));
 
     const retrouve = await inTenant(tenantId, ownerId, () =>
-      repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-7' }),
-    );
+      repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-7' }));
     expect(retrouve?.id).toBe(participant.id);
     expect(retrouve?.memberNames, 'un seul membre, pas deux').toEqual(['Ana']);
   });
@@ -656,17 +634,14 @@ describe('PrismaSessionRepository (intégration)', () => {
       repo.create({
         deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
         guestLocale: null, joinCode: 'VOISIN01', createdBy: voisin.ownerId,
-      }),
-    );
+      }));
 
     expect(
       await inTenant(chezNous.tenantId, chezNous.ownerId, () => repo.findById(sienne.id)),
-      'une seance d un autre locataire doit etre introuvable',
-    ).toBeNull();
+      'une seance d un autre locataire doit etre introuvable').toBeNull();
     expect(
       await inTenant(chezNous.tenantId, chezNous.ownerId, () => repo.findByJoinCode('VOISIN01')),
-      'et son code d entree ne doit pas la trouver non plus',
-    ).toBeNull();
+      'et son code d entree ne doit pas la trouver non plus').toBeNull();
   });
 });
 ```
@@ -924,14 +899,13 @@ export class PrismaSessionRepository implements SessionRepository {
       : {};
     await this.prisma.quiz_Session.updateMany({
       where: { id: sessionId },
-      data: { status, ...horodatage },
+      data: { status...horodatage },
     });
   }
 
   async freezeQuestions(
     sessionId: string,
-    questions: readonly Omit<FrozenQuestion, 'id'>[],
-  ): Promise<void> {
+    questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void> {
     if (questions.length === 0) return;
     // `createMany` en une fois : un figement partiel serait une séance à moitié
     // jouable, et c'est le pire état possible devant une classe.
@@ -1033,7 +1007,7 @@ export class PrismaSessionRepository implements SessionRepository {
 
   async recordAnswer(answer: NewAnswer): Promise<AnswerRow | null> {
     try {
-      return await this.prisma.quiz_Answer.create({ data: { id: newId(), ...answer } });
+      return await this.prisma.quiz_Answer.create({ data: { id: newId()...answer } });
     } catch (err) {
       // ⛔ Rendu `null` et NON laissé remonter : deux doigts sur un téléphone
       // d'élève suffisent à déclencher deux émissions, et un 500 sur un
@@ -1115,7 +1089,7 @@ Expected: M1 **CODE : 1** sur « refuse une seconde reponse ».
 les lignes triées et que le `.sort()` du code est une ceinture par-dessus une
 bretelle. Si elle est verte, ce n'est pas un faux positif à ignorer : c'est que le
 test ne garde que l'`orderBy`. **Retirer alors l'`orderBy` de `this.inclusion`
-aussi** et refaire la mutation — si le test rougit, les deux gardes sont prouvés
+aussi** et refaire la mutation, si le test rougit, les deux gardes sont prouvés
 ensemble ; s'il reste vert, la base rendait le bon ordre par hasard et le test est
 trop faible.
 
