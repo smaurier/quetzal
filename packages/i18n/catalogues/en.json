@@ -64,7 +64,12 @@
       "connecting": "Connecting...",
       "loading": "Loading...",
       "missing_tenant": "Missing tenantId",
-      "connected_as": "Connected as {name}"
+      "connected_as": "Connected as {name}",
+      "error": {
+        "session_full": "This session is full: {max} students have already joined. Tell your teacher.",
+        "guests_not_allowed": "This activity does not accept guests.",
+        "generic": "Cannot join right now. Tell your teacher."
+      }
     }
   }
 }

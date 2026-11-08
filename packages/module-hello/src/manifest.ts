@@ -25,6 +25,14 @@ export const manifest: QuetzalModuleManifest = {
     enabled: true,
     tokenTTL: 7200,
     requireDisplayName: true,
+    /**
+     * ⚠️ Issue #75 : ce plafond est desormais APPLIQUE, a
+     * POST /api/guest-token. 100 n a jamais ete mesure, et ne l est pas ici :
+     * hello est le squelette de reference, sa passerelle ne fait qu un ping.
+     * Le seul plafond adosse a une mesure est celui du loto, 60, mesure par
+     * scripts/mesurer-la-charge.mjs. On ne le recopie pas sur hello : ce
+     * serait emprunter une mesure faite sur un autre module.
+     */
     maxConcurrentPerSession: 100,
   },
   prismaModels: 'prisma/models.prisma',

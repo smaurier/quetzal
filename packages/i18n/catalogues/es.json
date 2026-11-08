@@ -64,7 +64,12 @@
       "connecting": "Conectando...",
       "loading": "Cargando...",
       "missing_tenant": "Falta tenantId",
-      "connected_as": "Conectado como {name}"
+      "connected_as": "Conectado como {name}",
+      "error": {
+        "session_full": "La sesión está completa: ya hay {max} alumnos. Avisa a tu profesora.",
+        "guests_not_allowed": "Esta actividad no acepta invitados.",
+        "generic": "No se puede entrar ahora mismo. Avisa a tu profesora."
+      }
     }
   }
 }
