@@ -321,6 +321,54 @@ Ce qui reste exigé, et ne bouge pas : **le premier adaptateur d'un Port doit ar
 - `*.e2e.spec.ts` = E2E Playwright
 - `manifest.spec.ts` = contract test (chaque module)
 
+### Vérifier un artefact, jamais le supposer
+
+Deux pièges ont chacun coûté une conclusion fausse, et ils ont la même forme :
+**l'artefact servi n'est pas le code qu'on vient d'écrire**, et rien ne le dit.
+
+**1. `apps/host/.next` périmé fait échouer `next build` sans nommer de fichier.**
+Ajouter une route au host alors que `.next` porte un build précédent sort un
+`TypeError: Cannot read properties of undefined (reading 'length')` qui ne désigne
+aucun fichier, et qui envoie chercher le défaut dans la nouvelle route ou dans
+`typedRoutes`. Le défaut est le cache : `rm -rf apps/host/.next` avant tout build
+local de vérification.
+
+**2. `pnpm --filter <app> build` ne reconstruit PAS les dépendances de l'app.**
+Un correctif dans `packages/module-*` n'atteint pas le serveur, qui continue de
+servir l'ancien `dist/`. Une remesure a ainsi redonné le chiffre d'avant
+correction, et a presque fait conclure que le correctif ne servait à rien.
+
+**La règle qui couvre les deux : afficher un témoin de fraîcheur AVANT la mesure,
+jamais après.** Une commande dont la sortie prouve que l'artefact porte le
+changement :
+
+```bash
+# le module reconstruit porte-t-il la nouvelle constante ?
+grep -n "MARGE_ESSAIS" packages/module-loto/dist/application/join-game.use-case.js
+
+# le host a-t-il ete construit avec ce module ?
+grep -c "quiz" apps/host/src/lib/module-loaders.generated.ts
+```
+
+Sans témoin, un vert ne prouve rien : il peut venir de l'ancien artefact. Et une
+mesure qui ne bouge pas après un correctif est d'abord un soupçon sur le build,
+pas sur le correctif.
+
+### Lire un résultat, jamais une absence
+
+Une sortie vide n'est pas un succès. Trois conclusions fausses sont venues de là,
+dont deux le 08/11 : un `pnpm typecheck` dont la sortie n'était pas encore écrite
+lu comme vert, puis des `error TS` attribués à une mutation alors qu'ils
+préexistaient.
+
+- Lire un **code de sortie** explicite (`echo "CODE : $?"`), pas l'absence de
+  lignes d'erreur dans un `grep`.
+- Pour affirmer qu'un test précis est passé, le faire **nommer**
+  (`--reporter=verbose`), pas le déduire d'un total.
+- ⛔ Ne jamais changer deux variables entre deux mesures. Deux conclusions fausses
+  en une heure sont venues de là : un `next.config` accusé, puis `typedRoutes`
+  presque désactivé, alors que la cause était un `.next` périmé.
+
 ## 12. Convention CI/CD
 
 ### Jobs GitHub Actions (`.github/workflows/ci.yml`)
