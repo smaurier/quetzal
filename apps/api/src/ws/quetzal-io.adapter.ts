@@ -82,7 +82,13 @@ export class QuetzalIoAdapter extends IoAdapter {
        */
       socket.on('disconnect', () => {
         const identity = identities.get(socket);
-        if (identity === undefined || identity.role !== 'guest') return;
+        // ⛔ `'guestId' in identity` et NON `identity.role !== 'guest'` : les
+        // deux branches de `SocketIdentity` portent un `role`, et celui de la
+        // branche utilisateur est un `QuetzalRole`, qui contient `'guest'`.
+        // Tester le role ne discrimine donc rien, et laisse les deux branches
+        // possibles (TS2339 sur moduleSlug, sessionId et guestId). `in` est le
+        // seul des deux qui soit un vrai typeguard ici.
+        if (identity === undefined || !('guestId' in identity)) return;
         guestRegistry.remove(identity.moduleSlug, identity.sessionId, identity.guestId);
         logger.info(
           { moduleSlug: identity.moduleSlug, sessionId: identity.sessionId, guestId: identity.guestId },

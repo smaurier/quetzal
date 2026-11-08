@@ -156,12 +156,19 @@ describe('QuetzalIoAdapter (integration)', () => {
    * de `guestId`. Retirer sur sa deconnexion viderait le registre de la seance
    * et rendrait le plafond inoperant des qu elle rafraichit sa page.
    *
-   * ⚠️ Ce test est un FILET, pas le garde principal, et il faut le dire :
-   * mesure faite, retirer la condition `identity.role !== 'guest'` ne le fait
-   * pas rougir — c est le typecheck qui tombe, trois fois (TS2339 : moduleSlug,
-   * sessionId et guestId n existent pas sur l autre branche de l union
-   * `SocketIdentity`). Il garde donc le cas ou un futur remaniement elargirait
-   * ce type, pas la ligne telle qu elle est ecrite aujourd hui.
+   * ⚠️ Ce test et le typecheck gardent deux choses differentes, et il a fallu
+   * se tromper pour le voir. Retirer le `'guestId' in identity` fait rougir le
+   * TYPECHECK (TS2339 : moduleSlug, sessionId et guestId n existent pas sur
+   * l autre branche de l union `SocketIdentity`). Ce test, lui, garde le
+   * COMPORTEMENT : qu une utilisatrice connectee qui rafraichit sa page ne
+   * vide pas le registre de la seance.
+   *
+   * ⛔ Et le piege que la premiere version avait manque : ecrire
+   * `identity.role !== 'guest'` ne discrimine RIEN, parce que les deux branches
+   * portent un `role` et que celui de la branche utilisateur est un
+   * `QuetzalRole`, qui contient `'guest'`. Le typecheck tombait donc avec ET
+   * sans la condition, ce qui m avait fait croire qu elle etait tenue alors
+   * qu elle ne tenait rien.
    */
   it('ne touche pas au registre quand une utilisatrice connectee se deconnecte', async () => {
     // ⚠️ Une AUTRE seance que le test precedent : le registre est un singleton
