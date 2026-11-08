@@ -8,6 +8,8 @@ export { InProcessEventBus, eventBus } from './event-bus.js';
 export { rooms } from './rooms.js';
 export { signGuestToken, verifyGuestToken, GuestTokenInvalidError, type GuestTokenPayload, type VerifiedGuestToken } from './guest/guest-token.js';
 export { InMemoryGuestRegistry, guestRegistry, type GuestEntry, type GuestRegistry } from './guest/guest-registry.js';
+export { InMemoryGuestPolicies, guestPolicies, type GuestPolicies } from './guest/guest-policies.js';
+export { admitGuest, type GuestAdmission, type GuestRefusalCode } from './guest/guest-admission.js';
 export { TenantScopeViolationError } from '@quetzal/db';
 export { DomainError, TenantContextMissingError } from './errors.js';
 export { resolveSocketIdentity, canEmitWsEvent, WsUnauthenticatedError, type HandshakeAuth, type NamespacePolicy, type HandshakeVerifiers, type SocketIdentity, type UserTokenClaims } from './ws/handshake.js';
