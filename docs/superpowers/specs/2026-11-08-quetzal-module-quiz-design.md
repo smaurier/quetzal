@@ -12,10 +12,10 @@ pendant que les élèves répondent sur leur téléphone.
 
 Le module doit prouver que le contrat posé au sous-projet 1 tient pour un
 **second** module réel — c'est-à-dire que la frontière noyau / module n'a pas été
-taillée pour le seul loto. Deux capacités sont attendues à ce titre : le stockage
-d'images remonte à la plateforme (issue #28, dont le déclencheur est précisément
-« le jour où un deuxième module a besoin d'images »), et le contrat gagne un état
-temporel que le loto avait refusé.
+taillée pour le seul loto. Deux capacités sont attendues à ce titre : le **port**
+des images remonte dans le noyau (issue #28, dont le déclencheur est précisément
+« le jour où un deuxième module a besoin d'images » — voir D11, qui scinde cette
+issue en deux), et le contrat gagne un état temporel que le loto avait refusé.
 
 ## 2. Public et scénario de référence
 
@@ -46,7 +46,7 @@ appel peut mettre soixante secondes.
 |---|---|
 | Banque de questions | Création de zéro, duplication, édition, suppression. Questions ordonnées. |
 | Modes de réponse | **choix** (propositions portant texte et/ou image) et **saisie** (l'élève écrit) |
-| Images | Réutilisation du stockage remonté à la plateforme (#28), sur les propositions comme sur l'énoncé |
+| Images | Port remonté dans le noyau (D11), sur les propositions comme sur l'énoncé. L'adaptateur reste celui en base. |
 | Session | Création avec mode et unité, code court et QR, salle d'attente, ouverture et fermeture de question, historique |
 | Participants | Solo ou équipes par un seul réglage, répartition automatique au-delà du maximum |
 | Scoring | Juste / faux en contrôle ; juste / faux **plus un bonus de vitesse borné** en défi |
@@ -65,6 +65,11 @@ contrôle**, qui n'a aucun minuteur.
 
 **Répétition espacée et planification.** Territoire du sous-projet 4, dont la
 spec du noyau exige un panel d'experts sur SM-2 contre FSRS avant toute ligne.
+
+**La bascule des images vers un stockage objet servi par CDN.** Seconde moitié de
+#28, et rien dans ce module ne l'impose : l'adaptateur en base sert déjà le loto
+en production. Voir D11. Le déclencheur de cette moitié-là reste à venir — un
+volume ou un coût qui la justifie, pas un second module.
 
 Également dehors : plusieurs réponses justes pour une même question · import ou
 export de banques · partage entre locataires · son et musique · chat ·
@@ -217,7 +222,32 @@ jurisprudence que D5 du loto. La résolution « délai de la question, sinon dé
 de la session » se fait **au figement**, une fois, et la valeur résolue est
 écrite sur la ligne figée.
 
-### D11 — Le retour de séance vit dans le module, sans port
+### D11 — L'issue #28 se scinde en deux, et une seule moitié entre ici
+
+#28 énonce deux choses d'un seul souffle : « la capacité remonte au niveau de la
+plateforme **et** bascule sur un stockage objet servi par CDN ». Elles sont
+séparables, et une seule est imposée par ce module.
+
+**Ce qui est imposé.** Le port vit aujourd'hui dans
+`packages/module-loto/src/domain/ports/card-image.store.ts`, donc **chez un
+module**. `CLAUDE.md` §3 et §14 interdisent à un module d'importer un autre
+module. Le quiz ne peut donc pas réutiliser ce port là où il est : il faut le
+remonter, lui et son adaptateur Prisma, dans `@quetzal/core`. C'est la « remontée
+au niveau de la plateforme » de #28, et elle est inévitable ici.
+
+**Ce qui ne l'est pas.** Le stockage objet et le CDN. L'adaptateur en base sert
+déjà le loto en production, et la remontée du port ne le touche pas. Confondre
+les deux ferait entrer une migration d'infrastructure dans un sous-projet de
+module, sans qu'aucun besoin mesuré ne la demande — exactement le reproche que
+#28 se fait à elle-même en attendant son déclencheur.
+
+⚠️ Conséquence à ne pas sous-estimer : la remontée touche du code **en
+production**. Le garde qui existe déjà, `port-images-non-contourne.spec.ts`,
+devra suivre le port dans le noyau, sinon il garderait un chemin que plus
+personne n'emprunte et passerait au vert par vacuité — le défaut qu'il
+s'interdit lui-même dans son second test.
+
+### D12 — Le retour de séance vit dans le module, sans port
 
 Pas de capacité de plateforme, et pas de port en attendant.
 
@@ -258,9 +288,8 @@ justesse ni sur son propre temps (D5).
 ### 5.3 Score
 
 `controle` : juste vaut un point, faux zéro. Aucun temps n'entre dans le calcul.
-
-La valeur absolue de `BASE` est sans importance et sera fixée au plan : seul
-compte le **rapport** `BONUS_MAX / BASE`, qui porte les trois propriétés de D7.
+`elapsedMs` y est tout de même enregistré, mais à titre indicatif pour le retour
+de séance — il ne pèse sur aucun score.
 
 `defi` : faux vaut zéro ; juste vaut `BASE + bonus`, où
 
@@ -268,6 +297,9 @@ compte le **rapport** `BONUS_MAX / BASE`, qui porte les trois propriétés de D7
 reste = max(0, (deadlineAt − arrivee) / (deadlineAt − openedAt))
 bonus = round(BONUS_MAX × reste)        avec BONUS_MAX = BASE / 4
 ```
+
+La valeur absolue de `BASE` est sans importance et sera fixée au plan : seul
+compte le **rapport** `BONUS_MAX / BASE`, qui porte les trois propriétés de D7.
 
 Une réponse acceptée dans la **marge de grâce** vaut `BASE` sans bonus : la grâce
 ne doit jamais devenir un avantage. Sa durée est fixée au plan, et bornée par une
@@ -301,7 +333,7 @@ Postgres mais `String` + CHECK + Zod (§9).
 | `Quiz_Question` | question vivante, éditable | `answerMode` CHECK `('choix','saisie')` · `timeLimit` nullable · `@@unique([deckId, rank, tenantId])` |
 | `Quiz_Option` | proposition d'une question `choix` | `isCorrect` · `imageId` nullable · CHECK « au moins texte ou image » hors de SQL, porté par Zod et le domaine |
 | `Quiz_AcceptedAnswer` | réponse acceptée d'une question `saisie` | une ligne par variante — le pardon est explicite (D2) |
-| `Quiz_Session` | la séance | `mode` CHECK `('defi','controle')` · `maxParticipants` · `defaultTimeLimit` · `joinCode` · `status` CHECK |
+| `Quiz_Session` | la séance | `mode` CHECK `('defi','controle')` · `maxParticipants` · `joinCode` · `status` CHECK · `defaultTimeLimit` — ⚠️ valeur de **rédaction** uniquement, jamais lue en séance : elle ne contredit pas D10, qui interdit que le délai FAISANT FOI vive ici |
 | `Quiz_SessionQuestion` | **la question figée** | ⛔ porte `timeLimitResolved`, `openedAt`, `deadlineAt`, `closedAt`. C'est la seule source du délai **qui fait foi en séance** (D10) ; `Quiz_Question.timeLimit` n'est que la valeur de rédaction, lue une fois au figement. |
 | `Quiz_Participant` | équipe ou élève seul | `participantIndex` · `@@unique([sessionId, participantIndex, tenantId])`, comme `Loto_Team` |
 | `Quiz_Member` | l'invité derrière un participant | permet de garder l'auteur d'une réponse (D4) |
