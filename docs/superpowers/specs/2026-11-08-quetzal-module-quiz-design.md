@@ -247,6 +247,31 @@ devra suivre le port dans le noyau, sinon il garderait un chemin que plus
 personne n'emprunte et passerait au vert par vacuité — le défaut qu'il
 s'interdit lui-même dans son second test.
 
+**Comment la remontée se fait sans aucune migration**, et c'est une mesure, pas
+une intuition. Trois faits vérifiés dans le dépôt :
+
+1. `Loto_Card.imageId` est un `String?` **sans clé étrangère** vers
+   `Loto_CardImage` — il n'y a donc aucune contrainte à recâbler.
+2. `packages/db/scripts/merge-schemas.ts` **concatène** `core.prisma` et chaque
+   `packages/module-*/prisma/models.prisma` en un schéma unique. Déplacer un bloc
+   `model` d'un fichier à l'autre ne change donc pas une ligne du SQL généré.
+3. Le port et son adaptateur ne sont que du TypeScript : les déplacer est un
+   remaniement, et l'adaptateur continue de lire la même table.
+
+La remontée est donc un **remaniement pur, sans migration et sans fenêtre de
+coupure** — ce qui est précieux, puisque les migrations partent dans le
+`buildCommand` de Render pendant que l'ancienne instance sert encore (#52).
+
+⚠️ **La dette que ce choix assume, nommée plutôt que cachée.** La table reste
+nommée `Loto_CardImage` alors qu'elle devient une table du noyau, et `CLAUDE.md`
+§7 veut les modèles noyau « PascalCase sans préfixe ». Un nom qui désigne un
+module gèlerait le mauvais modèle mental pour tout module suivant. Mais la
+renommer exige un *expand / contract* — créer, recopier, écrire double, puis
+supprimer — pour la raison du point 3 ci-dessus. Ce n'est pas le travail de ce
+sous-projet : **le renommage part en issue séparée**, et le bloc `model` déplacé
+porte un commentaire `///` qui dit pourquoi son nom ment et vers quelle issue
+regarder.
+
 ### D12 — Le retour de séance vit dans le module, sans port
 
 Pas de capacité de plateforme, et pas de port en attendant.
