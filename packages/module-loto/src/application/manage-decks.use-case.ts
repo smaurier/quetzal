@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DeckLockedError, DeckNotFoundError } from '../domain/errors.js';
-import type { CardImageStore } from '../domain/ports/card-image.store.js';
+import type { CardImageStore } from '@quetzal/core/images';
 import type {
   Deck,
   DeckCard,

@@ -11,7 +11,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { ManageDecksUseCase } from '../application/manage-decks.use-case.js';
-import type { CardImageStore } from '../domain/ports/card-image.store.js';
+import type { CardImageStore } from '@quetzal/core/images';
 import { uploadImageSchema } from './dto/loto.dto.js';
 
 @Controller('api/modules/loto')

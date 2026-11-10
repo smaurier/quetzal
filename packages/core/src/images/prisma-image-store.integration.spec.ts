@@ -1,8 +1,14 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
-import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
-import { tenantStore } from '@quetzal/core';
-import { PrismaCardImageStore } from './prisma-card-image.store.js';
-import { PrismaDeckRepository } from './prisma-deck.repository.js';
+import { ensureTestPostgres, resetTestDatabase, seedTenant } from '../testing/index.js';
+import { tenantStore } from '../tenant/tenant-context.js';
+import { getTenantScopedPrisma } from '../tenant/scoped-prisma.js';
+import { newId } from '@quetzal/db';
+import { PrismaCardImageStore } from './prisma-image-store.js';
+
+interface LotoDeckCardPrisma {
+  loto_Deck: { create(args: unknown): Promise<unknown> };
+  loto_Card: { createMany(args: unknown): Promise<unknown> };
+}
 
 /** Exécute une fonction dans un contexte locataire, comme le feraient les middlewares. */
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
@@ -87,20 +93,24 @@ describe('PrismaCardImageStore.deleteOrphans (intégration)', () => {
   it('garde une image encore référencée par la carte d un autre jeu', async () => {
     const { tenantId, ownerId } = await seedTenant();
     const store = new PrismaCardImageStore();
-    const decks = new PrismaDeckRepository();
 
     const partagee = await inTenant(tenantId, ownerId, () => store.put({ mimeType: 'image/webp', bytes: PNG }));
     const orpheline = await inTenant(tenantId, ownerId, () => store.put({ mimeType: 'image/webp', bytes: AUTRE }));
 
-    // Le jeu qui reste porte l image partagée.
-    await inTenant(tenantId, ownerId, () =>
-      decks.create({
-        name: 'Jeu gardé',
-        isTemplate: false,
-        createdBy: ownerId,
-        cards: [{ rank: 1, label: 'El gallo', imageId: partagee.id }],
-      }),
-    );
+    // Insertion directe plutot que PrismaDeckRepository : ce test vit desormais
+    // dans le noyau, et le noyau ne depend pas du module loto (sens interdit,
+    // §3). deleteOrphans lit encore loto_Card directement (dette nommee dans
+    // core.prisma), donc ce test reproduit la meme table a la main.
+    await inTenant(tenantId, ownerId, async () => {
+      const prisma = getTenantScopedPrisma() as unknown as LotoDeckCardPrisma;
+      const deckId = newId();
+      await prisma.loto_Deck.create({
+        data: { id: deckId, name: 'Jeu gardé', isTemplate: false, createdBy: ownerId },
+      });
+      await prisma.loto_Card.createMany({
+        data: [{ id: newId(), deckId, rank: 1, label: 'El gallo', imageId: partagee.id }],
+      });
+    });
 
     const supprimees = await inTenant(tenantId, ownerId, () => store.deleteOrphans());
 
