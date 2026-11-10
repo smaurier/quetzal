@@ -94,6 +94,7 @@ qu'un serveur sert bien le code qu'on vient d'écrire, lire l'artefact
 **Files:**
 - Create: `packages/core/src/images/image-store.ts`
 - Create: `packages/core/src/images/prisma-image-store.ts`
+- Create: `packages/core/src/images/index.ts`
 - Delete: `packages/module-loto/src/domain/ports/card-image.store.ts`
 - Delete: `packages/module-loto/src/infrastructure/prisma-card-image.store.ts`
 - Modify: `packages/core/package.json`

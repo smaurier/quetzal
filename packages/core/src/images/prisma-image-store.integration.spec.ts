@@ -1,3 +1,20 @@
+/**
+ * ⛔ LES QUATRE IMPORTS CI-DESSOUS SONT RELATIFS, ET CE N'EST PAS UN DÉTAIL DE
+ * STYLE. Les écrire `@quetzal/core` ou `@quetzal/core/testing/index` compile,
+ * passe le lint, et fait échouer les sept tests en
+ * `TenantContextMissingError` sans jamais dire pourquoi.
+ *
+ * La raison, mesurée depuis ce dossier : un paquet qui déclare `exports` peut
+ * s'importer par son propre nom (auto-résolution Node), et
+ * `import.meta.resolve('@quetzal/core')` rend alors `…/packages/core/dist/index.js`.
+ * Le `tenantStore` du test viendrait donc de `dist/tenant/tenant-context.js`
+ * pendant que l'adaptateur sous test lit `src/tenant/tenant-context.ts` : DEUX
+ * `AsyncLocalStorage` distincts, et un contexte posé par le test que le code
+ * testé ne voit pas. Avec, en prime, un `dist/` qui peut être périmé.
+ *
+ * Le voisin `../tenant/tenant-scoped-client.integration.spec.ts` suit la même
+ * règle, pour la même raison. Piège trouvé en remontant ce port (issue #28).
+ */
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { ensureTestPostgres, resetTestDatabase, seedTenant } from '../testing/index.js';
 import { tenantStore } from '../tenant/tenant-context.js';
