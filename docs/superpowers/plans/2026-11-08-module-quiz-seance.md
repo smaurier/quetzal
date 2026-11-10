@@ -43,6 +43,14 @@ pnpm --filter @quetzal/module-quiz exec eslint src > /tmp/l.log 2>&1; echo "CODE
 qu'un test précis est passé, le faire nommer : `--reporter=verbose`. C'est
 `CLAUDE.md` §11, et ça vient d'erreurs réelles.
 
+⛔ **Un piège mesuré le 10/11, qui est une instance de la règle au-dessus.**
+`pnpm --filter @quetzal/db prisma <quoi que ce soit>` **ne lance rien** : pnpm
+cherche un script nommé `prisma` dans ce paquet, ne le trouve pas, affiche
+« None of the selected packages has a "prisma" script » et sort en **code 0**.
+Une vérification écrite ainsi passerait donc pour verte en n’ayant rien
+exécuté. Il faut `pnpm --filter @quetzal/db exec prisma <quoi>`, et les
+scripts déjà nommés (`prisma:generate`, `prisma:migrate:deploy`, `schema:merge`)
+se lancent eux sans `exec`.
 **Après tout changement de modèle Prisma**, dans cet ordre : `schema:merge`,
 `generate:tenant-registry`, `prisma:generate`.
 

@@ -31,6 +31,14 @@ case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;
 `.env.local`. La recette locale complète est au § « Vérification de bout en
 bout », tâche 16.
 
+⛔ **Un piège mesuré le 10/11, qui est une instance de la règle au-dessus.**
+`pnpm --filter @quetzal/db prisma <quoi que ce soit>` **ne lance rien** : pnpm
+cherche un script nommé `prisma` dans ce paquet, ne le trouve pas, affiche
+« None of the selected packages has a "prisma" script » et sort en **code 0**.
+Une vérification écrite ainsi passerait donc pour verte en n’ayant rien
+exécuté. Il faut `pnpm --filter @quetzal/db exec prisma <quoi>`, et les
+scripts déjà nommés (`prisma:generate`, `prisma:migrate:deploy`, `schema:merge`)
+se lancent eux sans `exec`.
 **Après tout changement de modèle Prisma**, dans cet ordre, sinon le client
 généré mentira : `schema:merge`, `generate:tenant-registry`, `prisma:generate`.
 
@@ -176,7 +184,7 @@ export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 pnpm --filter @quetzal/db generate:tenant-registry
 pnpm --filter @quetzal/db prisma:generate
-pnpm --filter @quetzal/db prisma migrate diff \
+pnpm --filter @quetzal/db exec prisma migrate diff \
   --from-schema-datasource prisma/schema.prisma \
   --to-schema-datamodel prisma/schema.prisma \
   --exit-code
@@ -1664,7 +1672,7 @@ case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;; esac
 pnpm --filter @quetzal/db schema:merge
 pnpm --filter @quetzal/db generate:tenant-registry
-pnpm --filter @quetzal/db prisma migrate diff \
+pnpm --filter @quetzal/db exec prisma migrate diff \
   --from-schema-datasource prisma/schema.prisma \
   --to-schema-datamodel prisma/schema.prisma \
   --script
@@ -1679,7 +1687,7 @@ corriger avant d'écrire la migration.
 ```bash
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
-pnpm --filter @quetzal/db prisma migrate dev --name add_module_quiz_bank --create-only
+pnpm --filter @quetzal/db exec prisma migrate dev --name add_module_quiz_bank --create-only
 ```
 
 Puis **ajouter à la main**, à la fin du fichier créé sous
