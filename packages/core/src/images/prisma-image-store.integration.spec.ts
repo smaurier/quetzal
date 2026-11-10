@@ -175,26 +175,54 @@ describe('PrismaCardImageStore.deleteOrphans (intégration)', () => {
     expect(await inTenant(tenantId, ownerId, () => store.findByHash(orpheline.contentHash))).toBeNull();
   });
 
-  it('ne touche pas aux images d un autre locataire', async () => {
+  /**
+   * ⛔ CE TEST A ETE CREUX, et c est la revue de conformite du 10/11 qui l a vu.
+   *
+   * Il construisait le depot SANS fournisseur. Depuis l arrivee du garde de
+   * registre vide, `deleteOrphans` sort alors au `return 0` AVANT le moindre
+   * appel Prisma : l assertion « l image du voisin survit » devenait vraie par
+   * construction, et le seul garde de cloisonnement du ramassage ne gardait
+   * plus rien.
+   *
+   * Deux corrections, pas une : le fournisseur est rendu pour que le chemin SQL
+   * soit vraiment parcouru, ET une orpheline du locataire courant est ajoutee
+   * pour que le ramassage ait quelque chose a supprimer. Sans elle, un
+   * `deleteMany` qui ne verrait RIEN du tout passerait encore.
+   */
+  it('ramasse chez soi sans toucher aux images d un autre locataire', async () => {
     const voisin = await seedTenant();
     const chezNous = await seedTenant();
-    const store = new PrismaCardImageStore();
+    const store = new PrismaCardImageStore([referencesDesCartesDeLoto]);
 
     const sienne = await inTenant(voisin.tenantId, voisin.ownerId, () =>
       store.put({ mimeType: 'image/webp', bytes: PNG }),
     );
+    const notre = await inTenant(chezNous.tenantId, chezNous.ownerId, () =>
+      store.put({ mimeType: 'image/webp', bytes: AUTRE }),
+    );
 
-    await inTenant(chezNous.tenantId, chezNous.ownerId, () => store.deleteOrphans());
+    const supprimees = await inTenant(chezNous.tenantId, chezNous.ownerId, () =>
+      store.deleteOrphans(),
+    );
 
+    // Exactement UNE : la notre. Si le cloisonnement ne jouait pas, le
+    // ramassage en verrait deux et ce nombre le dirait.
+    expect(supprimees, 'le ramassage ne voit que les images de son locataire').toBe(1);
+    expect(
+      await inTenant(chezNous.tenantId, chezNous.ownerId, () => store.findByHash(notre.contentHash)),
+      'notre orpheline doit bien partir, sinon ce test ne prouve rien',
+    ).toBeNull();
     expect(
       await inTenant(voisin.tenantId, voisin.ownerId, () => store.findByHash(sienne.contentHash)),
       'le ramassage d un locataire ne doit rien voir chez le voisin',
     ).not.toBeNull();
   });
 
-  it('ne supprime rien quand il n y a rien à ramasser', async () => {
+  it('ne supprime rien quand il n y a aucune image a ramasser', async () => {
     const { tenantId, ownerId } = await seedTenant();
-    const store = new PrismaCardImageStore();
+    // Avec un fournisseur, donc en parcourant vraiment le chemin SQL : sans
+    // lui, ce test se confondrait avec celui du registre vide.
+    const store = new PrismaCardImageStore([referencesDesCartesDeLoto]);
 
     expect(await inTenant(tenantId, ownerId, () => store.deleteOrphans())).toBe(0);
   });

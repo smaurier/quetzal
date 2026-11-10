@@ -23,13 +23,13 @@ export interface CardImageStore {
 }
 
 /**
- * Ce qu un module repond quand on lui demande quelles images il utilise encore.
+ * Ce qu'un module répond quand on lui demande quelles images il utilise encore.
  *
  * Le ramassage vit dans le noyau, mais le noyau ne sait pas lire les tables des
  * modules, et ne doit pas le savoir, sinon ajouter un module exigerait de le
- * modifier. Chaque module repond donc pour lui-meme.
+ * modifier. Chaque module répond donc pour lui-même.
  */
 export interface ImageReferenceProvider {
-  /** Les `id` d images que ce module reference encore, pour le locataire courant. */
+  /** Les `id` d'images que ce module référence encore, pour le locataire courant. */
   referencedImageIds(): Promise<readonly string[]>;
 }

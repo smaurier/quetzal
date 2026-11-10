@@ -464,11 +464,25 @@ import { PrismaCardImageStore } from './prisma-image-store.js';
 import type { ImageReferenceProvider } from './image-store.js';
 ```
 
-⚠️ Les tests existants de ce `describe` construisent `new PrismaCardImageStore()`
-sans argument. Les laisser tels quels : le constructeur accepte un tableau
-**optionnel**, et c'est précisément le cas que le second test ci-dessus garde.
-Les faire passer à `[fournisseurDuLoto]` serait possible, mais effacerait la
-preuve que le défaut de câblage est traité.
+⛔ **CE PARAGRAPHE DISAIT LE CONTRAIRE DU STEP 5, ET IL AVAIT TORT.** Corrige
+le 10/11 apres la revue de conformite.
+
+Il demandait de laisser les tests existants construire
+`new PrismaCardImageStore()` sans argument, « pour ne pas effacer la preuve que
+le defaut de cablage est traite ». Mesure : des que le garde de registre vide
+existe, un depot sans fournisseur sort au `return 0` **avant le moindre appel
+Prisma**. Les laisser ainsi rend donc CREUX les deux tests qui attendaient une
+suppression, et surtout le seul garde de cloisonnement du ramassage, dont
+l'assertion « l'image du voisin survit » devient vraie par construction.
+
+**Donne le fournisseur du loto a tous les tests de ce `describe`**, sauf celui
+qui garde justement le registre vide. Et pour le test de cloisonnement, ajoute
+en plus une orpheline du locataire courant et attends qu'elle PARTE : sans elle,
+un `deleteMany` qui ne verrait rien du tout passerait encore.
+
+Contre-epreuve a faire : rendre le depot sans fournisseur doit faire rougir le
+test de cloisonnement sur `expected +0 to be 1`. Si ce rouge ne vient pas, le
+test ne garde rien.
 
 - [ ] **Step 2 : lancer les tests pour les voir échouer**
 
