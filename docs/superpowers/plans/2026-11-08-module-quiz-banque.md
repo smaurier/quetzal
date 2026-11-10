@@ -858,6 +858,7 @@ ramassables."
 - Create: `packages/module-quiz/src/i18n/{fr,en,es}.json`
 - Create: `packages/module-quiz/src/presentation/ui/banks-page.tsx`
 - Create: `packages/module-quiz/tests/manifest.spec.ts`
+- Create: `packages/module-quiz/prisma/models.prisma` (vide, voir le step 8)
 - Modify: `apps/api/package.json`, `apps/host/package.json`
 
 - [ ] **Step 1 : copier le squelette de hello**
@@ -1063,11 +1064,35 @@ un pictogramme.
 
 - [ ] **Step 8 : le test de contrat**
 
-`packages/module-quiz/tests/manifest.spec.ts`, copier
-`packages/module-loto/tests/manifest.spec.ts` et remplacer les trois occurrences
-de `loto` par `quiz` dans les imports et le nom du `describe`. Ne rien changer
-d'autre : c'est ce fichier qui vérifiera, au plan 2 comme ici, que chaque route de
-contrôleur est déclarée dans `permissions`.
+`packages/module-quiz/tests/manifest.spec.ts` :
+
+```ts
+import { runContractSuite } from '@quetzal/core/testing/index';
+import { resolve } from 'node:path';
+import { manifest } from '../src/manifest.js';
+
+runContractSuite(manifest, { moduleRoot: resolve(import.meta.dirname, '..') });
+```
+
+⚠️ **Corrige le 10/11 : ce step disait de « remplacer les trois occurrences de
+`loto` », et il n’y en a AUCUNE.** Le fichier du loto fait cinq lignes et est
+déjà entièrement génerique : le slug est lu dans le manifeste par
+`runContractSuite`. Le geste décrit n’avait donc rien à changer, et chercher
+trois occurrences inexistantes aurait fait douter du bon fichier.
+
+Cette suite apporte **huit** tests, dont trois qui vont compter plus loin : la
+parité des catalogues `fr`/`en`/`es`, le préfixe `Quiz_` des modèles Prisma, et
+« chaque route de contrôleur est déclarée dans `permissions` ».
+
+⛔ **Un piège du harnais, mesuré : `prismaModels` doit pointer sur un fichier qui
+EXISTE.** `contract-suite.ts` le lit par un `readFile` **sans `try/catch`**
+(ligne 142), donc un fichier absent fait planter `manifest.spec.ts` sur un
+`ENOENT` qui ne dit pas ce qui manque. `merge-schemas.ts`, lui, est robuste à
+l'absence : il teste l'existence dans un `try/catch` silencieux. C'est donc le
+test de contrat, et non la fusion de schémas, qui impose de créer
+`packages/module-quiz/prisma/models.prisma` dès maintenant, même vide. Un
+commentaire disant que les modèles arrivent à la tâche 8 suffit, et se lit mieux
+que zéro octet.
 
 - [ ] **Step 9 : déclarer le module dans les deux applications**
 
