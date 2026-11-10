@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { newId } from '@quetzal/db';
-import { getTenantScopedPrisma } from '@quetzal/core';
-import type { CardImageStore, StoredImage } from '../domain/ports/card-image.store.js';
+import { getTenantScopedPrisma } from '../tenant/scoped-prisma.js';
+import type { CardImageStore, StoredImage } from './image-store.js';
 
 interface ImageRow {
   id: string;

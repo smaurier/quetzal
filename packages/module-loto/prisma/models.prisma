@@ -29,18 +29,6 @@ model Loto_Card {
   @@index([tenantId, deckId])
 }
 
-model Loto_CardImage {
-  id          String
-  tenantId    String
-  contentHash String   @db.VarChar(64)
-  mimeType    String   @db.VarChar(40)
-  bytes       Bytes
-  createdAt   DateTime @default(now())
-
-  @@id([id, tenantId])
-  @@unique([contentHash, tenantId])
-}
-
 model Loto_Game {
   id                     String
   tenantId               String

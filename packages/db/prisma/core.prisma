@@ -44,3 +44,23 @@ model AuditLog {
   @@index([userId, createdAt])
   @@index([action])
 }
+
+/// Images des modules. Remontée au noyau à l'issue #28, second consommateur :
+/// le module quiz (spec sous-projet 3, D11).
+///
+/// ⚠️ LE NOM MENT, et c'est assumé : cette table appartient au noyau, et
+/// CLAUDE.md §7 veut les modèles noyau sans préfixe de module. La renommer
+/// exige un expand / contract, créer, recopier, écrire double, supprimer,
+/// parce que les migrations partent dans le buildCommand de Render pendant que
+/// l'ancienne instance sert encore (cf. #52). Renommage suivi en issue séparée.
+model Loto_CardImage {
+  id          String
+  tenantId    String
+  contentHash String   @db.VarChar(64)
+  mimeType    String   @db.VarChar(40)
+  bytes       Bytes
+  createdAt   DateTime @default(now())
+
+  @@id([id, tenantId])
+  @@unique([contentHash, tenantId])
+}
