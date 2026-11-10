@@ -610,12 +610,23 @@ tout entier réintroduit un étage plus bas.
 
 - [ ] **Step 7 : enregistrer le tableau complet, à un seul endroit**
 
-⚠️ **Lire `apps/api/src/app.module.ts` en entier avant d'écrire cette étape.** Ce
-plan a mesuré que `apps/api/src/main.ts` lit `MODULES` et appelle `loadManifests`,
-mais **pas** comment le module racine compose les modules chargés. La forme
-ci-dessous est la cible ; l'endroit exact dépend de ce que la lecture montre.
+⛔ **La première version de ce step était FAUSSE, et son échec était MUET.**
+Elle posait les fournisseurs dans les `providers` d'`AppModule`. Mesuré le
+10/11 : ça ne marche pas, et rien ne le dit.
 
-Le tableau se construit à **un seul endroit**, au niveau de l'application :
+`PrismaCardImageStore` est fourni par `useClass` **dans** chaque module (cf.
+`loto.module.ts`), donc Nest résout son `@Inject(IMAGE_REFERENCE_PROVIDERS)`
+dans la portée de CE module. Or `AppModule` est un module ordinaire, importé
+par le `RootModule` composé dans `main.ts` **à côté** des modules de modules,
+et un module ne voit pas les providers de ses frères. Comme l'injection est
+`@Optional()`, Nest y met `undefined` **sans lever** : registre vide,
+`deleteOrphans` rend 0 pour toujours, aucun ramassage, aucune erreur.
+
+La forme ci-dessous est celle qui marche, et le step 8 la prouve par mutation :
+remettre les fournisseurs dans `AppModule` fait rougir le garde de câblage.
+
+Le tableau se construit à **un seul endroit**, dans un module `@Global()` que
+`AppModule` importe :
 
 ```ts
 import { IMAGE_REFERENCE_PROVIDERS, type ImageReferenceProvider } from '@quetzal/core/images';
@@ -636,16 +647,46 @@ import { QuizImageReferences } from '@quetzal/module-quiz';
 export const PORTEURS_D_IMAGES = [LotoImageReferences, QuizImageReferences] as const;
 ```
 
-et, dans les `providers` du module racine :
+et le module qui le porte, dans le même fichier :
 
 ```ts
+/**
+ * ⚠️ `@Global()`, et ce n'est pas un raccourci de confort : c'est la seule
+ * forme qui marche, pour la raison expliquée au-dessus. Le jeton est exporté,
+ * donc visible depuis la portée de chaque module de module.
+ */
+@Global()
+@Module({
+  providers: [
     ...PORTEURS_D_IMAGES,
     {
       provide: IMAGE_REFERENCE_PROVIDERS,
       useFactory: (...fournisseurs: ImageReferenceProvider[]) => fournisseurs,
       inject: [...PORTEURS_D_IMAGES],
     },
+  ],
+  exports: [IMAGE_REFERENCE_PROVIDERS],
+})
+export class ImageReferencesModule {}
 ```
+
+puis `ImageReferencesModule` en **première** entrée des `imports` d’`AppModule`.
+
+⚠️ Deux contraintes du dépôt, mesurées à la même occasion, qui vont te tomber
+dessus si tu ne les connais pas :
+
+- **`packages/core/tsconfig.json` n'a pas `experimentalDecorators`.** Les
+  décorateurs de **paramètre** du step 4 ne compilent alors ni sous esbuild ni
+  sous `tsc`. Il faut l’activer. La portée réelle est un seul fichier :
+  `prisma-image-store.ts` est le seul de tout `packages/core/src` à porter un
+  décorateur.
+- **`apps/api` est en `moduleResolution: Node`**, qui ne sait pas lire les
+  sous-chemins d’`exports` : il ne peut donc pas importer
+  `@quetzal/core/images` comme le font les modules (`TS2307`). Réexporter le
+  jeton, le type et l'adaptateur depuis l'entrée racine `@quetzal/core`, que
+  `apps/api` résout déjà. ⚠️ Vérifier avant que `apps/host` n’importe pas
+  cette entrée racine, sinon on alourdit son bundle : au 10/11 il n'utilise
+  que le sous-chemin `@quetzal/core/empreinte-du-build`.
 
 ⚠️ `PrismaCardImageStore` reste fourni par `useClass` dans chaque module : son
 constructeur est `@Optional() @Inject(IMAGE_REFERENCE_PROVIDERS)`, donc Nest lui
@@ -785,8 +826,9 @@ Un registre vide rend 0 au lieu de tout supprimer.
 module qui construirait son depot avec ses seules references ramasserait
 les images du voisin, soit le defaut tout entier reintroduit.
 
-⚠️ RESTE A TRAITER, issue a ouvrir : la liste suit MODULES, donc retirer
-un module d un deploiement ou il a des images rendrait ses images
+⚠️ RESTE A TRAITER, issue a ouvrir : la liste ne suit PAS MODULES, et c
+est voulu. Le risque residuel est donc l inverse : retirer un fournisseur
+de cette liste alors que ses images vivent encore les rendrait
 ramassables."
 ```
 
