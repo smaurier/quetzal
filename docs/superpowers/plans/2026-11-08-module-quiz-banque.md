@@ -1329,7 +1329,18 @@ const CHOIX: QuestionJouable = {
 
 const SAISIE: QuestionJouable = {
   answerMode: 'saisie',
-  acceptedAnswers: ['la casa', 'el hogar'],
+  /**
+   * ⛔ LA TROISIÈME VARIANTE EST ÉCRITE NON CANONIQUE, ET C'EST TOUT L'OBJET.
+   *
+   * Avec seulement `['la casa', 'el hogar']`, déjà en minuscules et sans
+   * accent, normaliser le côté ACCEPTÉ est une non-opération : la mutation M1
+   * reste alors VERTE, et le test censé garder la symétrie ne garde rien.
+   * Mesuré le 10/11, sur la première version de ce plan.
+   *
+   * `La Morada` porte une majuscule, donc une saisie canonique ne peut la
+   * rejoindre que si les deux côtés sont normalisés.
+   */
+  acceptedAnswers: ['la casa', 'el hogar', 'La Morada'],
   regles: { accentsSensibles: false, casseSensible: false },
 };
 
@@ -1366,10 +1377,21 @@ describe('estJuste, mode saisie', () => {
     expect(estJuste(SAISIE, { texte: 'el hogar' })).toBe(true);
   });
 
-  it('applique la normalisation aux DEUX cotes de la comparaison', () => {
-    // La reponse acceptee est en minuscules sans accent ; la saisie arrive
-    // autrement. Normaliser un seul cote laisserait passer l un et pas l autre.
+  it('normalise la SAISIE, donc une majuscule accentuee rejoint une acceptee canonique', () => {
     expect(estJuste(SAISIE, { texte: '  LA   CÁSA ' })).toBe(true);
+  });
+
+  /**
+   * ⛔ ET L AUTRE SENS, qui est celui qu on oublie. `La Morada` est stockee avec
+   * une majuscule, donc une saisie deja canonique ne peut la rejoindre que si le
+   * cote ACCEPTE est normalise lui aussi.
+   *
+   * Sans ce test, la mutation M1 reste VERTE : toutes les autres variantes du
+   * fixture sont deja canoniques, donc normaliser ce cote ne change rien. Un
+   * garde qu on n a pas vu rougir ne garde rien.
+   */
+  it('normalise AUSSI le cote accepte, pas seulement la saisie', () => {
+    expect(estJuste(SAISIE, { texte: 'la morada' })).toBe(true);
   });
 
   it('refuse un mot different', () => {
@@ -1482,7 +1504,11 @@ cd packages/module-quiz
 cp src/domain/answer-check.ts /tmp/a.bak
 
 # M1 : un seul cote normalise
-sed -i "s/(acceptee) => normaliser(acceptee, question.regles) === propose,/(acceptee) => acceptee === propose,/" src/domain/answer-check.ts
+# ⚠️ Et VERIFIE que la mutation est arrivee sur le disque avant de lire son
+# resultat : les fichiers sont en CRLF, et un motif cherche en \n ne trouve
+# rien tout en sortant en code 0. Tu lirais alors un vert qui ne mesure rien.
+sed -i "s/(acceptee) => normaliser(acceptee, question.regles) === propose/(acceptee) => acceptee === propose/" src/domain/answer-check.ts
+grep -n "acceptee === propose" src/domain/answer-check.ts
 pnpm vitest run src/domain/answer-check.spec.ts
 cp /tmp/a.bak src/domain/answer-check.ts
 
@@ -1518,8 +1544,14 @@ C est le seul juge. D5 de la spec reprend le principe de D1 du loto,
 « le serveur ne fait jamais confiance au marquage du client », donc la
 justesse ne se lit jamais dans ce que le client affirme.
 
-Verifie par mutation : normaliser un seul cote rougit, et rendre vrai la
-forme de l autre mode rougit."
+Verifie par mutation : normaliser un seul cote rougit sur « normalise
+AUSSI le cote accepte », et rendre vrai la forme de l autre mode rougit sur
+« refuse une saisie envoyee a une question a choix ».
+
+⚠️ La premiere version de ce test ne gardait PAS la symetrie : toutes ses
+reponses acceptees etaient deja canoniques, donc normaliser ce cote etait
+une non-operation et la mutation restait verte. La variante La Morada est
+la pour que ce rouge existe."
 ```
 
 ---

@@ -12,7 +12,18 @@ const CHOIX: QuestionJouable = {
 
 const SAISIE: QuestionJouable = {
   answerMode: 'saisie',
-  acceptedAnswers: ['la casa', 'el hogar'],
+  /**
+   * ⛔ LA TROISIÈME VARIANTE EST ÉCRITE NON CANONIQUE, ET C'EST TOUT L'OBJET.
+   *
+   * Avec seulement `['la casa', 'el hogar']`, déjà en minuscules et sans
+   * accent, normaliser le côté ACCEPTÉ est une non-opération : la mutation qui
+   * retire cette normalisation reste alors VERTE, et le test censé garder la
+   * symétrie ne garde rien. Mesuré le 10/11.
+   *
+   * `La Morada` porte une majuscule, donc une saisie canonique ne peut la
+   * rejoindre que si les deux côtés sont normalisés.
+   */
+  acceptedAnswers: ['la casa', 'el hogar', 'La Morada'],
   regles: { accentsSensibles: false, casseSensible: false },
 };
 
@@ -49,10 +60,21 @@ describe('estJuste, mode saisie', () => {
     expect(estJuste(SAISIE, { texte: 'el hogar' })).toBe(true);
   });
 
-  it('applique la normalisation aux DEUX cotes de la comparaison', () => {
-    // La reponse acceptee est en minuscules sans accent ; la saisie arrive
-    // autrement. Normaliser un seul cote laisserait passer l un et pas l autre.
+  it('normalise la SAISIE, donc une majuscule accentuee rejoint une acceptee canonique', () => {
     expect(estJuste(SAISIE, { texte: '  LA   CÁSA ' })).toBe(true);
+  });
+
+  /**
+   * ⛔ ET L AUTRE SENS, qui est celui qu on oublie. `La Morada` est stockee avec
+   * une majuscule, donc une saisie deja canonique ne peut la rejoindre que si le
+   * cote ACCEPTE est normalise lui aussi.
+   *
+   * Sans ce test, la mutation qui retire la normalisation du cote accepte reste
+   * VERTE : toutes les autres variantes du fixture sont deja canoniques, donc la
+   * normaliser ne change rien. Un garde qu on n a pas vu rougir ne garde rien.
+   */
+  it('normalise AUSSI le cote accepte, pas seulement la saisie', () => {
+    expect(estJuste(SAISIE, { texte: 'la morada' })).toBe(true);
   });
 
   it('refuse un mot different', () => {
