@@ -1,0 +1,8 @@
+{
+  "module": {
+    "quiz": {
+      "nav": { "title": "Quiz" },
+      "banks": { "title": "Question banks", "empty": "No bank yet" }
+    }
+  }
+}

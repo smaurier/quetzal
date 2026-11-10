@@ -1,0 +1,8 @@
+{
+  "module": {
+    "quiz": {
+      "nav": { "title": "Cuestionario" },
+      "banks": { "title": "Bancos de preguntas", "empty": "Todavía no hay ningún banco" }
+    }
+  }
+}
