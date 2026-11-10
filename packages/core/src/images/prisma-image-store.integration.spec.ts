@@ -22,9 +22,16 @@ import { getTenantScopedPrisma } from '../tenant/scoped-prisma.js';
 import { newId } from '@quetzal/db';
 import { PrismaCardImageStore } from './prisma-image-store.js';
 
+/**
+ * Même forme que le `LotoPrisma` de `prisma-image-store.ts`, qu'elle imite :
+ * arguments en `Record<string, unknown>`, et le client Prisma cloisonné n'est
+ * pas typé plus finement parce que `@prisma/client` n'est qu'une
+ * `devDependency` du noyau, choix délibéré pour ne pas coupler le noyau à la
+ * surface complète du client généré.
+ */
 interface LotoDeckCardPrisma {
-  loto_Deck: { create(args: unknown): Promise<unknown> };
-  loto_Card: { createMany(args: unknown): Promise<unknown> };
+  loto_Deck: { create(args: Record<string, unknown>): Promise<unknown> };
+  loto_Card: { createMany(args: Record<string, unknown>): Promise<unknown> };
 }
 
 /** Exécute une fonction dans un contexte locataire, comme le feraient les middlewares. */
@@ -118,6 +125,11 @@ describe('PrismaCardImageStore.deleteOrphans (intégration)', () => {
     // dans le noyau, et le noyau ne depend pas du module loto (sens interdit,
     // §3). deleteOrphans lit encore loto_Card directement (dette nommee dans
     // core.prisma), donc ce test reproduit la meme table a la main.
+    //
+    // ⚠️ `loto_Deck` n est PAS un sujet de ce test, et deleteOrphans ne la lit
+    // jamais : elle n est la que pour satisfaire la cle etrangere
+    // `Loto_Card.deckId`, sans quoi le createMany echouerait en violation de
+    // contrainte. Aucune logique de jeu de cartes n est verifiee ici.
     await inTenant(tenantId, ownerId, async () => {
       const prisma = getTenantScopedPrisma() as unknown as LotoDeckCardPrisma;
       const deckId = newId();
