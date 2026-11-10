@@ -14,3 +14,9 @@ export { TenantScopeViolationError } from '@quetzal/db';
 export { DomainError, TenantContextMissingError } from './errors.js';
 export { resolveSocketIdentity, canEmitWsEvent, WsUnauthenticatedError, type HandshakeAuth, type NamespacePolicy, type HandshakeVerifiers, type SocketIdentity, type UserTokenClaims } from './ws/handshake.js';
 export { empreinteDuBuild, VARIABLES_DE_COMMIT, type EnvironnementDeCommit } from './empreinte-du-build.js';
+// `apps/api` est en `moduleResolution: Node`, qui ne sait pas lire les
+// sous-chemins d `exports` : il ne peut donc pas importer
+// `@quetzal/core/images`, que les modules utilisent. L hote qui cable les
+// fournisseurs passe par ici.
+export { PrismaCardImageStore, IMAGE_REFERENCE_PROVIDERS } from './images/index.js';
+export type { CardImageStore, StoredImage, ImageReferenceProvider } from './images/index.js';

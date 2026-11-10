@@ -1,2 +1,2 @@
-export type { CardImageStore, StoredImage } from './image-store.js';
-export { PrismaCardImageStore } from './prisma-image-store.js';
+export type { CardImageStore, StoredImage, ImageReferenceProvider } from './image-store.js';
+export { PrismaCardImageStore, IMAGE_REFERENCE_PROVIDERS } from './prisma-image-store.js';
