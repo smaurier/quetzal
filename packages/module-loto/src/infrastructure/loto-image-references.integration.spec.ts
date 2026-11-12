@@ -3,6 +3,7 @@ import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core
 import { tenantStore } from '@quetzal/core';
 import { LotoImageReferences } from './loto-image-references.js';
 import { PrismaDeckRepository } from './prisma-deck.repository.js';
+import { PrismaGameRepository } from './prisma-game.repository.js';
 
 /**
  * ⛔ CE QUE CE FOURNISSEUR REPOND DECIDE SI DES IMAGES SURVIVENT.
@@ -90,5 +91,83 @@ describe('LotoImageReferences (intégration)', () => {
       new LotoImageReferences().referencedImageIds());
 
     expect(ids, 'le cloisonnement vaut aussi pour les references').toEqual([]);
+  });
+
+  /**
+   * ⛔ LES CARTES GELEES COMPTENT AUSSI. Issue #85.
+   *
+   * `Loto_GameCard` porte sa propre colonne `imageId` : c est la carte FIGEE au
+   * lancement d une partie (D5 du loto, pour qu une correction du jeu ne change
+   * pas le sens d une partie en cours). Ce fournisseur ne lisait que
+   * `Loto_Card`, donc ces images etaient invisibles au ramassage.
+   *
+   * Le scenario qui perd des donnees : Elda modifie le jeu pendant qu une
+   * partie tourne, la carte quitte `Loto_Card`, `deleteOrphans` ne voit plus
+   * personne la referencer, et l image est DETRUITE alors que les tablas des
+   * eleves la montrent encore.
+   *
+   * Le test reproduit exactement ca : l image n est plus que sur la carte
+   * gelee.
+   */
+  it('rend l id d une image que seule une carte GELEE reference encore', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const decks = new PrismaDeckRepository();
+    const games = new PrismaGameRepository();
+
+    // Un jeu dont la carte porte l image, et une partie qui la gele.
+    const jeu = await inTenant(tenantId, ownerId, () =>
+      decks.create({
+        name: 'Jeu joue', isTemplate: false, createdBy: ownerId,
+        cards: [{ rank: 1, label: 'El gallo', imageId: 'image-de-la-partie' }],
+      }));
+    const partie = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: jeu.id, createdBy: ownerId, joinCode: 'GELEE001',
+        settings: { patterns: ['llena'], maxTeams: 2, falseClaimPenaltyDraws: 0, guestLocale: null },
+      }));
+    await inTenant(tenantId, ownerId, () =>
+      games.freezeCards(partie.id, [{ rank: 1, label: 'El gallo', imageId: 'image-de-la-partie' }]));
+
+    // Puis Elda corrige son jeu et retire l image de la carte vivante. C est
+    // le geste qui declenche le ramassage dans `manage-decks.use-case.ts`,
+    // et apres lui plus aucune `Loto_Card` ne porte cette image.
+    await inTenant(tenantId, ownerId, () =>
+      decks.updateCard(jeu.id, 1, { imageId: null }));
+
+    const ids = await inTenant(tenantId, ownerId, () =>
+      new LotoImageReferences().referencedImageIds());
+
+    expect(
+      ids,
+      'une image encore portee par une carte gelee ne doit JAMAIS etre ramassee',
+    ).toEqual(['image-de-la-partie']);
+  });
+
+  /**
+   * Et sans dedoublonner entre les deux tables : la meme image sert la carte
+   * vivante ET sa copie gelee, ce qui est le cas NORMAL pendant une partie.
+   */
+  it('dedoublonne une image portee a la fois par une carte vivante et sa copie gelee', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const decks = new PrismaDeckRepository();
+    const games = new PrismaGameRepository();
+
+    const jeu = await inTenant(tenantId, ownerId, () =>
+      decks.create({
+        name: 'Jeu en cours', isTemplate: false, createdBy: ownerId,
+        cards: [{ rank: 1, label: 'El gallo', imageId: 'image-partagee' }],
+      }));
+    const partie = await inTenant(tenantId, ownerId, () =>
+      games.create({
+        deckId: jeu.id, createdBy: ownerId, joinCode: 'GELEE002',
+        settings: { patterns: ['llena'], maxTeams: 2, falseClaimPenaltyDraws: 0, guestLocale: null },
+      }));
+    await inTenant(tenantId, ownerId, () =>
+      games.freezeCards(partie.id, [{ rank: 1, label: 'El gallo', imageId: 'image-partagee' }]));
+
+    const ids = await inTenant(tenantId, ownerId, () =>
+      new LotoImageReferences().referencedImageIds());
+
+    expect(ids).toEqual(['image-partagee']);
   });
 });
