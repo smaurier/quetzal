@@ -29,7 +29,13 @@
         "imageAlt": "Descripción de la imagen de la pregunta {rank}, para quien no la ve",
         "imageAltRequis": "Una imagen sin descripción no la pueden usar algunos alumnos",
         "save": "Guardar",
-        "deleteQuestion": "Eliminar la pregunta {rank}"
+        "deleteQuestion": "Eliminar la pregunta {rank}",
+        "addOption": "Añadir una opción",
+        "removeOption": "Quitar la opción {rank}",
+        "inenregistrableTropPeuDePropositions": "Se necesitan al menos dos opciones para que la pregunta sea jugable",
+        "inenregistrablePropositionVide": "Una opción sin texto ni imagen no mostraría nada",
+        "inenregistrableJusteNonDesignee": "Marca exactamente una opción como respuesta correcta",
+        "inenregistrableAucuneReponseAcceptee": "Se necesita al menos una respuesta aceptada"
       }
     }
   }
