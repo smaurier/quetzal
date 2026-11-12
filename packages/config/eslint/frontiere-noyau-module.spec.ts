@@ -137,3 +137,166 @@ describe('frontiere noyau / module, tenue par ESLint', () => {
     expect(declenchees).not.toContain('no-restricted-imports');
   });
 });
+
+/**
+ * LES DEUX RÈGLES MAISON, TENUES POUR DE VRAI (issue #98).
+ *
+ * `packages/config/eslint/rules/no-raw-room-string.js` et `rules/tenant-safety.js`
+ * existent depuis l'origine, fonctionnent, et **personne ne les chargeait** :
+ * `grep -rn "eslint/rules"` hors du paquet `config` ne rendait aucune ligne.
+ *
+ * Mesuré le 12/11 par sonde dans un vrai chemin de module, avec un témoin (un
+ * import interdit) pour prouver que le fichier était bien linté : 1 problème
+ * au lieu de 3. Le témoin rougissait, les deux autres violations ne l'étaient
+ * par rien.
+ *
+ * C'est la même maladie que #86, dans le même paquet.
+ */
+describe('regles maison de la plateforme, tenues par ESLint', () => {
+  /**
+   * ⛔ CLAUDE.md §7 : « Raw string room WS (helper `rooms.session()`
+   * obligatoire) ». Une salle écrite à la main qui diverge d'un caractère
+   * diffuse dans le vide : le message part, personne ne le reçoit, et aucune
+   * erreur n'est levée.
+   */
+  it('refuse une salle WS ecrite a la main dans un module', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export function diffuser(server: { to(r: string): { emit(e: string): void } }) {',
+        "  server.to('loto:session:abc').emit('card-drawn');",
+        '}',
+      ].join('\n'),
+    );
+
+    expect(declenchees).toContain('quetzal/no-raw-room-string');
+  });
+
+  /**
+   * ⛔ LA CONTRE-ÉPREUVE, sans laquelle le test ci-dessus ne prouverait qu'une
+   * interdiction trop large. La règle cherche un littéral contenant `:` ; un
+   * appel au helper n'en est pas un, et c'est précisément la forme que tout le
+   * code existant utilise (`loto.broadcaster.ts`, `loto.gateway.ts`,
+   * `hello.gateway.ts`).
+   */
+  it('laisse passer une salle construite par le helper', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        "import { rooms } from '@quetzal/core';",
+        'export function diffuser(server: { to(r: string): { emit(e: string): void } }) {',
+        "  server.to(rooms.session('loto', 'abc')).emit('card-drawn');",
+        '}',
+      ].join('\n'),
+    );
+
+    expect(declenchees).not.toContain('quetzal/no-raw-room-string');
+  });
+
+  /**
+   * ⛔ Un nom d'événement n'est pas une salle. `emit('card-drawn')` ne porte pas
+   * de `:`, donc ne doit rien déclencher — sinon la règle serait inutilisable et
+   * quelqu'un la désactiverait en bloc.
+   */
+  it('ne confond pas un nom d evenement avec une salle', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export function diffuser(server: { emit(e: string): void }) {',
+        "  server.emit('game-finished');",
+        '}',
+      ].join('\n'),
+    );
+
+    expect(declenchees).not.toContain('quetzal/no-raw-room-string');
+  });
+
+  /**
+   * ⛔ LE PLUS GRAVE DES DEUX. CLAUDE.md §9 : `$queryRaw` contourne l'extension
+   * de cloisonnement de Prisma. Une requête brute dans un module lit les
+   * données de tous les locataires, et `TenantScopeViolationError` ne la voit
+   * jamais passer — c'est le même trou que `PrismaClient` en direct, par une
+   * autre porte.
+   */
+  it('refuse une requete brute dans un module', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export async function compter(prisma: { $queryRaw(s: string): Promise<unknown> }) {',
+        "  return prisma.$queryRaw('select count(*) from \"Loto_Card\"');",
+        '}',
+      ].join('\n'),
+    );
+
+    expect(declenchees).toContain('quetzal/tenant-safety');
+  });
+
+  it('refuse aussi la variante Unsafe', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export async function compter(prisma: { $executeRawUnsafe(s: string): Promise<unknown> }) {',
+        "  return prisma.$executeRawUnsafe('delete from \"Loto_Card\"');",
+        '}',
+      ].join('\n'),
+    );
+
+    expect(declenchees).toContain('quetzal/tenant-safety');
+  });
+
+  /**
+   * La porte de sortie que §9 autorise : `ctx.tenantRawQuery`, qui refuse une
+   * requête sans clause `WHERE tenantId`. Sans ce test, on pourrait croire la
+   * règle satisfaite en interdisant tout SQL, ce qui n'est pas ce que §9 dit.
+   */
+  it('laisse passer le helper cloisonne', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export async function compter(ctx: { tenantRawQuery(s: string): Promise<unknown> }) {',
+        '  return ctx.tenantRawQuery(\'select count(*) from "Loto_Card" where "tenantId" = $1\');',
+        '}',
+      ].join('\n'),
+    );
+
+    expect(declenchees).not.toContain('quetzal/tenant-safety');
+  });
+
+  /**
+   * ⛔ ET LA CONTRE-ÉPREUVE QUI COMPTE : le NOYAU garde le droit au SQL brut.
+   * C'est lui qui écrit les migrations, les tâches d'administration et le
+   * `onBoot`. Interdire partout aurait l'air plus sûr et casserait la
+   * plateforme.
+   */
+  it('laisse le noyau ecrire du SQL brut, qui lui est reserve', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export async function compter(prisma: { $queryRaw(s: string): Promise<unknown> }) {',
+        "  return prisma.$queryRaw('select count(*) from \"Organization\"');",
+        '}',
+      ].join('\n'),
+      'packages/core/src/sonde.ts',
+    );
+
+    expect(declenchees).not.toContain('quetzal/tenant-safety');
+  });
+
+  /**
+   * ⛔ ET CELLE-CI EST UN CHOIX, PAS UN OUBLI : `$queryRaw` reste interdit dans
+   * un test d'intégration de module, alors que `PrismaClient` y est permis.
+   *
+   * La raison des deux est la même et ne mène pas au même endroit. Un test a
+   * besoin du client NON cloisonné pour prouver que le cloisonnement a bien eu
+   * lieu, au lieu de ne vérifier que lui-même — d'où l'exception de #86. Mais
+   * une requête brute n'apporte rien de plus qu'un `findMany` sur ce client,
+   * et elle apporte l'injection : `$queryRawUnsafe` avec un identifiant
+   * interpolé est le chemin le plus court vers une fuite, dans un test comme
+   * ailleurs.
+   */
+  it('refuse une requete brute meme dans un test d integration de module', async () => {
+    const declenchees = await reglesDeclenchees(
+      [
+        'export async function compter(prisma: { $queryRaw(s: string): Promise<unknown> }) {',
+        "  return prisma.$queryRaw('select count(*) from \"Loto_Card\"');",
+        '}',
+      ].join('\n'),
+      'packages/module-quiz/src/infrastructure/sonde.integration.spec.ts',
+    );
+
+    expect(declenchees).toContain('quetzal/tenant-safety');
+  });
+});
