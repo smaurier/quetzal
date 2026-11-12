@@ -82,13 +82,13 @@ ALTER TABLE "Quiz_Option" ADD CONSTRAINT "Quiz_Option_questionId_tenantId_fkey" 
 ALTER TABLE "Quiz_AcceptedAnswer" ADD CONSTRAINT "Quiz_AcceptedAnswer_questionId_tenantId_fkey" FOREIGN KEY ("questionId", "tenantId") REFERENCES "Quiz_Question"("id", "tenantId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- CLAUDE.md §9 : pas d'enum Postgres (ALTER TYPE bloquant), mais String +
--- CHECK + Zod. La CHECK est le dernier rempart ; le schema Zod de la route
+-- CHECK + Zod. La CHECK est le dernier rempart ; le schéma Zod de la route
 -- refuse avant d'arriver ici.
 ALTER TABLE "Quiz_Question" ADD CONSTRAINT "Quiz_Question_answerMode_check"
   CHECK ("answerMode" IN ('choix', 'saisie'));
 
--- Une proposition sans texte NI image n'a rien a afficher. Le domaine le
--- refuse deja, et cette CHECK empeche qu'une ecriture directe en base cree
+-- Une proposition sans texte NI image n'a rien à afficher. Le domaine le
+-- refuse déjà, et cette CHECK empêche qu'une écriture directe en base crée
 -- une question injouable.
 ALTER TABLE "Quiz_Option" ADD CONSTRAINT "Quiz_Option_label_ou_image_check"
   CHECK ("label" IS NOT NULL OR "imageId" IS NOT NULL);

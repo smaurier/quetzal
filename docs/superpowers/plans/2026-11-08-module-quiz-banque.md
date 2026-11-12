@@ -1656,10 +1656,13 @@ cd packages/module-quiz && pnpm vitest run src/domain/errors.spec.ts
 
 Expected: 4 tests verts.
 
-⚠️ Si `DomainError.name` n'est pas renseigné par la classe de base, le quatrième
-test rougit. Vérifier alors `packages/core/src/errors.ts` : si la base ne pose
-pas `this.name = new.target.name`, ajouter dans chaque constructeur
-`this.name = new.target.name;` plutôt que de modifier le noyau.
+✅ **Mesuré le 12/11 : rien à faire ici.** `DomainError` pose déjà
+`this.name = this.constructor.name` dans son constructeur
+(`packages/core/src/errors.ts`, ligne 4), donc le quatrième test passe sans
+ajout. La première version de ce step portait un avertissement **spéculatif**
+qui demandait de vérifier ce point et, le cas échéant, de poser `this.name` dans
+chaque constructeur. Le cas ne se présente pas, et le dire évite un geste
+inutile dans le noyau.
 
 - [ ] **Step 5 : commit, en deux**
 
