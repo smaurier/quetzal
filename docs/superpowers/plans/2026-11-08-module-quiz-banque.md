@@ -3784,10 +3784,26 @@ typecheck les signalera un par un :
   `imageAlt: null` dans la constante `QUESTION_CHOIX` et dans ses deux
   propositions, ainsi que dans les trois propositions de `desordre`.
 
-⚠️ Faire ces six ajouts AVANT de lancer quoi que ce soit : `Question` est une
-interface, donc chaque objet littéral incomplet sort en erreur de compilation
-séparée, et il est plus rapide de les traiter d'un coup que de les découvrir une
-par une. Pour les relever :
+⛔ **« SIX AJOUTS » ETAIT FAUX.** Mesuré le 12/11 : le typecheck signale
+**quinze erreurs sur cinq fichiers**, et **deux de ces fichiers ne sont pas
+listés ci-dessus** :
+
+- `application/manage-bank.use-case.spec.ts` (5 erreurs) : ses littéraux
+  `options` n'ont pas d'`imageAlt`.
+- `presentation/bank.controller.ts` (1 erreur) : `patch.options` devient un
+  `Omit<QuestionOption, 'id'>[]`, qui exige désormais `imageAlt` sur chaque
+  proposition, alors qu'`optionSchema` (Zod) n'en porte pas.
+
+⚠️ **Pour ce dernier, ne pas inventer de surface d'API** : forcer
+`imageAlt: null` dans le contrôleur, avec un commentaire qui nomme la limite.
+Un texte alternatif **par proposition** est nécessaire pour les questions
+« mot ↔ image » de D1, mais c'est une décision de produit, pas un effet de bord
+de cette tâche. Aucun jumeau du loto ne couvre ce cas : il n'a pas de
+propositions imbriquées dans son patch.
+
+Faire tous ces ajouts AVANT de lancer quoi que ce soit : `Question` est une
+interface, donc chaque objet littéral incomplet sort en erreur séparée, et il
+est plus rapide de les traiter d'un coup. Pour les relever :
 
 ```bash
 grep -rn "imageId: null" packages/module-quiz/src | grep -v imageAlt
@@ -4114,7 +4130,17 @@ export class QuizImageReferences implements ImageReferenceProvider {
 }
 ```
 
-et l'enregistrer dans `quiz.module.ts`, en ajoutant aux `providers` :
+⛔ **ET SURTOUT PAS DANS `quiz.module.ts`.** Le texte qui suit dit de
+l’ajouter à ses `providers` : c’est **faux**, et son échec serait muet, comme
+celui que la tâche 3 a déjà mesuré. La forme établie est le tableau
+`PORTEURS_D_IMAGES` d’`apps/api/src/app.module.ts`, dans le module
+`@Global() ImageReferencesModule`, exactement comme `LotoImageReferences`.
+Et il faut exporter la classe depuis `packages/module-quiz/src/index.ts`.
+
+Après quoi `porteurs-d-images.spec.ts` doit compter **2** porteurs pour **2**
+préfixes. Vérifier ce compte au lieu de le supposer.
+
+Le fragment ci-dessous ne dit donc que **quoi** enregistrer, pas où :
 
 ```ts
     { provide: IMAGE_REFERENCE_PROVIDERS, useClass: QuizImageReferences, multi: true },
