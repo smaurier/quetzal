@@ -95,13 +95,22 @@ export class BankController {
       imageId?: string | null;
       timeLimit?: number | null;
       regles?: { accentsSensibles: boolean; casseSensible: boolean };
-      options?: readonly { rank: number; label: string | null; imageId: string | null; isCorrect: boolean }[];
+      options?: readonly {
+        rank: number;
+        label: string | null;
+        imageId: string | null;
+        imageAlt: string | null;
+        isCorrect: boolean;
+      }[];
       acceptedAnswers?: readonly string[];
     } = {};
     if (prompt !== undefined) patch.prompt = prompt;
     if (imageId !== undefined) patch.imageId = imageId;
     if (timeLimit !== undefined) patch.timeLimit = timeLimit;
-    if (options !== undefined) patch.options = options;
+    // `optionSchema` ne porte pas encore de texte alternatif par proposition :
+    // seule l'image de la QUESTION entière (tache 14) en exige un. Un alt par
+    // proposition resterait a ouvrir pour la question « mot <-> image ».
+    if (options !== undefined) patch.options = options.map((option) => ({ ...option, imageAlt: null }));
     if (acceptedAnswers !== undefined) patch.acceptedAnswers = acceptedAnswers;
     // `null` = hériter du défaut de session ; présent, même partiellement, les
     // deux drapeaux sont écrits ensemble (valeurs par défaut pour l'absent).

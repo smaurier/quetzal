@@ -16,12 +16,13 @@ const QUESTION_CHOIX: Question = {
   rank: 1,
   prompt: '¿Cómo se dice « chaise » ?',
   imageId: null,
+  imageAlt: null,
   answerMode: 'choix',
   timeLimit: null,
   regles: { accentsSensibles: true, casseSensible: false },
   options: [
-    { id: 'x', rank: 1, label: 'la silla', imageId: null, isCorrect: true },
-    { id: 'y', rank: 2, label: 'la mesa', imageId: null, isCorrect: false },
+    { id: 'x', rank: 1, label: 'la silla', imageId: null, imageAlt: null, isCorrect: true },
+    { id: 'y', rank: 2, label: 'la mesa', imageId: null, imageAlt: null, isCorrect: false },
   ],
   acceptedAnswers: [],
 };
@@ -58,9 +59,9 @@ describe('PrismaQuestionBankRepository (intégration)', () => {
       rank,
       prompt: `${prefixe} : quelle proposition ?`,
       options: [
-        { id: 'a', rank: 3, label: `${prefixe}3`, imageId: null, isCorrect: false },
-        { id: 'b', rank: 1, label: `${prefixe}1`, imageId: null, isCorrect: true },
-        { id: 'c', rank: 2, label: `${prefixe}2`, imageId: null, isCorrect: false },
+        { id: 'a', rank: 3, label: `${prefixe}3`, imageId: null, imageAlt: null, isCorrect: false },
+        { id: 'b', rank: 1, label: `${prefixe}1`, imageId: null, imageAlt: null, isCorrect: true },
+        { id: 'c', rank: 2, label: `${prefixe}2`, imageId: null, imageAlt: null, isCorrect: false },
       ],
     });
 

@@ -23,6 +23,9 @@
         "accentsSensibles": "Les accents comptent",
         "casseSensible": "Les majuscules comptent",
         "timeLimit": "Délai en secondes de la question {rank}",
+        "image": "Image de la question {rank}",
+        "imageAlt": "Description de l image de la question {rank}, pour qui ne la voit pas",
+        "imageAltRequis": "Une image sans description est inutilisable par une partie des élèves",
         "save": "Enregistrer",
         "deleteQuestion": "Supprimer la question {rank}"
       }

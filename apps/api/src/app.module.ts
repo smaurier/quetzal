@@ -5,6 +5,7 @@ import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { IMAGE_REFERENCE_PROVIDERS, type ImageReferenceProvider } from '@quetzal/core';
 import { LotoImageReferences } from '@quetzal/module-loto';
+import { QuizImageReferences } from '@quetzal/module-quiz';
 import { HealthController } from './health.controller';
 import { GuestTokenController } from './guest/guest-token.controller';
 import { RequestIdMiddleware } from './middlewares/request-id.middleware';
@@ -26,7 +27,7 @@ import { AuditSubscriber } from './observability/audit.subscriber';
  * `porteurs-d-images.spec.ts` compte les prefixes de module qui declarent une
  * colonne `imageId` dans le schema, et exige autant de fournisseurs ici.
  */
-export const PORTEURS_D_IMAGES = [LotoImageReferences] as const;
+export const PORTEURS_D_IMAGES = [LotoImageReferences, QuizImageReferences] as const;
 
 /**
  * ⚠️ `@Global()`, et ce n est pas un raccourci de confort : c est la seule

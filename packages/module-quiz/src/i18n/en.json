@@ -23,6 +23,9 @@
         "accentsSensibles": "Accents matter",
         "casseSensible": "Capitals matter",
         "timeLimit": "Time limit in seconds of question {rank}",
+        "image": "Image of question {rank}",
+        "imageAlt": "Description of the image of question {rank}, for those who cannot see it",
+        "imageAltRequis": "An image without a description is unusable by some students",
         "save": "Save",
         "deleteQuestion": "Delete question {rank}"
       }

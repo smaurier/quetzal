@@ -16,6 +16,8 @@ interface Question {
   id: string;
   rank: number;
   prompt: string;
+  imageId: string | null;
+  imageAlt: string | null;
   answerMode: 'choix' | 'saisie';
   timeLimit: number | null;
   regles: { accentsSensibles: boolean; casseSensible: boolean };
@@ -104,6 +106,26 @@ export default function BankEditor(props: Props) {
           });
   }
 
+  async function envoyerImage(question: Question, fichier: File): Promise<void> {
+    const octets = new Uint8Array(await fichier.arrayBuffer());
+    let binaire = '';
+    for (const octet of octets) binaire += String.fromCharCode(octet);
+
+    // Le texte alternatif part AVEC l'image, parce que la route l'exige : une
+    // image déjà en base dont l'alternative viendrait « plus tard » reste sans
+    // alternative pour toujours.
+    await apiClient().apiFetch(`/api/modules/quiz/questions/${question.id}/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        mimeType: fichier.type,
+        data: btoa(binaire),
+        alt: (question.imageAlt ?? '').trim() === '' ? fichier.name : question.imageAlt,
+      }),
+    });
+    await recharger();
+  }
+
   if (bankId === undefined) return null;
   if (bank === null) return <p>{t('module.quiz.banks.empty')}</p>;
 
@@ -144,6 +166,33 @@ export default function BankEditor(props: Props) {
                 })
               }
             />
+
+            <Label htmlFor={`quiz-image-${question.id}`}>
+              {t('module.quiz.editor.image', { rank: question.rank })}
+            </Label>
+            <input
+              id={`quiz-image-${question.id}`}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(event) => {
+                const fichier = event.target.files?.[0];
+                if (fichier !== undefined) void envoyerImage(question, fichier);
+              }}
+            />
+
+            <Label htmlFor={`quiz-alt-${question.id}`}>
+              {t('module.quiz.editor.imageAlt', { rank: question.rank })}
+            </Label>
+            <Input
+              id={`quiz-alt-${question.id}`}
+              value={question.imageAlt ?? ''}
+              maxLength={200}
+              required
+              onChange={(event) => modifier(question.id, { imageAlt: event.target.value })}
+            />
+            {question.imageId !== null && (question.imageAlt ?? '') === '' && (
+              <p role="status">{t('module.quiz.editor.imageAltRequis')}</p>
+            )}
 
             {question.answerMode === 'choix' ? (
               <ul className="flex flex-col gap-2">

@@ -13,6 +13,7 @@ export interface QuestionOption {
   rank: number;
   label: string | null;
   imageId: string | null;
+  imageAlt: string | null;
   isCorrect: boolean;
 }
 
@@ -21,6 +22,7 @@ export interface Question {
   rank: number;
   prompt: string;
   imageId: string | null;
+  imageAlt: string | null;
   answerMode: AnswerMode;
   timeLimit: number | null;
   regles: ReglesDeSaisie;
@@ -41,6 +43,7 @@ export interface NewQuestion {
 export interface QuestionPatch {
   prompt?: string;
   imageId?: string | null;
+  imageAlt?: string | null;
   timeLimit?: number | null;
   regles?: ReglesDeSaisie;
   options?: readonly Omit<QuestionOption, 'id'>[];

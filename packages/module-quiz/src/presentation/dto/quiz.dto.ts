@@ -32,6 +32,7 @@ const optionSchema = z
 export const patchQuestionSchema = z.object({
   prompt: z.string().trim().min(1).max(400).optional(),
   imageId: z.string().min(1).nullable().optional(),
+  imageAlt: z.string().trim().min(1).max(200).nullable().optional(),
   // Bornes de la spec §3.3. `null` = hériter du défaut de session.
   timeLimit: z.number().int().min(3).max(120).nullable().optional(),
   accentsSensibles: z.boolean().optional(),
@@ -40,7 +41,20 @@ export const patchQuestionSchema = z.object({
   acceptedAnswers: z.array(z.string().trim().min(1).max(160)).min(1).optional(),
 });
 
+export const uploadQuizImageSchema = z.object({
+  // Une liste fermée, et non `startsWith('image/')` : `image/svg+xml` porte du
+  // script, et serait servi depuis notre origine.
+  mimeType: z.enum(['image/webp', 'image/jpeg', 'image/png']),
+  /** Contenu encodé en base64, déjà redimensionné par le navigateur. */
+  data: z.string().min(1).max(4_000_000),
+  // ⛔ Requis, pas facultatif. WCAG 1.1.1 : une image porteuse de sens sans
+  // alternative est un mur. Le rendre optionnel ferait que l'oubli devient le
+  // défaut, et personne ne reviendrait le corriger.
+  alt: z.string().trim().min(1).max(200),
+});
+
 export type CreateBankBody = z.infer<typeof createBankSchema>;
 export type RenameBankBody = z.infer<typeof renameBankSchema>;
 export type AddQuestionBody = z.infer<typeof addQuestionSchema>;
 export type PatchQuestionBody = z.infer<typeof patchQuestionSchema>;
+export type UploadQuizImageBody = z.infer<typeof uploadQuizImageSchema>;

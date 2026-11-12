@@ -72,8 +72,8 @@ describe('ManageBankUseCase', () => {
         questionId,
         patch: {
           options: [
-            { rank: 1, label: 'A', imageId: null, isCorrect: false },
-            { rank: 2, label: 'B', imageId: null, isCorrect: false },
+            { rank: 1, label: 'A', imageId: null, imageAlt: null, isCorrect: false },
+            { rank: 2, label: 'B', imageId: null, imageAlt: null, isCorrect: false },
           ],
         },
       })).rejects.toThrow(InvalidQuestionShapeError);
@@ -87,7 +87,7 @@ describe('ManageBankUseCase', () => {
     await expect(
       useCase.updateQuestion({
         questionId,
-        patch: { options: [{ rank: 1, label: 'Seule', imageId: null, isCorrect: true }] },
+        patch: { options: [{ rank: 1, label: 'Seule', imageId: null, imageAlt: null, isCorrect: true }] },
       })).rejects.toThrow(InvalidQuestionShapeError);
   });
 
@@ -110,8 +110,8 @@ describe('ManageBankUseCase', () => {
         questionId,
         patch: {
           options: [
-            { rank: 1, label: 'Juste', imageId: null, isCorrect: true },
-            { rank: 2, label: 'Faux', imageId: null, isCorrect: false },
+            { rank: 1, label: 'Juste', imageId: null, imageAlt: null, isCorrect: true },
+            { rank: 2, label: 'Faux', imageId: null, imageAlt: null, isCorrect: false },
           ],
         },
       })).resolves.toBeUndefined();

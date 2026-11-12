@@ -23,6 +23,8 @@ export const manifest: QuetzalModuleManifest = {
     'http:POST /api/modules/quiz/banks/:id/questions': ['owner', 'creator'],
     'http:PATCH /api/modules/quiz/banks/:id/questions/:questionId': ['owner', 'creator'],
     'http:DELETE /api/modules/quiz/banks/:id/questions/:questionId': ['owner', 'creator'],
+    'http:GET /api/modules/quiz/images/:hash': ['owner', 'creator', 'learner', 'guest'],
+    'http:POST /api/modules/quiz/questions/:questionId/image': ['owner', 'creator'],
   },
   prismaModels: 'prisma/models.prisma',
 };

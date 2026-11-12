@@ -17,6 +17,7 @@ interface LigneOption {
   rank: number;
   label: string | null;
   imageId: string | null;
+  imageAlt: string | null;
   isCorrect: boolean;
 }
 
@@ -25,6 +26,7 @@ interface LigneQuestion {
   rank: number;
   prompt: string;
   imageId: string | null;
+  imageAlt: string | null;
   answerMode: string;
   timeLimit: number | null;
   accentsSensibles: boolean;
@@ -82,6 +84,7 @@ export class PrismaQuestionBankRepository implements QuestionBankRepository {
       rank: ligne.rank,
       prompt: ligne.prompt,
       imageId: ligne.imageId,
+      imageAlt: ligne.imageAlt,
       answerMode: ligne.answerMode,
       timeLimit: ligne.timeLimit,
       regles: {
@@ -154,6 +157,7 @@ export class PrismaQuestionBankRepository implements QuestionBankRepository {
             rank: question.rank,
             prompt: question.prompt,
             imageId: question.imageId,
+            imageAlt: question.imageAlt,
             answerMode: question.answerMode,
             timeLimit: question.timeLimit,
             accentsSensibles: question.regles.accentsSensibles,
@@ -169,6 +173,7 @@ export class PrismaQuestionBankRepository implements QuestionBankRepository {
             rank: option.rank,
             label: option.label,
             imageId: option.imageId,
+            imageAlt: option.imageAlt,
             isCorrect: option.isCorrect,
           })),
         });
@@ -206,6 +211,7 @@ export class PrismaQuestionBankRepository implements QuestionBankRepository {
       rank: question.rank,
       prompt: question.prompt,
       imageId: null,
+      imageAlt: null,
       answerMode: question.answerMode,
       timeLimit: null,
       regles: { accentsSensibles: true, casseSensible: false },
@@ -218,6 +224,7 @@ export class PrismaQuestionBankRepository implements QuestionBankRepository {
     const champs: Record<string, unknown> = {};
     if (patch.prompt !== undefined) champs['prompt'] = patch.prompt;
     if (patch.imageId !== undefined) champs['imageId'] = patch.imageId;
+    if (patch.imageAlt !== undefined) champs['imageAlt'] = patch.imageAlt;
     if (patch.timeLimit !== undefined) champs['timeLimit'] = patch.timeLimit;
     if (patch.regles !== undefined) {
       champs['accentsSensibles'] = patch.regles.accentsSensibles;
@@ -240,6 +247,7 @@ export class PrismaQuestionBankRepository implements QuestionBankRepository {
             rank: option.rank,
             label: option.label,
             imageId: option.imageId,
+            imageAlt: option.imageAlt,
             isCorrect: option.isCorrect,
           })),
         });
