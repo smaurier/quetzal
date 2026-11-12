@@ -3022,6 +3022,12 @@ export type PatchQuestionBody = z.infer<typeof patchQuestionSchema>;
 
 - [ ] **Step 2 : écrire le contrôleur**
 
+⚠️ **Le `patch` ne se construit PAS par spread**, et le code ci-dessous le
+montre déjà : le dépôt compile avec `exactOptionalPropertyTypes: true`
+(`tsconfig/base.json`), où une clé présente à `undefined` n'est pas la même
+chose qu'une clé absente. Le jumeau `deck.controller.ts` du loto construit son
+patch champ par champ pour cette raison exacte ; suivre sa forme.
+
 `packages/module-quiz/src/presentation/bank.controller.ts` :
 
 ```ts
@@ -3157,7 +3163,7 @@ const BANKS = 'QuizQuestionBankRepository';
 export class QuizModule {}
 ```
 
-- [ ] **Step 4 : déclarer les sept routes dans le manifeste**
+- [ ] **Step 4 : déclarer les huit routes dans le manifeste**
 
 Dans `packages/module-quiz/src/manifest.ts`, remplacer `permissions: {}` par :
 
@@ -3186,14 +3192,36 @@ pnpm --filter @quetzal/module-quiz test
 
 Expected: vert, test de contrat compris.
 
+⛔ **LA MUTATION ECRITE ICI NE ROUGIT PAS, ET CE N EST PAS UN FAUX POSITIF :**
+c'est un **bug du noyau**, mesuré le 12/11 et suivi en **issue #87**.
+
+`normalizeRouteParams` de `contract-suite.ts` applique
+`replace(/:[^/\s]+/g, ':param')` à **toute** la clé, donc
+`http:DELETE` devient `http:param`. Les quatre verbes sur un même chemin
+convergent vers une seule clé, et le garde ne voit plus une méthode manquante
+dès qu'une autre existe sur ce chemin. ⚠️ Et ' + bt + 'ws:answer' + bt + ' devient ' + bt + 'ws:param' + bt + ' :
+**tous les événements WebSocket se confondent aussi.**
+
+Il faut donc muter une route qui est **seule sur son chemin**. Celle-ci
+l'est :
+
 ```bash
-cd packages/module-quiz
-cp src/manifest.ts /tmp/man.bak
-sed -i "/http:DELETE \/api\/modules\/quiz\/banks\/:id'/d" src/manifest.ts
-pnpm vitest run tests/manifest.spec.ts
-cp /tmp/man.bak src/manifest.ts
-pnpm vitest run tests/manifest.spec.ts
+cp packages/module-quiz/src/manifest.ts /tmp/man.bak
+sed -i "/http:POST \/api\/modules\/quiz\/banks\/:id\/questions'/d" packages/module-quiz/src/manifest.ts
+# PREUVE que la mutation est sur le disque, avant de lire son resultat :
+grep -c "http:" packages/module-quiz/src/manifest.ts   # attendu : 7, pas 8
+pnpm --filter @quetzal/module-quiz exec vitest run tests/manifest.spec.ts \
+  --reporter=verbose > /tmp/m.log 2>&1; echo "CODE : $?"
+grep -E "not declared in manifest" /tmp/m.log
+cp /tmp/man.bak packages/module-quiz/src/manifest.ts
+grep -c "http:" packages/module-quiz/src/manifest.ts   # attendu : 8
+pnpm --filter @quetzal/module-quiz exec vitest run tests/manifest.spec.ts > /tmp/v.log 2>&1; echo "CODE : $?"
 ```
+
+Expected: **CODE : 1** sur
+`every controller route is declared in permissions`, avec le message
+`Controller exposes route(s) not declared in manifest.permissions` qui nomme
+la route ; puis **CODE : 0** après restauration.
 
 Expected: rouge sur « every controller route is declared in permissions », puis
 vert restauré.
@@ -3211,8 +3239,15 @@ Le schema Zod porte la meme regle que la CHECK en base, une proposition
 a un texte OU une image, pour qu une requete mal formee soit refusee a
 la frontiere plutot qu au dernier rempart.
 
-Verifie par mutation : retirer une route du manifeste fait rougir le test
-de contrat du module."
+Verifie par mutation : retirer une route SEULE SUR SON CHEMIN fait rougir
+le test de contrat du module.
+
+⚠️ Retirer une route qui PARTAGE son chemin avec une autre methode ne le
+fait PAS rougir, et ce n est pas un faux positif : normalizeRouteParams du
+noyau mange le verbe HTTP, donc les quatre verbes d un meme chemin
+convergent vers une seule cle. Les evenements WebSocket se confondent
+aussi. Bug du noyau, suivi en issue #87, non corrige ici parce qu il touche
+un fichier partage par les trois modules."
 ```
 
 ---
