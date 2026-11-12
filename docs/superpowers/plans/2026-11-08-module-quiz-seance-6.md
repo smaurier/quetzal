@@ -990,7 +990,9 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
       const r = await this.answer.execute({
         sessionId: data.sessionId,
         participantId: data.participantId,
-        guestId: data.guestId...(body.optionId === undefined ? {} : { optionId: body.optionId })...(body.value === undefined ? {} : { value: body.value }),
+        guestId: data.guestId,
+        ...(body.optionId === undefined ? {} : { optionId: body.optionId }),
+        ...(body.value === undefined ? {} : { value: body.value }),
       });
       // Diffusé vers le seul participant, jamais retourné : Nest transformerait
       // un retour {event, data} en événement, et le résultat irait à la salle.
@@ -1252,7 +1254,24 @@ interface SessionVue {
   participants: ParticipantVue[];
 }
 
-export default function HostSession({ sessionId }: { sessionId: string }) {
+/**
+ * ⛔ Les props sont un `Record<string, string>` et NON une forme nommée, parce
+ * que c'est ce que le contrat du noyau impose à tout composant de route :
+ * `QuetzalRoute.component` veut un
+ * `ComponentType<Readonly<Record<string, string>>>`.
+ *
+ * Une signature nommée, `{ sessionId }: { sessionId: string }`, ne compile pas :
+ * « Property 'sessionId' is missing in type 'Readonly<Record<string, string>>' ».
+ * Mesuré le 12/11 ; la première version de ce plan portait la forme fautive.
+ *
+ * Même forme que le jumeau `module-loto/src/presentation/ui/deck-editor.tsx`,
+ * garde comprise : le paramètre peut être absent, et chaque fonction async
+ * doit s'en protéger.
+ */
+type Props = Readonly<Record<string, string>>;
+
+export default function HostSession(props: Props) {
+  const sessionId = props['sessionId'];
   const t = useTranslations('module.quiz.session');
   const { state, question, closed } = useQuizSocket({ sessionId });
   const [renommage, setRenommage] = useState<Record<string, string>>({});

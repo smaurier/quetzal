@@ -168,7 +168,8 @@ export function frozenQuestionOf(
     acceptedAnswers: [],
     openedAt: null,
     deadlineAt: null,
-    closedAt: null...overrides,
+    closedAt: null,
+    ...overrides,
   };
 }
 
@@ -183,7 +184,8 @@ export function sessionOf(overrides: Partial<Session> = {}): Session {
     defaultTimeLimit: 20,
     guestLocale: null,
     questions: [frozenQuestionOf(1), frozenQuestionOf(2)],
-    participants: []...overrides,
+    participants: [],
+    ...overrides,
   };
 }
 
@@ -899,7 +901,7 @@ export class PrismaSessionRepository implements SessionRepository {
       : {};
     await this.prisma.quiz_Session.updateMany({
       where: { id: sessionId },
-      data: { status...horodatage },
+      data: { status, ...horodatage },
     });
   }
 
@@ -1007,7 +1009,7 @@ export class PrismaSessionRepository implements SessionRepository {
 
   async recordAnswer(answer: NewAnswer): Promise<AnswerRow | null> {
     try {
-      return await this.prisma.quiz_Answer.create({ data: { id: newId()...answer } });
+      return await this.prisma.quiz_Answer.create({ data: { id: newId(), ...answer } });
     } catch (err) {
       // ⛔ Rendu `null` et NON laissé remonter : deux doigts sur un téléphone
       // d'élève suffisent à déclencher deux émissions, et un 500 sur un

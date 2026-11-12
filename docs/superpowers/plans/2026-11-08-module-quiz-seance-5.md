@@ -796,7 +796,8 @@ export class AnswerQuestionUseCase {
 
     // 2. Juste ? Sur la question FIGÉE, jamais sur la question vivante (D10).
     const isCorrect = estJuste(this.jouable(question), {
-      ...(input.optionId === undefined ? {} : { optionId: input.optionId })...(input.value === undefined ? {} : { texte: input.value }),
+      ...(input.optionId === undefined ? {} : { optionId: input.optionId }),
+      ...(input.value === undefined ? {} : { texte: input.value }),
     });
 
     // 3. Combien ? La grâce est passée au barème en poussant l'arrivée sur

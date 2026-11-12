@@ -732,7 +732,7 @@ case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;; esac
 pnpm --filter @quetzal/db schema:merge
 pnpm --filter @quetzal/db generate:tenant-registry
-pnpm --filter @quetzal/db prisma migrate diff \
+pnpm --filter @quetzal/db exec prisma migrate diff \
   --from-schema-datasource prisma/schema.prisma \
   --to-schema-datamodel prisma/schema.prisma \
   --script > /tmp/sql.log 2>&1; echo "CODE : $?"
@@ -749,7 +749,7 @@ relation inverse (qui ne produit pas de SQL), un modèle a été altéré par er
 ```bash
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
-pnpm --filter @quetzal/db prisma migrate dev --name add_quiz_session --create-only
+pnpm --filter @quetzal/db exec prisma migrate dev --name add_quiz_session --create-only
 ```
 
 Puis ajouter à la fin du `migration.sql` créé :

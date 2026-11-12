@@ -1,0 +1,87 @@
+/// Banque de questions. Même forme que Loto_Deck, `isTemplate` compris : Elda
+/// duplique un modèle livré ou part de zéro.
+model Quiz_Deck {
+  id         String
+  tenantId   String
+  name       String   @db.VarChar(120)
+  isTemplate Boolean  @default(false)
+  createdBy  String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  questions Quiz_Question[]
+
+  @@id([id, tenantId])
+  @@index([tenantId])
+}
+
+/// Une question de la banque, ÉDITABLE. La version qui fait foi en séance est
+/// la copie figée au lancement (spec D10), elle arrive au plan 2.
+model Quiz_Question {
+  id         String
+  tenantId   String
+  deckId     String
+  rank       Int
+  prompt     String   @db.VarChar(400)
+  imageId    String?
+  /// Texte alternatif de l'image, écrit par Elda. ⛔ Voir le commentaire de
+  /// `Quiz_Option.imageAlt` : sur une question d'identification, il donne la
+  /// réponse, et c'est une tension non résolue de la spec.
+  imageAlt   String?  @db.VarChar(200)
+  answerMode String   @db.VarChar(8)
+  /// Délai en secondes, `null` = hériter du défaut de la session (spec D10).
+  /// Sans effet en mode contrôle, qui n'a aucun minuteur (spec D6).
+  timeLimit  Int?
+  /// Mode `saisie` seulement, ignorés en `choix` (spec D2).
+  accentsSensibles Boolean @default(true)
+  casseSensible    Boolean @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  deck            Quiz_Deck            @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  options         Quiz_Option[]
+  acceptedAnswers Quiz_AcceptedAnswer[]
+
+  @@id([id, tenantId])
+  @@unique([deckId, rank, tenantId])
+  @@index([tenantId, deckId])
+}
+
+/// Proposition d'une question en mode `choix`. Porte un texte, une image, ou
+/// les deux, c'est ce qui fait que « appariement mot ↔ image » n'est pas un
+/// type de question mais une configuration (spec D1).
+model Quiz_Option {
+  id         String
+  tenantId   String
+  questionId String
+  rank       Int
+  label      String? @db.VarChar(160)
+  imageId    String?
+  /// ⛔ TENSION NON RÉSOLUE, à ne pas trancher en silence. Sur une question
+  /// d'identification « mot ↔ image », un texte alternatif fidèle DONNE la
+  /// réponse à un lecteur d'écran, et son absence rend la question
+  /// impossible. La colonne existe pour qu'Elda puisse en écrire un, la
+  /// décision de ce qu'on affiche à défaut appartient au produit.
+  imageAlt   String? @db.VarChar(200)
+  isCorrect  Boolean @default(false)
+
+  question Quiz_Question @relation(fields: [questionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@unique([questionId, rank, tenantId])
+  @@index([tenantId, questionId])
+}
+
+/// Une variante acceptée d'une question en mode `saisie`. Une ligne par
+/// variante : le pardon est explicite (spec D2).
+model Quiz_AcceptedAnswer {
+  id         String
+  tenantId   String
+  questionId String
+  value      String @db.VarChar(160)
+
+  question Quiz_Question @relation(fields: [questionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@index([tenantId, questionId])
+}

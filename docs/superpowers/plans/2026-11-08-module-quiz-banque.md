@@ -14,6 +14,23 @@
 
 ---
 
+⛔ **UN DEFAUT DE MON OUTILLAGE, A CONNAITRE SI TU RELIS CE PLAN.** Pour retirer
+les tirets cadratins, j ai lance sur ces fichiers cinq regex de ponctuation en
+prose. Deux ont mordu dans les blocs de CODE :
+
+- `/,s*./g -> "."` a mange **tout `, ...`**, donc chaque spread TypeScript
+  ecrit `a,` puis `...b` est devenu `a...b`, qui ne compile pas. **Treize
+  degats, tous repares le 12/11**, trouves parce qu un agent a essaye de
+  compiler le code du plan au lieu de le croire.
+- `/,s*)/g -> ")"` a supprime des virgules finales et joint des lignes. Sans
+  consequence : retirer une virgule finale avant `)` reste valide. Quelques
+  appels multi-lignes sont donc plus laids que ce que j avais ecrit.
+
+⚠️ La lecon, pour la prochaine fois : **ne jamais passer une regex de prose sur
+un fichier qui contient des blocs de code.** Un plan n est pas un texte, c est
+un texte ET du code, et les deux ne se nettoient pas pareil.
+
+
 ## ⛔ À lire avant la première commande
 
 **La base locale.** `.env.local` pointe sur la base Neon de **production**. Toute
@@ -30,6 +47,21 @@ case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;
 **Ne jamais lancer `pnpm dev`** pour les tests de bout en bout : il lit
 `.env.local`. La recette locale complète est au § « Vérification de bout en
 bout », tâche 16.
+
+⛔ **Un piège mesuré le 10/11, qui est une instance de la règle au-dessus.**
+`pnpm --filter @quetzal/db prisma <quoi que ce soit>` **ne lance rien** : pnpm
+cherche un script nommé `prisma` dans ce paquet, ne le trouve pas, affiche
+« None of the selected packages has a "prisma" script » et sort en **code 0**.
+Une vérification écrite ainsi passerait donc pour verte en n’ayant rien
+exécuté. Il faut `pnpm --filter @quetzal/db exec prisma <quoi>`, et les
+scripts déjà nommés (`prisma:generate`, `prisma:migrate:deploy`, `schema:merge`)
+se lancent eux sans `exec`.
+
+⛔ **Et un troisieme piege du meme genre, mesure le 12/11 :**
+pnpm --filter <pkg> test:integration -- --reporter=verbose passe le « -- »
+LITTERALEMENT a vitest, qui avale le reporter. La commande sort en 0, les tests
+tournent, et aucun nom n apparait. Il faut
+pnpm --filter <pkg> exec vitest run --config vitest.integration.config.ts --reporter=verbose.
 
 **Après tout changement de modèle Prisma**, dans cet ordre, sinon le client
 généré mentira : `schema:merge`, `generate:tenant-registry`, `prisma:generate`.
@@ -86,6 +118,7 @@ qu'un serveur sert bien le code qu'on vient d'écrire, lire l'artefact
 **Files:**
 - Create: `packages/core/src/images/image-store.ts`
 - Create: `packages/core/src/images/prisma-image-store.ts`
+- Create: `packages/core/src/images/index.ts`
 - Delete: `packages/module-loto/src/domain/ports/card-image.store.ts`
 - Delete: `packages/module-loto/src/infrastructure/prisma-card-image.store.ts`
 - Modify: `packages/core/package.json`
@@ -176,7 +209,7 @@ export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 pnpm --filter @quetzal/db generate:tenant-registry
 pnpm --filter @quetzal/db prisma:generate
-pnpm --filter @quetzal/db prisma migrate diff \
+pnpm --filter @quetzal/db exec prisma migrate diff \
   --from-schema-datasource prisma/schema.prisma \
   --to-schema-datamodel prisma/schema.prisma \
   --exit-code
@@ -455,11 +488,25 @@ import { PrismaCardImageStore } from './prisma-image-store.js';
 import type { ImageReferenceProvider } from './image-store.js';
 ```
 
-⚠️ Les tests existants de ce `describe` construisent `new PrismaCardImageStore()`
-sans argument. Les laisser tels quels : le constructeur accepte un tableau
-**optionnel**, et c'est précisément le cas que le second test ci-dessus garde.
-Les faire passer à `[fournisseurDuLoto]` serait possible, mais effacerait la
-preuve que le défaut de câblage est traité.
+⛔ **CE PARAGRAPHE DISAIT LE CONTRAIRE DU STEP 5, ET IL AVAIT TORT.** Corrige
+le 10/11 apres la revue de conformite.
+
+Il demandait de laisser les tests existants construire
+`new PrismaCardImageStore()` sans argument, « pour ne pas effacer la preuve que
+le defaut de cablage est traite ». Mesure : des que le garde de registre vide
+existe, un depot sans fournisseur sort au `return 0` **avant le moindre appel
+Prisma**. Les laisser ainsi rend donc CREUX les deux tests qui attendaient une
+suppression, et surtout le seul garde de cloisonnement du ramassage, dont
+l'assertion « l'image du voisin survit » devient vraie par construction.
+
+**Donne le fournisseur du loto a tous les tests de ce `describe`**, sauf celui
+qui garde justement le registre vide. Et pour le test de cloisonnement, ajoute
+en plus une orpheline du locataire courant et attends qu'elle PARTE : sans elle,
+un `deleteMany` qui ne verrait rien du tout passerait encore.
+
+Contre-epreuve a faire : rendre le depot sans fournisseur doit faire rougir le
+test de cloisonnement sur `expected +0 to be 1`. Si ce rouge ne vient pas, le
+test ne garde rien.
 
 - [ ] **Step 2 : lancer les tests pour les voir échouer**
 
@@ -601,12 +648,23 @@ tout entier réintroduit un étage plus bas.
 
 - [ ] **Step 7 : enregistrer le tableau complet, à un seul endroit**
 
-⚠️ **Lire `apps/api/src/app.module.ts` en entier avant d'écrire cette étape.** Ce
-plan a mesuré que `apps/api/src/main.ts` lit `MODULES` et appelle `loadManifests`,
-mais **pas** comment le module racine compose les modules chargés. La forme
-ci-dessous est la cible ; l'endroit exact dépend de ce que la lecture montre.
+⛔ **La première version de ce step était FAUSSE, et son échec était MUET.**
+Elle posait les fournisseurs dans les `providers` d'`AppModule`. Mesuré le
+10/11 : ça ne marche pas, et rien ne le dit.
 
-Le tableau se construit à **un seul endroit**, au niveau de l'application :
+`PrismaCardImageStore` est fourni par `useClass` **dans** chaque module (cf.
+`loto.module.ts`), donc Nest résout son `@Inject(IMAGE_REFERENCE_PROVIDERS)`
+dans la portée de CE module. Or `AppModule` est un module ordinaire, importé
+par le `RootModule` composé dans `main.ts` **à côté** des modules de modules,
+et un module ne voit pas les providers de ses frères. Comme l'injection est
+`@Optional()`, Nest y met `undefined` **sans lever** : registre vide,
+`deleteOrphans` rend 0 pour toujours, aucun ramassage, aucune erreur.
+
+La forme ci-dessous est celle qui marche, et le step 8 la prouve par mutation :
+remettre les fournisseurs dans `AppModule` fait rougir le garde de câblage.
+
+Le tableau se construit à **un seul endroit**, dans un module `@Global()` que
+`AppModule` importe :
 
 ```ts
 import { IMAGE_REFERENCE_PROVIDERS, type ImageReferenceProvider } from '@quetzal/core/images';
@@ -627,16 +685,46 @@ import { QuizImageReferences } from '@quetzal/module-quiz';
 export const PORTEURS_D_IMAGES = [LotoImageReferences, QuizImageReferences] as const;
 ```
 
-et, dans les `providers` du module racine :
+et le module qui le porte, dans le même fichier :
 
 ```ts
+/**
+ * ⚠️ `@Global()`, et ce n'est pas un raccourci de confort : c'est la seule
+ * forme qui marche, pour la raison expliquée au-dessus. Le jeton est exporté,
+ * donc visible depuis la portée de chaque module de module.
+ */
+@Global()
+@Module({
+  providers: [
     ...PORTEURS_D_IMAGES,
     {
       provide: IMAGE_REFERENCE_PROVIDERS,
       useFactory: (...fournisseurs: ImageReferenceProvider[]) => fournisseurs,
       inject: [...PORTEURS_D_IMAGES],
     },
+  ],
+  exports: [IMAGE_REFERENCE_PROVIDERS],
+})
+export class ImageReferencesModule {}
 ```
+
+puis `ImageReferencesModule` en **première** entrée des `imports` d’`AppModule`.
+
+⚠️ Deux contraintes du dépôt, mesurées à la même occasion, qui vont te tomber
+dessus si tu ne les connais pas :
+
+- **`packages/core/tsconfig.json` n'a pas `experimentalDecorators`.** Les
+  décorateurs de **paramètre** du step 4 ne compilent alors ni sous esbuild ni
+  sous `tsc`. Il faut l’activer. La portée réelle est un seul fichier :
+  `prisma-image-store.ts` est le seul de tout `packages/core/src` à porter un
+  décorateur.
+- **`apps/api` est en `moduleResolution: Node`**, qui ne sait pas lire les
+  sous-chemins d’`exports` : il ne peut donc pas importer
+  `@quetzal/core/images` comme le font les modules (`TS2307`). Réexporter le
+  jeton, le type et l'adaptateur depuis l'entrée racine `@quetzal/core`, que
+  `apps/api` résout déjà. ⚠️ Vérifier avant que `apps/host` n’importe pas
+  cette entrée racine, sinon on alourdit son bundle : au 10/11 il n'utilise
+  que le sous-chemin `@quetzal/core/empreinte-du-build`.
 
 ⚠️ `PrismaCardImageStore` reste fourni par `useClass` dans chaque module : son
 constructeur est `@Optional() @Inject(IMAGE_REFERENCE_PROVIDERS)`, donc Nest lui
@@ -776,8 +864,9 @@ Un registre vide rend 0 au lieu de tout supprimer.
 module qui construirait son depot avec ses seules references ramasserait
 les images du voisin, soit le defaut tout entier reintroduit.
 
-⚠️ RESTE A TRAITER, issue a ouvrir : la liste suit MODULES, donc retirer
-un module d un deploiement ou il a des images rendrait ses images
+⚠️ RESTE A TRAITER, issue a ouvrir : la liste ne suit PAS MODULES, et c
+est voulu. Le risque residuel est donc l inverse : retirer un fournisseur
+de cette liste alors que ses images vivent encore les rendrait
 ramassables."
 ```
 
@@ -793,6 +882,7 @@ ramassables."
 - Create: `packages/module-quiz/src/i18n/{fr,en,es}.json`
 - Create: `packages/module-quiz/src/presentation/ui/banks-page.tsx`
 - Create: `packages/module-quiz/tests/manifest.spec.ts`
+- Create: `packages/module-quiz/prisma/models.prisma` (vide, voir le step 8)
 - Modify: `apps/api/package.json`, `apps/host/package.json`
 
 - [ ] **Step 1 : copier le squelette de hello**
@@ -998,11 +1088,35 @@ un pictogramme.
 
 - [ ] **Step 8 : le test de contrat**
 
-`packages/module-quiz/tests/manifest.spec.ts`, copier
-`packages/module-loto/tests/manifest.spec.ts` et remplacer les trois occurrences
-de `loto` par `quiz` dans les imports et le nom du `describe`. Ne rien changer
-d'autre : c'est ce fichier qui vérifiera, au plan 2 comme ici, que chaque route de
-contrôleur est déclarée dans `permissions`.
+`packages/module-quiz/tests/manifest.spec.ts` :
+
+```ts
+import { runContractSuite } from '@quetzal/core/testing/index';
+import { resolve } from 'node:path';
+import { manifest } from '../src/manifest.js';
+
+runContractSuite(manifest, { moduleRoot: resolve(import.meta.dirname, '..') });
+```
+
+⚠️ **Corrige le 10/11 : ce step disait de « remplacer les trois occurrences de
+`loto` », et il n’y en a AUCUNE.** Le fichier du loto fait cinq lignes et est
+déjà entièrement génerique : le slug est lu dans le manifeste par
+`runContractSuite`. Le geste décrit n’avait donc rien à changer, et chercher
+trois occurrences inexistantes aurait fait douter du bon fichier.
+
+Cette suite apporte **huit** tests, dont trois qui vont compter plus loin : la
+parité des catalogues `fr`/`en`/`es`, le préfixe `Quiz_` des modèles Prisma, et
+« chaque route de contrôleur est déclarée dans `permissions` ».
+
+⛔ **Un piège du harnais, mesuré : `prismaModels` doit pointer sur un fichier qui
+EXISTE.** `contract-suite.ts` le lit par un `readFile` **sans `try/catch`**
+(ligne 142), donc un fichier absent fait planter `manifest.spec.ts` sur un
+`ENOENT` qui ne dit pas ce qui manque. `merge-schemas.ts`, lui, est robuste à
+l'absence : il teste l'existence dans un `try/catch` silencieux. C'est donc le
+test de contrat, et non la fusion de schémas, qui impose de créer
+`packages/module-quiz/prisma/models.prisma` dès maintenant, même vide. Un
+commentaire disant que les modèles arrivent à la tâche 8 suffit, et se lit mieux
+que zéro octet.
 
 - [ ] **Step 9 : déclarer le module dans les deux applications**
 
@@ -1239,7 +1353,18 @@ const CHOIX: QuestionJouable = {
 
 const SAISIE: QuestionJouable = {
   answerMode: 'saisie',
-  acceptedAnswers: ['la casa', 'el hogar'],
+  /**
+   * ⛔ LA TROISIÈME VARIANTE EST ÉCRITE NON CANONIQUE, ET C'EST TOUT L'OBJET.
+   *
+   * Avec seulement `['la casa', 'el hogar']`, déjà en minuscules et sans
+   * accent, normaliser le côté ACCEPTÉ est une non-opération : la mutation M1
+   * reste alors VERTE, et le test censé garder la symétrie ne garde rien.
+   * Mesuré le 10/11, sur la première version de ce plan.
+   *
+   * `La Morada` porte une majuscule, donc une saisie canonique ne peut la
+   * rejoindre que si les deux côtés sont normalisés.
+   */
+  acceptedAnswers: ['la casa', 'el hogar', 'La Morada'],
   regles: { accentsSensibles: false, casseSensible: false },
 };
 
@@ -1276,10 +1401,21 @@ describe('estJuste, mode saisie', () => {
     expect(estJuste(SAISIE, { texte: 'el hogar' })).toBe(true);
   });
 
-  it('applique la normalisation aux DEUX cotes de la comparaison', () => {
-    // La reponse acceptee est en minuscules sans accent ; la saisie arrive
-    // autrement. Normaliser un seul cote laisserait passer l un et pas l autre.
+  it('normalise la SAISIE, donc une majuscule accentuee rejoint une acceptee canonique', () => {
     expect(estJuste(SAISIE, { texte: '  LA   CÁSA ' })).toBe(true);
+  });
+
+  /**
+   * ⛔ ET L AUTRE SENS, qui est celui qu on oublie. `La Morada` est stockee avec
+   * une majuscule, donc une saisie deja canonique ne peut la rejoindre que si le
+   * cote ACCEPTE est normalise lui aussi.
+   *
+   * Sans ce test, la mutation M1 reste VERTE : toutes les autres variantes du
+   * fixture sont deja canoniques, donc normaliser ce cote ne change rien. Un
+   * garde qu on n a pas vu rougir ne garde rien.
+   */
+  it('normalise AUSSI le cote accepte, pas seulement la saisie', () => {
+    expect(estJuste(SAISIE, { texte: 'la morada' })).toBe(true);
   });
 
   it('refuse un mot different', () => {
@@ -1392,7 +1528,11 @@ cd packages/module-quiz
 cp src/domain/answer-check.ts /tmp/a.bak
 
 # M1 : un seul cote normalise
-sed -i "s/(acceptee) => normaliser(acceptee, question.regles) === propose,/(acceptee) => acceptee === propose,/" src/domain/answer-check.ts
+# ⚠️ Et VERIFIE que la mutation est arrivee sur le disque avant de lire son
+# resultat : les fichiers sont en CRLF, et un motif cherche en \n ne trouve
+# rien tout en sortant en code 0. Tu lirais alors un vert qui ne mesure rien.
+sed -i "s/(acceptee) => normaliser(acceptee, question.regles) === propose/(acceptee) => acceptee === propose/" src/domain/answer-check.ts
+grep -n "acceptee === propose" src/domain/answer-check.ts
 pnpm vitest run src/domain/answer-check.spec.ts
 cp /tmp/a.bak src/domain/answer-check.ts
 
@@ -1428,8 +1568,14 @@ C est le seul juge. D5 de la spec reprend le principe de D1 du loto,
 « le serveur ne fait jamais confiance au marquage du client », donc la
 justesse ne se lit jamais dans ce que le client affirme.
 
-Verifie par mutation : normaliser un seul cote rougit, et rendre vrai la
-forme de l autre mode rougit."
+Verifie par mutation : normaliser un seul cote rougit sur « normalise
+AUSSI le cote accepte », et rendre vrai la forme de l autre mode rougit sur
+« refuse une saisie envoyee a une question a choix ».
+
+⚠️ La premiere version de ce test ne gardait PAS la symetrie : toutes ses
+reponses acceptees etaient deja canoniques, donc normaliser ce cote etait
+une non-operation et la mutation restait verte. La variante La Morada est
+la pour que ce rouge existe."
 ```
 
 ---
@@ -1534,10 +1680,13 @@ cd packages/module-quiz && pnpm vitest run src/domain/errors.spec.ts
 
 Expected: 4 tests verts.
 
-⚠️ Si `DomainError.name` n'est pas renseigné par la classe de base, le quatrième
-test rougit. Vérifier alors `packages/core/src/errors.ts` : si la base ne pose
-pas `this.name = new.target.name`, ajouter dans chaque constructeur
-`this.name = new.target.name;` plutôt que de modifier le noyau.
+✅ **Mesuré le 12/11 : rien à faire ici.** `DomainError` pose déjà
+`this.name = this.constructor.name` dans son constructeur
+(`packages/core/src/errors.ts`, ligne 4), donc le quatrième test passe sans
+ajout. La première version de ce step portait un avertissement **spéculatif**
+qui demandait de vérifier ce point et, le cas échéant, de poser `this.name` dans
+chaque constructeur. Le cas ne se présente pas, et le dire évite un geste
+inutile dans le noyau.
 
 - [ ] **Step 5 : commit, en deux**
 
@@ -1664,7 +1813,7 @@ case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;; esac
 pnpm --filter @quetzal/db schema:merge
 pnpm --filter @quetzal/db generate:tenant-registry
-pnpm --filter @quetzal/db prisma migrate diff \
+pnpm --filter @quetzal/db exec prisma migrate diff \
   --from-schema-datasource prisma/schema.prisma \
   --to-schema-datamodel prisma/schema.prisma \
   --script
@@ -1679,7 +1828,7 @@ corriger avant d'écrire la migration.
 ```bash
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
-pnpm --filter @quetzal/db prisma migrate dev --name add_module_quiz_bank --create-only
+pnpm --filter @quetzal/db exec prisma migrate dev --name add_module_quiz_bank --create-only
 ```
 
 Puis **ajouter à la main**, à la fin du fichier créé sous
@@ -1845,7 +1994,8 @@ export function questionOf(rank: number, overrides: Partial<Question> = {}): Que
       { id: nextId('option'), rank: 1, label: 'Juste', imageId: null, isCorrect: true },
       { id: nextId('option'), rank: 2, label: 'Faux', imageId: null, isCorrect: false },
     ],
-    acceptedAnswers: []...overrides,
+    acceptedAnswers: [],
+    ...overrides,
   };
 }
 
@@ -1856,7 +2006,8 @@ export function bankOf(questionCount: number, overrides: Partial<Bank> = {}): Ba
     name: 'Banque de test',
     isTemplate: false,
     questionCount: questions.length,
-    questions...overrides,
+    questions,
+    ...overrides,
   };
 }
 
@@ -1867,7 +2018,8 @@ export function bankOf(questionCount: number, overrides: Partial<Bank> = {}): Ba
  */
 function applique(question: Question, patch: QuestionPatch): Question {
   return {
-    ...question...patch,
+    ...question,
+    ...patch,
     options:
       patch.options === undefined
         ? question.options
@@ -2198,7 +2350,7 @@ export class ManageBankUseCase {
 
   async updateQuestion(input: { questionId: string; patch: QuestionPatch }): Promise<void> {
     const question = await this.requireQuestion(input.questionId);
-    const apres = { ...question...input.patch };
+    const apres = { ...question, ...input.patch };
     this.assertJouable(apres.answerMode, apres.options, apres.acceptedAnswers);
     await this.banks.updateQuestion(input.questionId, input.patch);
   }
@@ -2700,13 +2852,41 @@ masquerait une fuite si l'extension venait à ne plus être montée.
 
 - [ ] **Step 4 : lancer les tests d'intégration pour les voir passer**
 
+⛔ **D ABORD, RECONSTRUIRE `@quetzal/db`, sinon les cinq tests échouent en
+`UnknownTenantModelError`.** Étape absente de la première version de ce plan,
+et son absence coûte une fausse piste : le `dist/` de ce paquet porte le
+registre des modèles cloisonnés, et il date d'avant la migration de la tâche 8,
+donc il ignore les tables du quiz.
+
+Témoin de fraîcheur à afficher **avant** de lancer quoi que ce soit :
+
+```bash
+grep -c "quiz_Deck" packages/db/src/model-tenant-registry.ts
+grep -c "quiz_Deck" packages/db/dist/model-tenant-registry.js
+```
+
+Expected: **1 et 1**. Si le second rend **0** : `pnpm --filter @quetzal/db build`,
+puis revérifier. `dist/` est gitignoré, donc il n'y a rien à commiter.
+
+⚠️ Règle générale, qui vaut aussi pour le plan 2 : **tout plan qui ajoute des
+tables à un module doit reconstruire `@quetzal/db` avant sa première suite
+d'intégration.**
+
 ```bash
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
-pnpm --filter @quetzal/module-quiz test:integration
+case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;; esac
+pnpm --filter @quetzal/module-quiz exec vitest run --config vitest.integration.config.ts \
+  --reporter=verbose > /tmp/i.log 2>&1; echo "CODE : $?"
+grep -cE "^ *✓" /tmp/i.log
 ```
 
-Expected: 5 tests verts.
+Expected: **CODE : 0** et **5** tests nommés verts.
+
+⚠️ `exec vitest run --config …` et non `test:integration -- --reporter=…` :
+la seconde forme passe le `--` **littéralement** à vitest, qui avale le
+reporter. La commande sort en 0, les tests tournent, et aucun nom
+n'apparaît, ce qui fait croire deux fois que le reporter ne marche pas.
 
 - [ ] **Step 5 : prouver le tri par rang, par mutation**
 
@@ -2719,10 +2899,36 @@ cp /tmp/r.bak packages/module-quiz/src/infrastructure/prisma-question-bank.repos
 pnpm --filter @quetzal/module-quiz test:integration
 ```
 
-Expected: rouge sur « rend les propositions dans l ordre de leur rang », puis 5
-verts restaurés. ⚠️ Si la mutation reste verte, c'est que la base a rendu les
-lignes dans le bon ordre **par hasard** : le test est alors trop faible, et il
-faut insérer les propositions dans un ordre inverse de leur rang pour le durcir.
+⛔ **CE STEP ETAIT FAUX DEUX FOIS, ET MESURE LE 12/11.** Ni la mutation ni le
+remède annoncés ne tenaient.
+
+**1. La mutation ne pouvait pas rougir.** Le texte parlait de « ceinture
+par-dessus une bretelle » en désignant l'`orderBy` de l'inclusion. Faux :
+cet `orderBy` porte sur les `questions`, pas sur les `options`, qui
+n'en ont **jamais eu**. Il n'y avait pas de bretelle.
+
+**2. Le test ne gardait rien, et le remède proposé non plus.** Le plan
+suggérait d'insérer les propositions dans un ordre inverse de leur rang : elles
+l'étaient déjà (3, 1, 2). La vraie cause est ailleurs, et un `EXPLAIN` la
+nomme : avec une **seule** question dans la banque, Postgres sert les
+propositions par `Index Scan using "Quiz_Option_questionId_rank_tenantId_key"`,
+donc **déjà triées par rang, gratuitement**. Le `.sort()` du code ne changeait
+rien à l'ordre observé, et son retrait restait invisible.
+
+Mesuré : **dès deux questions dans la banque**, la lecture imbriquée passe en
+Seq Scan et rend l'ordre d'insertion.
+
+**Le durcissement qui marche** : deux questions, chacune avec ses propositions
+insérées hors rang, et les questions elles-mêmes créées hors rang. Contre le
+code muté, le test rougit alors sur
+`expected [ 'A3', 'A1', 'A2' ] to deeply equal [ 'A1', 'A2', 'A3' ]`.
+
+⚠️ **Ce qui reste non prouvé, et il faut le dire** : l'`orderBy` sur les
+`questions` n'est falsifiable par aucun test de ce port. `findById` ne lit
+qu'une banque, donc Postgres sert toujours ses questions par un Index Scan sur
+`Quiz_Question_deckId_rank_tenantId_key`, déjà triées, même à quarante
+questions. On le garde parce que c'est la seule garantie SQL, pas parce qu'un
+test le tient.
 
 - [ ] **Step 6 : commit, en deux**
 
@@ -2816,6 +3022,12 @@ export type PatchQuestionBody = z.infer<typeof patchQuestionSchema>;
 
 - [ ] **Step 2 : écrire le contrôleur**
 
+⚠️ **Le `patch` ne se construit PAS par spread**, et le code ci-dessous le
+montre déjà : le dépôt compile avec `exactOptionalPropertyTypes: true`
+(`tsconfig/base.json`), où une clé présente à `undefined` n'est pas la même
+chose qu'une clé absente. Le jumeau `deck.controller.ts` du loto construit son
+patch champ par champ pour cette raison exacte ; suivre sa forme.
+
 `packages/module-quiz/src/presentation/bank.controller.ts` :
 
 ```ts
@@ -2906,7 +3118,7 @@ export class BankController {
     const parsed = patchQuestionSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
 
-    const { accentsSensibles, casseSensible...reste } = parsed.data;
+    const { accentsSensibles, casseSensible, ...reste } = parsed.data;
     const patch =
       accentsSensibles === undefined && casseSensible === undefined
         ? reste
@@ -2951,7 +3163,7 @@ const BANKS = 'QuizQuestionBankRepository';
 export class QuizModule {}
 ```
 
-- [ ] **Step 4 : déclarer les sept routes dans le manifeste**
+- [ ] **Step 4 : déclarer les huit routes dans le manifeste**
 
 Dans `packages/module-quiz/src/manifest.ts`, remplacer `permissions: {}` par :
 
@@ -2980,14 +3192,36 @@ pnpm --filter @quetzal/module-quiz test
 
 Expected: vert, test de contrat compris.
 
+⛔ **LA MUTATION ECRITE ICI NE ROUGIT PAS, ET CE N EST PAS UN FAUX POSITIF :**
+c'est un **bug du noyau**, mesuré le 12/11 et suivi en **issue #87**.
+
+`normalizeRouteParams` de `contract-suite.ts` applique
+`replace(/:[^/\s]+/g, ':param')` à **toute** la clé, donc
+`http:DELETE` devient `http:param`. Les quatre verbes sur un même chemin
+convergent vers une seule clé, et le garde ne voit plus une méthode manquante
+dès qu'une autre existe sur ce chemin. ⚠️ Et ' + bt + 'ws:answer' + bt + ' devient ' + bt + 'ws:param' + bt + ' :
+**tous les événements WebSocket se confondent aussi.**
+
+Il faut donc muter une route qui est **seule sur son chemin**. Celle-ci
+l'est :
+
 ```bash
-cd packages/module-quiz
-cp src/manifest.ts /tmp/man.bak
-sed -i "/http:DELETE \/api\/modules\/quiz\/banks\/:id'/d" src/manifest.ts
-pnpm vitest run tests/manifest.spec.ts
-cp /tmp/man.bak src/manifest.ts
-pnpm vitest run tests/manifest.spec.ts
+cp packages/module-quiz/src/manifest.ts /tmp/man.bak
+sed -i "/http:POST \/api\/modules\/quiz\/banks\/:id\/questions'/d" packages/module-quiz/src/manifest.ts
+# PREUVE que la mutation est sur le disque, avant de lire son resultat :
+grep -c "http:" packages/module-quiz/src/manifest.ts   # attendu : 7, pas 8
+pnpm --filter @quetzal/module-quiz exec vitest run tests/manifest.spec.ts \
+  --reporter=verbose > /tmp/m.log 2>&1; echo "CODE : $?"
+grep -E "not declared in manifest" /tmp/m.log
+cp /tmp/man.bak packages/module-quiz/src/manifest.ts
+grep -c "http:" packages/module-quiz/src/manifest.ts   # attendu : 8
+pnpm --filter @quetzal/module-quiz exec vitest run tests/manifest.spec.ts > /tmp/v.log 2>&1; echo "CODE : $?"
 ```
+
+Expected: **CODE : 1** sur
+`every controller route is declared in permissions`, avec le message
+`Controller exposes route(s) not declared in manifest.permissions` qui nomme
+la route ; puis **CODE : 0** après restauration.
 
 Expected: rouge sur « every controller route is declared in permissions », puis
 vert restauré.
@@ -3005,8 +3239,15 @@ Le schema Zod porte la meme regle que la CHECK en base, une proposition
 a un texte OU une image, pour qu une requete mal formee soit refusee a
 la frontiere plutot qu au dernier rempart.
 
-Verifie par mutation : retirer une route du manifeste fait rougir le test
-de contrat du module."
+Verifie par mutation : retirer une route SEULE SUR SON CHEMIN fait rougir
+le test de contrat du module.
+
+⚠️ Retirer une route qui PARTAGE son chemin avec une autre methode ne le
+fait PAS rougir, et ce n est pas un faux positif : normalizeRouteParams du
+noyau mange le verbe HTTP, donc les quatre verbes d un meme chemin
+convergent vers une seule cle. Les evenements WebSocket se confondent
+aussi. Bug du noyau, suivi en issue #87, non corrige ici parce qu il touche
+un fichier partage par les trois modules."
 ```
 
 ---
@@ -3228,7 +3469,24 @@ interface Bank {
   questions: Question[];
 }
 
-export default function BankEditor({ bankId }: { bankId: string }) {
+/**
+ * ⛔ Les props sont un `Record<string, string>` et NON une forme nommée, parce
+ * que c'est ce que le contrat du noyau impose à tout composant de route :
+ * `QuetzalRoute.component` veut un
+ * `ComponentType<Readonly<Record<string, string>>>`.
+ *
+ * Une signature nommée, `{ bankId }: { bankId: string }`, ne compile pas :
+ * « Property 'bankId' is missing in type 'Readonly<Record<string, string>>' ».
+ * Mesuré le 12/11 ; la première version de ce plan portait la forme fautive.
+ *
+ * Même forme que le jumeau `module-loto/src/presentation/ui/deck-editor.tsx`,
+ * garde comprise : le paramètre peut être absent, et chaque fonction async
+ * doit s'en protéger.
+ */
+type Props = Readonly<Record<string, string>>;
+
+export default function BankEditor(props: Props) {
+  const bankId = props['bankId'];
   const t = useTranslations();
   const [bank, setBank] = useState<Bank | null>(null);
 
@@ -3288,7 +3546,7 @@ export default function BankEditor({ bankId }: { bankId: string }) {
         ? courant
         : {
             ...courant,
-            questions: courant.questions.map((q) => (q.id === questionId ? { ...q...patch } : q)),
+            questions: courant.questions.map((q) => (q.id === questionId ? { ...q, ...patch } : q)),
           });
   }
 
@@ -3526,10 +3784,26 @@ typecheck les signalera un par un :
   `imageAlt: null` dans la constante `QUESTION_CHOIX` et dans ses deux
   propositions, ainsi que dans les trois propositions de `desordre`.
 
-⚠️ Faire ces six ajouts AVANT de lancer quoi que ce soit : `Question` est une
-interface, donc chaque objet littéral incomplet sort en erreur de compilation
-séparée, et il est plus rapide de les traiter d'un coup que de les découvrir une
-par une. Pour les relever :
+⛔ **« SIX AJOUTS » ETAIT FAUX.** Mesuré le 12/11 : le typecheck signale
+**quinze erreurs sur cinq fichiers**, et **deux de ces fichiers ne sont pas
+listés ci-dessus** :
+
+- `application/manage-bank.use-case.spec.ts` (5 erreurs) : ses littéraux
+  `options` n'ont pas d'`imageAlt`.
+- `presentation/bank.controller.ts` (1 erreur) : `patch.options` devient un
+  `Omit<QuestionOption, 'id'>[]`, qui exige désormais `imageAlt` sur chaque
+  proposition, alors qu'`optionSchema` (Zod) n'en porte pas.
+
+⚠️ **Pour ce dernier, ne pas inventer de surface d'API** : forcer
+`imageAlt: null` dans le contrôleur, avec un commentaire qui nomme la limite.
+Un texte alternatif **par proposition** est nécessaire pour les questions
+« mot ↔ image » de D1, mais c'est une décision de produit, pas un effet de bord
+de cette tâche. Aucun jumeau du loto ne couvre ce cas : il n'a pas de
+propositions imbriquées dans son patch.
+
+Faire tous ces ajouts AVANT de lancer quoi que ce soit : `Question` est une
+interface, donc chaque objet littéral incomplet sort en erreur séparée, et il
+est plus rapide de les traiter d'un coup. Pour les relever :
 
 ```bash
 grep -rn "imageId: null" packages/module-quiz/src | grep -v imageAlt
@@ -3848,7 +4122,7 @@ export class QuizImageReferences implements ImageReferenceProvider {
 
     return [
       ...new Set(
-        [...questions...options]
+        [...questions, ...options]
           .map((ligne) => ligne.imageId)
           .filter((id): id is string => id !== null)),
     ];
@@ -3856,7 +4130,17 @@ export class QuizImageReferences implements ImageReferenceProvider {
 }
 ```
 
-et l'enregistrer dans `quiz.module.ts`, en ajoutant aux `providers` :
+⛔ **ET SURTOUT PAS DANS `quiz.module.ts`.** Le texte qui suit dit de
+l’ajouter à ses `providers` : c’est **faux**, et son échec serait muet, comme
+celui que la tâche 3 a déjà mesuré. La forme établie est le tableau
+`PORTEURS_D_IMAGES` d’`apps/api/src/app.module.ts`, dans le module
+`@Global() ImageReferencesModule`, exactement comme `LotoImageReferences`.
+Et il faut exporter la classe depuis `packages/module-quiz/src/index.ts`.
+
+Après quoi `porteurs-d-images.spec.ts` doit compter **2** porteurs pour **2**
+préfixes. Vérifier ce compte au lieu de le supposer.
+
+Le fragment ci-dessous ne dit donc que **quoi** enregistrer, pas où :
 
 ```ts
     { provide: IMAGE_REFERENCE_PROVIDERS, useClass: QuizImageReferences, multi: true },
@@ -4030,10 +4314,27 @@ appartient au produit."
 
 - [ ] **Step 1 : relever tous les endroits qui nomment les modules**
 
+⛔ **NE PAS CHERCHER `"hello,loto"`.** Ce motif ne peut trouver que ce qui porte
+déjà `loto`, donc il rate précisément les endroits restés en arrière. Mesuré le
+12/11 : `.env.example` était encore à `hello` **seul**, il n’avait jamais reçu
+`loto`. Un clone frais en tirait un hôte sans **aucun** module métier, soit
+exactement le symptôme muet que cette tâche vise.
+
+Chercher la **variable**, pas sa valeur :
+
 ```bash
-grep -rn "hello,loto" --include="*.yml" --include="*.yaml" --include="*.json" . \
-  | grep -v node_modules
+grep -rn "MODULES" . \
+  --include="*.yml" --include="*.yaml" --include="*.json" --include="*.ts" --include="*.example" \
+  | grep -vE "node_modules|/\.next/|/dist/|/\.turbo/"
 ```
+
+Attendu, au 12/11 : `.github/workflows/ci.yml` (deux blocs, global et
+`test-e2e`), `render.yaml`, **`.env.example`**, plus `turbo.json` et trois
+fichiers de code qui nomment la variable sans sa valeur, donc sans rien à
+changer.
+
+⚠️ `.env.local` apparaîtra peut-être : **ne pas y toucher**. Il n’est pas suivi
+par git et il pointe sur la production.
 
 Expected: les occurrences dans `.github/workflows/ci.yml` et `render.yaml`.
 **Chacune** doit devenir `hello,loto,quiz`, une seule oubliée et le module
@@ -4105,17 +4406,50 @@ pnpm --filter quetzal-host exec next start -p 3010 &
 précédent : `rm -rf apps/host/.next` et recommencer. La ligne est déjà au-dessus
 pour cette raison.
 
-- [ ] **Step 2 : prouver que le module est chargé, témoin de fraîcheur**
+- [ ] **Step 2 : prouver que le module est chargé, DEUX témoins de fraîcheur**
+
+⚠️ La première version de ce step n’en nommait qu’un. `CLAUDE.md` §11 en pose
+**deux**, et le second attrape un piège différent.
 
 ```bash
+# 1. la carte des chargeurs du host porte-t-elle quiz ?
 grep -c "quiz" apps/host/src/lib/module-loaders.generated.ts
+grep -n "quiz" apps/host/src/lib/module-loaders.generated.ts
+
+# 2. le dist de @quetzal/db porte-t-il le registre des tables quiz ?
+grep -c "quiz_Deck" packages/db/dist/model-tenant-registry.js
 ```
 
-Expected: **au moins 1**. ⛔ C'est la preuve que le slug a été pris en compte au
-build ; sans elle, la suite vérifierait un host sans module quiz et tomberait sur
-des erreurs trompeuses.
+Expected: **au moins 1** et **1**.
+
+⛔ Le premier prouve que le slug a été pris au build ; sans lui, la suite
+vérifierait un hôte sans module quiz et tomberait sur des erreurs trompeuses.
+⚠️ Et `grep -c` seul rend un nombre sans dire **lequel** : afficher aussi la
+ligne, parce qu’un `typecheck` du host lancé sans `MODULES` dans
+l’environnement **réécrit ce fichier avec zéro chargeur**.
+
+⛔ Le second attrape « `pnpm --filter build` ne reconstruit pas les
+dépendances » : le `dist/` de ce paquet porte le registre des modèles
+cloisonnés, et s’il date d’avant la migration de la tâche 8, les suites
+d’intégration échouent en `UnknownTenantModelError`. Si le compte rend **0** :
+`pnpm --filter @quetzal/db build`.
 
 - [ ] **Step 3 : faire le geste complet d'Elda, par l'API**
+
+⛔ **NE PAS INLINER D’ACCENTUÉ DANS UN `-d` DE `curl` SOUS GIT BASH.** MSYS
+fait passer `argv` par la page de codes ANSI : le serveur reçoit des U+FFFD et
+**les stocke**. Mesuré le 12/11 dans Postgres, `¿Cómo` arrive en
+`efbfbd43efbfbd6d6f` au lieu de `c2bf43c3b3`. Le module est innocent : le
+même corps envoyé par `--data-binary @fichier` arrive au bit près.
+
+Pour un module destiné à l’espagnol, c’est le genre de faux fait qui coûte une
+demi-journée à imputer au produit. Écrire le corps dans un fichier, et
+l’envoyer par `--data-binary @`.
+
+⚠️ Et **ne pas se reconnecter à chaque essai** : Better-Auth plafonne à trois
+connexions par fenêtre glissante, et cinq sondes suffisent à faire répondre
+« Too many requests » à la place de l’erreur réelle. Réutiliser le pot de
+cookies pour tout le geste.
 
 ```bash
 JETON=$(curl -s -X POST "http://localhost:3010/api/auth/sign-in/email" \
@@ -4155,10 +4489,26 @@ curl -s -o /dev/null -w '%{http_code}\n' -X PATCH \
 Expected: **400**. Une question à choix sans proposition juste n'atteint pas la
 base.
 
-- [ ] **Step 5 : arrêter les serveurs, puis les portes complètes**
+- [ ] **Step 5 : les portes complètes, SANS tuer les serveurs**
+
+⛔⛔ **LA PREMIERE VERSION DE CE STEP ENVOYAIT PLAYWRIGHT SUR NEON.** Mesuré
+le 12/11, et c’est le pire défaut de ce plan.
+
+Elle faisait `kill %1 %2` **puis** `pnpm exec playwright test`. Les serveurs
+morts et `CI` non défini, le `webServer` de `playwright.config.ts` lance
+**`pnpm dev`** pour se dépanner. Et `pnpm dev` lit `.env.local`, qui pointe
+sur la **base de PRODUCTION**. Le plan conduisait droit dans l’interdit le plus
+dur du dépôt.
+
+Second défaut du même bloc : `E2E_HOST_URL` vaut 3010 pendant que le
+`webServer` surveille le 3000, donc le serveur lancé ne serait même pas celui
+testé.
+
+**Garder les serveurs debout, et exporter `CI=1`** pour que Playwright n’en
+lance aucun :
 
 ```bash
-kill %1 %2
+export CI=1
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 pnpm lint && pnpm typecheck && pnpm test

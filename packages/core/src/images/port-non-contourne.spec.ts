@@ -25,7 +25,7 @@ import { describe, it, expect } from 'vitest';
  * bien, et c est précisément pourquoi aucune autre barre ne le verrait.
  */
 
-const racineModule = fileURLToPath(new URL('../..', import.meta.url));
+const racineNoyau = fileURLToPath(new URL('..', import.meta.url));
 const TABLE = 'loto_CardImage';
 // ⚠️ Limite de mot obligatoire, et c est une mutation qui l a montre : chercher
 // `loto_CardImage` en sous-chaine trouve aussi `loto_CardImageX`, donc renommer
@@ -37,7 +37,7 @@ const TABLE = 'loto_CardImage';
 // ainsi, regex qui ne trouvait rien, reference rouge. Cette forme n a aucun
 // antislash, donc rien a mal echapper.
 const MOT = new RegExp(`${TABLE}(?![A-Za-z0-9_])`);
-const SEUL_AUTORISE = join('infrastructure', 'prisma-card-image.store.ts');
+const SEUL_AUTORISE = join('images', 'prisma-image-store.ts');
 
 function fichiersTypeScript(dossier: string): string[] {
   const trouves: string[] = [];
@@ -54,10 +54,10 @@ function fichiersTypeScript(dossier: string): string[] {
 
 describe('le port des images n est pas contourne', () => {
   it('seul son adaptateur touche la table des images', () => {
-    const fautifs = fichiersTypeScript(join(racineModule, 'src'))
+    const fautifs = fichiersTypeScript(racineNoyau)
       .filter((chemin) => !chemin.endsWith('.spec.ts'))
       .filter((chemin) => MOT.test(readFileSync(chemin, 'utf8')))
-      .map((chemin) => relative(join(racineModule, 'src'), chemin))
+      .map((chemin) => relative(racineNoyau, chemin))
       .filter((relatif) => relatif !== SEUL_AUTORISE);
 
     expect(
@@ -71,7 +71,7 @@ describe('le port des images n est pas contourne', () => {
     // Sans ce controle, renommer ou supprimer l adaptateur rendrait le test
     // ci-dessus vert par vacuite : plus aucun fichier ne touche la table, donc
     // plus aucun fautif. Un test qui ne peut plus echouer ne garde rien.
-    const adaptateur = readFileSync(join(racineModule, 'src', SEUL_AUTORISE), 'utf8');
+    const adaptateur = readFileSync(join(racineNoyau, SEUL_AUTORISE), 'utf8');
     expect(adaptateur, `${TABLE} doit encore etre touchee par son adaptateur`).toMatch(MOT);
     expect(adaptateur).toContain('implements CardImageStore');
   });

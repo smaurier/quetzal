@@ -1,0 +1,34 @@
+{
+  "module": {
+    "quiz": {
+      "nav": { "title": "Quiz" },
+      "banks": {
+        "title": "Question banks",
+        "empty": "No bank yet",
+        "newName": "New bank name",
+        "create": "Create",
+        "questionCount": "{count} question(s)",
+        "open": "Open bank {name}"
+      },
+      "editor": {
+        "bankName": "Bank name",
+        "addQuestion": "Add a question",
+        "prompt": "Prompt of question {rank}",
+        "answerMode": "Answer type of question {rank}",
+        "modeChoix": "Choice",
+        "modeSaisie": "Typed",
+        "optionLabel": "Option {rank} of question {question}",
+        "optionCorrect": "Option {rank} is the correct answer",
+        "acceptedAnswers": "Accepted answers of question {rank}, comma separated",
+        "accentsSensibles": "Accents matter",
+        "casseSensible": "Capitals matter",
+        "timeLimit": "Time limit in seconds of question {rank}",
+        "image": "Image of question {rank}",
+        "imageAlt": "Description of the image of question {rank}, for those who cannot see it",
+        "imageAltRequis": "An image without a description is unusable by some students",
+        "save": "Save",
+        "deleteQuestion": "Delete question {rank}"
+      }
+    }
+  }
+}

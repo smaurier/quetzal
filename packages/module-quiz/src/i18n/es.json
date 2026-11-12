@@ -1,0 +1,36 @@
+{
+  "module": {
+    "quiz": {
+      "nav": {
+        "title": "Cuestionario"
+      },
+      "banks": {
+        "title": "Bancos de preguntas",
+        "empty": "Todavía no hay ningún banco",
+        "newName": "Nombre del nuevo banco",
+        "create": "Crear",
+        "questionCount": "{count} pregunta(s)",
+        "open": "Abrir el banco {name}"
+      },
+      "editor": {
+        "bankName": "Nombre del banco",
+        "addQuestion": "Añadir una pregunta",
+        "prompt": "Enunciado de la pregunta {rank}",
+        "answerMode": "Tipo de respuesta de la pregunta {rank}",
+        "modeChoix": "Opción",
+        "modeSaisie": "Escrita",
+        "optionLabel": "Opción {rank} de la pregunta {question}",
+        "optionCorrect": "La opción {rank} es la respuesta correcta",
+        "acceptedAnswers": "Respuestas aceptadas de la pregunta {rank}, separadas por comas",
+        "accentsSensibles": "Los acentos cuentan",
+        "casseSensible": "Las mayúsculas cuentan",
+        "timeLimit": "Tiempo límite en segundos de la pregunta {rank}",
+        "image": "Imagen de la pregunta {rank}",
+        "imageAlt": "Descripción de la imagen de la pregunta {rank}, para quien no la ve",
+        "imageAltRequis": "Una imagen sin descripción no la pueden usar algunos alumnos",
+        "save": "Guardar",
+        "deleteQuestion": "Eliminar la pregunta {rank}"
+      }
+    }
+  }
+}

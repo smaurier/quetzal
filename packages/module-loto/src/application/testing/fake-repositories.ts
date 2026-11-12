@@ -5,7 +5,7 @@ import type {
   DeckSummary,
   NewDeckCard,
 } from '../../domain/ports/deck.repository.js';
-import type { CardImageStore, StoredImage } from '../../domain/ports/card-image.store.js';
+import type { CardImageStore, StoredImage } from '@quetzal/core/images';
 import type {
   GameRepository,
   GameSettings,
