@@ -4314,10 +4314,27 @@ appartient au produit."
 
 - [ ] **Step 1 : relever tous les endroits qui nomment les modules**
 
+⛔ **NE PAS CHERCHER `"hello,loto"`.** Ce motif ne peut trouver que ce qui porte
+déjà `loto`, donc il rate précisément les endroits restés en arrière. Mesuré le
+12/11 : `.env.example` était encore à `hello` **seul**, il n’avait jamais reçu
+`loto`. Un clone frais en tirait un hôte sans **aucun** module métier, soit
+exactement le symptôme muet que cette tâche vise.
+
+Chercher la **variable**, pas sa valeur :
+
 ```bash
-grep -rn "hello,loto" --include="*.yml" --include="*.yaml" --include="*.json" . \
-  | grep -v node_modules
+grep -rn "MODULES" . \
+  --include="*.yml" --include="*.yaml" --include="*.json" --include="*.ts" --include="*.example" \
+  | grep -vE "node_modules|/\.next/|/dist/|/\.turbo/"
 ```
+
+Attendu, au 12/11 : `.github/workflows/ci.yml` (deux blocs, global et
+`test-e2e`), `render.yaml`, **`.env.example`**, plus `turbo.json` et trois
+fichiers de code qui nomment la variable sans sa valeur, donc sans rien à
+changer.
+
+⚠️ `.env.local` apparaîtra peut-être : **ne pas y toucher**. Il n’est pas suivi
+par git et il pointe sur la production.
 
 Expected: les occurrences dans `.github/workflows/ci.yml` et `render.yaml`.
 **Chacune** doit devenir `hello,loto,quiz`, une seule oubliée et le module
@@ -4389,17 +4406,50 @@ pnpm --filter quetzal-host exec next start -p 3010 &
 précédent : `rm -rf apps/host/.next` et recommencer. La ligne est déjà au-dessus
 pour cette raison.
 
-- [ ] **Step 2 : prouver que le module est chargé, témoin de fraîcheur**
+- [ ] **Step 2 : prouver que le module est chargé, DEUX témoins de fraîcheur**
+
+⚠️ La première version de ce step n’en nommait qu’un. `CLAUDE.md` §11 en pose
+**deux**, et le second attrape un piège différent.
 
 ```bash
+# 1. la carte des chargeurs du host porte-t-elle quiz ?
 grep -c "quiz" apps/host/src/lib/module-loaders.generated.ts
+grep -n "quiz" apps/host/src/lib/module-loaders.generated.ts
+
+# 2. le dist de @quetzal/db porte-t-il le registre des tables quiz ?
+grep -c "quiz_Deck" packages/db/dist/model-tenant-registry.js
 ```
 
-Expected: **au moins 1**. ⛔ C'est la preuve que le slug a été pris en compte au
-build ; sans elle, la suite vérifierait un host sans module quiz et tomberait sur
-des erreurs trompeuses.
+Expected: **au moins 1** et **1**.
+
+⛔ Le premier prouve que le slug a été pris au build ; sans lui, la suite
+vérifierait un hôte sans module quiz et tomberait sur des erreurs trompeuses.
+⚠️ Et `grep -c` seul rend un nombre sans dire **lequel** : afficher aussi la
+ligne, parce qu’un `typecheck` du host lancé sans `MODULES` dans
+l’environnement **réécrit ce fichier avec zéro chargeur**.
+
+⛔ Le second attrape « `pnpm --filter build` ne reconstruit pas les
+dépendances » : le `dist/` de ce paquet porte le registre des modèles
+cloisonnés, et s’il date d’avant la migration de la tâche 8, les suites
+d’intégration échouent en `UnknownTenantModelError`. Si le compte rend **0** :
+`pnpm --filter @quetzal/db build`.
 
 - [ ] **Step 3 : faire le geste complet d'Elda, par l'API**
+
+⛔ **NE PAS INLINER D’ACCENTUÉ DANS UN `-d` DE `curl` SOUS GIT BASH.** MSYS
+fait passer `argv` par la page de codes ANSI : le serveur reçoit des U+FFFD et
+**les stocke**. Mesuré le 12/11 dans Postgres, `¿Cómo` arrive en
+`efbfbd43efbfbd6d6f` au lieu de `c2bf43c3b3`. Le module est innocent : le
+même corps envoyé par `--data-binary @fichier` arrive au bit près.
+
+Pour un module destiné à l’espagnol, c’est le genre de faux fait qui coûte une
+demi-journée à imputer au produit. Écrire le corps dans un fichier, et
+l’envoyer par `--data-binary @`.
+
+⚠️ Et **ne pas se reconnecter à chaque essai** : Better-Auth plafonne à trois
+connexions par fenêtre glissante, et cinq sondes suffisent à faire répondre
+« Too many requests » à la place de l’erreur réelle. Réutiliser le pot de
+cookies pour tout le geste.
 
 ```bash
 JETON=$(curl -s -X POST "http://localhost:3010/api/auth/sign-in/email" \
@@ -4439,10 +4489,26 @@ curl -s -o /dev/null -w '%{http_code}\n' -X PATCH \
 Expected: **400**. Une question à choix sans proposition juste n'atteint pas la
 base.
 
-- [ ] **Step 5 : arrêter les serveurs, puis les portes complètes**
+- [ ] **Step 5 : les portes complètes, SANS tuer les serveurs**
+
+⛔⛔ **LA PREMIERE VERSION DE CE STEP ENVOYAIT PLAYWRIGHT SUR NEON.** Mesuré
+le 12/11, et c’est le pire défaut de ce plan.
+
+Elle faisait `kill %1 %2` **puis** `pnpm exec playwright test`. Les serveurs
+morts et `CI` non défini, le `webServer` de `playwright.config.ts` lance
+**`pnpm dev`** pour se dépanner. Et `pnpm dev` lit `.env.local`, qui pointe
+sur la **base de PRODUCTION**. Le plan conduisait droit dans l’interdit le plus
+dur du dépôt.
+
+Second défaut du même bloc : `E2E_HOST_URL` vaut 3010 pendant que le
+`webServer` surveille le 3000, donc le serveur lancé ne serait même pas celui
+testé.
+
+**Garder les serveurs debout, et exporter `CI=1`** pour que Playwright n’en
+lance aucun :
 
 ```bash
-kill %1 %2
+export CI=1
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
 pnpm lint && pnpm typecheck && pnpm test
