@@ -3,6 +3,7 @@ const tseslint = require('typescript-eslint');
 const globals = require('globals');
 const jsxA11y = require('eslint-plugin-jsx-a11y');
 const react = require('eslint-plugin-react');
+const boundaries = require('eslint-plugin-boundaries');
 
 // jsx-a11y/recommended ships every enabled rule as 'error' already; this makes
 // that explicit and keeps it true if a future plugin version downgrades one to
@@ -179,6 +180,45 @@ module.exports = tseslint.config(
     rules: {
       'quetzal/no-raw-room-string': 'error',
       'quetzal/tenant-safety': 'error',
+    },
+  },
+  {
+    // LES COUCHES DE CLAUDE.md §4, TENUES POUR DE VRAI. Issue #98.
+    //
+    // Le greffon range chaque fichier IMPORTÉ dans une couche en le résolvant
+    // sur disque ; le résolveur TypeScript est requis parce que les imports
+    // écrivent `.js` et que les fichiers sont des `.ts`. Sans lui, aucune cible
+    // n'est rangée nulle part et la règle ne voit rien.
+    //
+    // La racine de composition (`<slug>.module.ts`, `index.ts`, `manifest.ts`)
+    // n'appartient à aucune couche : c'est elle qui branche les adaptateurs
+    // sur les ports, elle doit voir l'infrastructure.
+    files: ['packages/module-*/**/*.ts', 'packages/module-*/**/*.tsx'],
+    plugins: { boundaries },
+    settings: {
+      'import/resolver': {
+        [require.resolve('eslint-import-resolver-typescript')]: { alwaysTryTypes: true },
+      },
+      'boundaries/elements': [
+        { type: 'domain', pattern: 'src/domain' },
+        { type: 'application', pattern: 'src/application' },
+        { type: 'infrastructure', pattern: 'src/infrastructure' },
+        { type: 'presentation', pattern: 'src/presentation' },
+      ],
+    },
+    rules: {
+      'boundaries/element-types': [
+        'error',
+        {
+          default: 'disallow',
+          rules: [
+            { from: 'domain', allow: ['domain'] },
+            { from: 'application', allow: ['domain', 'application'] },
+            { from: 'infrastructure', allow: ['domain', 'infrastructure'] },
+            { from: 'presentation', allow: ['domain', 'application', 'presentation'] },
+          ],
+        },
+      ],
     },
   },
 );
