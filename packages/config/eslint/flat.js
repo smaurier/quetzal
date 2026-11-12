@@ -29,12 +29,6 @@ module.exports = tseslint.config(
       '**/next-env.d.ts',
       '**/model-tenant-registry.ts',
       '**/prisma/migrations/**',
-      // Globstar prefix (not a root-relative path) because this config is
-      // consumed both from the repo root (apps/*, packages/* walk up to it)
-      // and loaded directly via packages/config's own eslint.config.js,
-      // where ignore patterns resolve relative to that file's own directory.
-      '**/eslint/base.js',
-      '**/eslint/module.js',
     ],
   },
   js.configs.recommended,
