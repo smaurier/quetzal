@@ -96,6 +96,52 @@ describe('PrismaQuestionBankRepository (intégration)', () => {
     expect([...(relue?.questions[0]?.acceptedAnswers ?? [])].sort()).toEqual(['el hogar', 'la casa']);
   });
 
+  /**
+   * ⛔ LE DERNIER REMPART (#100). Le dépôt écrit sans passer par le DTO, comme
+   * un seed ou un import : seule la CHECK peut refuser ici. `''` n'est pas
+   * `NULL`, donc `"label" IS NOT NULL` le laissait passer.
+   */
+  describe('propositions et reponses sans rien a afficher', () => {
+    async function creerAvec(question: Question) {
+      const { tenantId, ownerId } = await seedTenant();
+      const repo = new PrismaQuestionBankRepository();
+      return inTenant(tenantId, ownerId, () =>
+        repo.create({ name: 'Garde', isTemplate: false, createdBy: ownerId, questions: [question] }));
+    }
+
+    function avecPremiere(label: string | null, imageId: string | null): Question {
+      return {
+        ...QUESTION_CHOIX,
+        options: [
+          { id: 'x', rank: 1, label, imageId, imageAlt: null, isCorrect: true },
+          { id: 'y', rank: 2, label: 'la mesa', imageId: null, imageAlt: null, isCorrect: false },
+        ],
+      };
+    }
+
+    it('refuse en base une proposition au libelle vide sans image', async () => {
+      await expect(creerAvec(avecPremiere('', null))).rejects.toThrow(/Quiz_Option_label_ou_image_check/);
+    });
+
+    it('refuse en base une proposition faite seulement d espaces', async () => {
+      await expect(creerAvec(avecPremiere('   ', null))).rejects.toThrow(/Quiz_Option_label_ou_image_check/);
+    });
+
+    /**
+     * La contre-épreuve qui tient à la logique ternaire de SQL : `btrim(NULL)`
+     * vaut NULL, la comparaison vaut NULL, et une CHECK passe sur NULL. Une
+     * image seule doit rester permise, et cela se prouve par une insertion.
+     */
+    it('accepte en base une proposition en image seule', async () => {
+      await expect(creerAvec(avecPremiere(null, 'image-seule'))).resolves.toBeDefined();
+    });
+
+    it('refuse en base une reponse acceptee vide', async () => {
+      const saisie: Question = { ...QUESTION_CHOIX, answerMode: 'saisie', options: [], acceptedAnswers: ['la casa', '  '] };
+      await expect(creerAvec(saisie)).rejects.toThrow(/Quiz_AcceptedAnswer_value_check/);
+    });
+  });
+
   it('supprimer une banque emporte ses questions et leurs propositions', async () => {
     const { tenantId, ownerId } = await seedTenant();
     const repo = new PrismaQuestionBankRepository();
