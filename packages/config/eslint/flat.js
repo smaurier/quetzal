@@ -116,4 +116,51 @@ module.exports = tseslint.config(
       ],
     },
   },
+  {
+    // LA FRONTIERE NOYAU / MODULE DE CLAUDE.md §3, TENUE POUR DE VRAI.
+    //
+    // Les trois interdits de §3 existaient dans packages/config/eslint/module.js
+    // depuis l'origine, au format eslintrc, et PERSONNE ne chargeait ce fichier :
+    // aucun paquet packages/module-* n'avait de configuration qui l'etende.
+    // Mesure le 12/11 par sonde : un module important PrismaClient en direct
+    // passait `eslint src` en code 0. Issue #86.
+    //
+    // Le bloc vit ici plutot que dans un eslint.config.js par module, pour que
+    // le prochain module soit couvert sans rien ecrire.
+    files: ['packages/module-*/**/*.ts', 'packages/module-*/**/*.tsx'],
+    // Les tests d'integration sont EXCLUS, et c'est un choix, pas un oubli : un
+    // test qui prouve le cloisonnement par locataire a besoin de regarder la
+    // base SANS le client cloisonne, sinon il ne verifie que lui-meme.
+    // `module-hello` le fait deja pour relire une ligne et confirmer son
+    // tenantId. Interdire ici rendrait le cloisonnement invérifiable.
+    ignores: ['packages/module-*/**/*.spec.ts', 'packages/module-*/**/*.spec.tsx'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@quetzal/module-*'],
+              message:
+                'Import entre modules interdit (CLAUDE.md §3). Passer par le bus et les types de @quetzal/core/events/.',
+            },
+            {
+              group: ['@prisma/client'],
+              importNames: ['PrismaClient'],
+              message:
+                'PrismaClient direct interdit dans un module : il contourne le cloisonnement par locataire. Utiliser ctx.prisma (CLAUDE.md §3).',
+            },
+          ],
+          paths: [
+            {
+              name: '@quetzal/db',
+              importNames: ['RootPrismaClient', 'createRootPrismaClient', 'rootPrisma'],
+              message:
+                'Le client non cloisonne est reserve au noyau (onBoot, migrations, jobs admin). Utiliser ctx.prisma (CLAUDE.md §3).',
+            },
+          ],
+        },
+      ],
+    },
+  },
 );
