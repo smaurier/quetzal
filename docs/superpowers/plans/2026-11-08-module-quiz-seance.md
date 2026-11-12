@@ -14,6 +14,23 @@
 
 ---
 
+⛔ **UN DEFAUT DE MON OUTILLAGE, A CONNAITRE SI TU RELIS CE PLAN.** Pour retirer
+les tirets cadratins, j ai lance sur ces fichiers cinq regex de ponctuation en
+prose. Deux ont mordu dans les blocs de CODE :
+
+- `/,s*./g -> "."` a mange **tout `, ...`**, donc chaque spread TypeScript
+  ecrit `a,` puis `...b` est devenu `a...b`, qui ne compile pas. **Treize
+  degats, tous repares le 12/11**, trouves parce qu un agent a essaye de
+  compiler le code du plan au lieu de le croire.
+- `/,s*)/g -> ")"` a supprime des virgules finales et joint des lignes. Sans
+  consequence : retirer une virgule finale avant `)` reste valide. Quelques
+  appels multi-lignes sont donc plus laids que ce que j avais ecrit.
+
+⚠️ La lecon, pour la prochaine fois : **ne jamais passer une regex de prose sur
+un fichier qui contient des blocs de code.** Un plan n est pas un texte, c est
+un texte ET du code, et les deux ne se nettoient pas pareil.
+
+
 ## ⛔ À lire avant la première commande
 
 **La base locale.** `.env.local` pointe sur la base Neon de **production**. Toute

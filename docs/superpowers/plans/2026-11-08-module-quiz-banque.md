@@ -14,6 +14,23 @@
 
 ---
 
+⛔ **UN DEFAUT DE MON OUTILLAGE, A CONNAITRE SI TU RELIS CE PLAN.** Pour retirer
+les tirets cadratins, j ai lance sur ces fichiers cinq regex de ponctuation en
+prose. Deux ont mordu dans les blocs de CODE :
+
+- `/,s*./g -> "."` a mange **tout `, ...`**, donc chaque spread TypeScript
+  ecrit `a,` puis `...b` est devenu `a...b`, qui ne compile pas. **Treize
+  degats, tous repares le 12/11**, trouves parce qu un agent a essaye de
+  compiler le code du plan au lieu de le croire.
+- `/,s*)/g -> ")"` a supprime des virgules finales et joint des lignes. Sans
+  consequence : retirer une virgule finale avant `)` reste valide. Quelques
+  appels multi-lignes sont donc plus laids que ce que j avais ecrit.
+
+⚠️ La lecon, pour la prochaine fois : **ne jamais passer une regex de prose sur
+un fichier qui contient des blocs de code.** Un plan n est pas un texte, c est
+un texte ET du code, et les deux ne se nettoient pas pareil.
+
+
 ## ⛔ À lire avant la première commande
 
 **La base locale.** `.env.local` pointe sur la base Neon de **production**. Toute
@@ -1970,7 +1987,8 @@ export function questionOf(rank: number, overrides: Partial<Question> = {}): Que
       { id: nextId('option'), rank: 1, label: 'Juste', imageId: null, isCorrect: true },
       { id: nextId('option'), rank: 2, label: 'Faux', imageId: null, isCorrect: false },
     ],
-    acceptedAnswers: []...overrides,
+    acceptedAnswers: [],
+    ...overrides,
   };
 }
 
@@ -1981,7 +1999,8 @@ export function bankOf(questionCount: number, overrides: Partial<Bank> = {}): Ba
     name: 'Banque de test',
     isTemplate: false,
     questionCount: questions.length,
-    questions...overrides,
+    questions,
+    ...overrides,
   };
 }
 
@@ -1992,7 +2011,8 @@ export function bankOf(questionCount: number, overrides: Partial<Bank> = {}): Ba
  */
 function applique(question: Question, patch: QuestionPatch): Question {
   return {
-    ...question...patch,
+    ...question,
+    ...patch,
     options:
       patch.options === undefined
         ? question.options
@@ -2323,7 +2343,7 @@ export class ManageBankUseCase {
 
   async updateQuestion(input: { questionId: string; patch: QuestionPatch }): Promise<void> {
     const question = await this.requireQuestion(input.questionId);
-    const apres = { ...question...input.patch };
+    const apres = { ...question, ...input.patch };
     this.assertJouable(apres.answerMode, apres.options, apres.acceptedAnswers);
     await this.banks.updateQuestion(input.questionId, input.patch);
   }
@@ -3031,7 +3051,7 @@ export class BankController {
     const parsed = patchQuestionSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
 
-    const { accentsSensibles, casseSensible...reste } = parsed.data;
+    const { accentsSensibles, casseSensible, ...reste } = parsed.data;
     const patch =
       accentsSensibles === undefined && casseSensible === undefined
         ? reste
@@ -3413,7 +3433,7 @@ export default function BankEditor({ bankId }: { bankId: string }) {
         ? courant
         : {
             ...courant,
-            questions: courant.questions.map((q) => (q.id === questionId ? { ...q...patch } : q)),
+            questions: courant.questions.map((q) => (q.id === questionId ? { ...q, ...patch } : q)),
           });
   }
 
@@ -3973,7 +3993,7 @@ export class QuizImageReferences implements ImageReferenceProvider {
 
     return [
       ...new Set(
-        [...questions...options]
+        [...questions, ...options]
           .map((ligne) => ligne.imageId)
           .filter((id): id is string => id !== null)),
     ];

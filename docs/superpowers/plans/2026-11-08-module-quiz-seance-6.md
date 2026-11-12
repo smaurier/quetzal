@@ -990,7 +990,9 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
       const r = await this.answer.execute({
         sessionId: data.sessionId,
         participantId: data.participantId,
-        guestId: data.guestId...(body.optionId === undefined ? {} : { optionId: body.optionId })...(body.value === undefined ? {} : { value: body.value }),
+        guestId: data.guestId,
+        ...(body.optionId === undefined ? {} : { optionId: body.optionId }),
+        ...(body.value === undefined ? {} : { value: body.value }),
       });
       // Diffusé vers le seul participant, jamais retourné : Nest transformerait
       // un retour {event, data} en événement, et le résultat irait à la salle.
