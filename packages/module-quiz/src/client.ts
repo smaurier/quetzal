@@ -11,6 +11,12 @@ export const clientManifest: ClientModuleManifest = {
       requiredRoles: ['owner', 'creator'],
       layout: 'shell',
     },
+    {
+      path: ':bankId',
+      component: () => import('./presentation/ui/bank-editor.js'),
+      requiredRoles: ['owner', 'creator'],
+      layout: 'shell',
+    },
   ],
   navItem: {
     icon: 'list-checks',

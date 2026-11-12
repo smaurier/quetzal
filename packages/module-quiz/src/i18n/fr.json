@@ -2,7 +2,30 @@
   "module": {
     "quiz": {
       "nav": { "title": "Quiz" },
-      "banks": { "title": "Banques de questions", "empty": "Aucune banque pour l instant" }
+      "banks": {
+        "title": "Banques de questions",
+        "empty": "Aucune banque pour l instant",
+        "newName": "Nom de la nouvelle banque",
+        "create": "Créer",
+        "questionCount": "{count} question(s)",
+        "open": "Ouvrir la banque {name}"
+      },
+      "editor": {
+        "bankName": "Nom de la banque",
+        "addQuestion": "Ajouter une question",
+        "prompt": "Énoncé de la question {rank}",
+        "answerMode": "Type de réponse de la question {rank}",
+        "modeChoix": "Choix",
+        "modeSaisie": "Saisie",
+        "optionLabel": "Proposition {rank} de la question {question}",
+        "optionCorrect": "La proposition {rank} est la bonne réponse",
+        "acceptedAnswers": "Réponses acceptées de la question {rank}, séparées par des virgules",
+        "accentsSensibles": "Les accents comptent",
+        "casseSensible": "Les majuscules comptent",
+        "timeLimit": "Délai en secondes de la question {rank}",
+        "save": "Enregistrer",
+        "deleteQuestion": "Supprimer la question {rank}"
+      }
     }
   }
 }
