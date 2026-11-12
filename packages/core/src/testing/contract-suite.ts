@@ -72,8 +72,25 @@ function getControllerRoutes(controller: Type<unknown>): readonly ControllerRout
 // The matrix declares routes, not parameter spellings (a controller may write
 // :deckId while the matrix says :id for the same route) — so both sides are
 // compared with every :segment collapsed to a common placeholder.
+/**
+ * Rend `:id` et `:itemId` comparables, pour qu'un manifeste qui nomme un
+ * paramètre autrement que le contrôleur corresponde quand même.
+ *
+ * ⛔ Ne normalise QUE la partie chemin, et c'est l'objet de l'issue #87. La
+ * première version appliquait la regex à la clé entière, donc le préfixe
+ * `http:DELETE` devenait `http:param`, exactement comme `http:GET` : les quatre
+ * verbes d'un même chemin convergeaient vers une seule clé, et le garde ne
+ * voyait plus une méthode manquante dès qu'une autre existait sur ce chemin.
+ *
+ * Le séparateur est l'espace qui suit le verbe. Une clé sans espace n'a pas de
+ * chemin à normaliser et sort telle quelle.
+ */
 function normalizeRouteParams(routeKey: string): string {
-  return routeKey.replace(/:[^/\s]+/g, ':param');
+  const separateur = routeKey.indexOf(' ');
+  if (separateur === -1) return routeKey;
+  const prefixe = routeKey.slice(0, separateur);
+  const chemin = routeKey.slice(separateur);
+  return prefixe + chemin.replace(/:[^/\s]+/g, ':param');
 }
 
 export function findUndeclaredControllerRoutes(manifest: QuetzalModuleManifest): readonly string[] {
