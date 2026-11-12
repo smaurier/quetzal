@@ -19,7 +19,7 @@ export const addQuestionSchema = z.object({
 const optionSchema = z
   .object({
     rank: z.number().int().min(1).max(4),
-    label: z.string().trim().max(160).nullable(),
+    label: z.string().trim().min(1).max(160).nullable(),
     imageId: z.string().min(1).nullable(),
     isCorrect: z.boolean(),
   })
