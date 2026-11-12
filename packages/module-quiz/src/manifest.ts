@@ -14,6 +14,15 @@ export const manifest: QuetzalModuleManifest = {
   enabledByDefault: true,
   apiModule: QuizModule,
   eventsPublished: [],
-  permissions: {},
+  permissions: {
+    'http:GET /api/modules/quiz/banks': ['owner', 'creator'],
+    'http:GET /api/modules/quiz/banks/:id': ['owner', 'creator'],
+    'http:POST /api/modules/quiz/banks': ['owner', 'creator'],
+    'http:PATCH /api/modules/quiz/banks/:id': ['owner', 'creator'],
+    'http:DELETE /api/modules/quiz/banks/:id': ['owner', 'creator'],
+    'http:POST /api/modules/quiz/banks/:id/questions': ['owner', 'creator'],
+    'http:PATCH /api/modules/quiz/banks/:id/questions/:questionId': ['owner', 'creator'],
+    'http:DELETE /api/modules/quiz/banks/:id/questions/:questionId': ['owner', 'creator'],
+  },
   prismaModels: 'prisma/models.prisma',
 };
