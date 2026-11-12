@@ -192,8 +192,11 @@ module.exports = tseslint.config(
     //
     // La racine de composition (`<slug>.module.ts`, `index.ts`, `manifest.ts`)
     // n'appartient à aucune couche : c'est elle qui branche les adaptateurs
-    // sur les ports, elle doit voir l'infrastructure.
+    // sur les ports, elle doit voir l'infrastructure. Un test d'intégration
+    // l'est aussi : il branche le vrai adaptateur derrière la route. Un test
+    // unitaire, lui, reste tenu par les couches.
     files: ['packages/module-*/**/*.ts', 'packages/module-*/**/*.tsx'],
+    ignores: ['packages/module-*/**/*.integration.spec.ts'],
     plugins: { boundaries },
     settings: {
       'import/resolver': {
