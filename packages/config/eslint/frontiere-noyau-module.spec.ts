@@ -369,6 +369,23 @@ describe('couches de la Clean Architecture, tenues par ESLint', () => {
    * adaptateurs sur les ports : elle DOIT voir l'infrastructure. Elle n'est
    * dans aucune couche, et c'est voulu.
    */
+  /**
+   * ⛔ Un test d'intégration EST une racine de composition : il branche le vrai
+   * adaptateur Prisma derrière la route pour la tester de bout en bout, comme
+   * `hello.controller.integration.spec.ts`. Trouvé par la règle elle-même,
+   * qu'un premier relevé au grep avait manqué en excluant les specs.
+   */
+  it('laisse un test d integration assembler la presentation et l infrastructure', async () => {
+    expect(
+      await importe('presentation/sonde.integration.spec.ts', '../infrastructure/prisma-question-bank.repository.js'),
+    ).not.toContain(COUCHE);
+  });
+
+  /** La contre-épreuve : un test UNITAIRE reste tenu par les couches. */
+  it('tient un test unitaire du domaine a l ecart de l infrastructure', async () => {
+    expect(await importe('domain/sonde.spec.ts', '../infrastructure/prisma-question-bank.repository.js')).toContain(COUCHE);
+  });
+
   it('laisse la racine de composition brancher l infrastructure', async () => {
     expect(await importe('quiz.module.sonde.ts', './infrastructure/prisma-question-bank.repository.js')).not.toContain(COUCHE);
   });
