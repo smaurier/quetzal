@@ -293,12 +293,28 @@ test('une partie enchaine deux figures sans etre recreee', async ({ page, browse
   // ajoute une carte, echouait avec 54 cartes au lieu de 55. Mesure du 05/11.
   // Les tests ne sont pas isoles (`fullyParallel: false`, une seule base), donc
   // celui qui laisse de l etat durable casse ses voisins.
-  if (apres.game.status !== 'finished') {
+  // ⛔ RELIRE JUSTE AVANT D AGIR. Issue #93 : `apres` a ete lu plus haut, et il
+  // y a des `await` entre les deux. Le contexte de l invite est encore ouvert,
+  // donc il gagne la seconde figure dans cet intervalle : la partie passe a
+  // `finished` toute seule, et `assertTransition` refuse `finished -> finished`.
+  // Le nettoyage echouait alors sur un SUCCES metier.
+  const avantFin = await page.request.get(`/api/modules/loto/games/${game.id}`, { headers: auth });
+  const etatCourant = (await avantFin.json()) as { game: { status: string } };
+
+  if (etatCourant.game.status !== 'finished') {
     const fin = await page.request.post(`/api/modules/loto/games/${game.id}/finish`, { headers: auth });
-    expect(
-      fin.ok(),
-      `la partie doit se terminer pour ne pas verrouiller le jeu — HTTP ${fin.status()} ${await fin.text()}`,
-    ).toBeTruthy();
+
+    if (!fin.ok()) {
+      // ⚠️ La relecture reduit la fenetre, elle ne la ferme pas : l invite joue
+      // encore pendant ces deux lignes. On tolere donc UN seul refus, celui qui
+      // dit que la partie s est terminee d elle-meme, et on nomme sa forme.
+      // Tout autre refus fait toujours echouer le test.
+      const corps = await fin.text();
+      expect(
+        corps.includes('finished vers finished'),
+        `la partie doit se terminer pour ne pas verrouiller le jeu — HTTP ${fin.status()} ${corps}`,
+      ).toBeTruthy();
+    }
   }
 
   // Le jeu doit etre libre en sortant, sinon le voisin casse. On le verifie
