@@ -3469,7 +3469,24 @@ interface Bank {
   questions: Question[];
 }
 
-export default function BankEditor({ bankId }: { bankId: string }) {
+/**
+ * ⛔ Les props sont un `Record<string, string>` et NON une forme nommée, parce
+ * que c'est ce que le contrat du noyau impose à tout composant de route :
+ * `QuetzalRoute.component` veut un
+ * `ComponentType<Readonly<Record<string, string>>>`.
+ *
+ * Une signature nommée, `{ bankId }: { bankId: string }`, ne compile pas :
+ * « Property 'bankId' is missing in type 'Readonly<Record<string, string>>' ».
+ * Mesuré le 12/11 ; la première version de ce plan portait la forme fautive.
+ *
+ * Même forme que le jumeau `module-loto/src/presentation/ui/deck-editor.tsx`,
+ * garde comprise : le paramètre peut être absent, et chaque fonction async
+ * doit s'en protéger.
+ */
+type Props = Readonly<Record<string, string>>;
+
+export default function BankEditor(props: Props) {
+  const bankId = props['bankId'];
   const t = useTranslations();
   const [bank, setBank] = useState<Bank | null>(null);
 
