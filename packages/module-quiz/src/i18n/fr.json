@@ -27,7 +27,13 @@
         "imageAlt": "Description de l image de la question {rank}, pour qui ne la voit pas",
         "imageAltRequis": "Une image sans description est inutilisable par une partie des élèves",
         "save": "Enregistrer",
-        "deleteQuestion": "Supprimer la question {rank}"
+        "deleteQuestion": "Supprimer la question {rank}",
+        "addOption": "Ajouter une proposition",
+        "removeOption": "Retirer la proposition {rank}",
+        "inenregistrableTropPeuDePropositions": "Il faut au moins deux propositions pour que la question soit jouable",
+        "inenregistrablePropositionVide": "Une proposition sans texte ni image n afficherait rien aux élèves",
+        "inenregistrableJusteNonDesignee": "Désignez exactement une proposition comme bonne réponse",
+        "inenregistrableAucuneReponseAcceptee": "Il faut au moins une réponse acceptée"
       }
     }
   }

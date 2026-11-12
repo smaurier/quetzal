@@ -27,7 +27,13 @@
         "imageAlt": "Description of the image of question {rank}, for those who cannot see it",
         "imageAltRequis": "An image without a description is unusable by some students",
         "save": "Save",
-        "deleteQuestion": "Delete question {rank}"
+        "deleteQuestion": "Delete question {rank}",
+        "addOption": "Add an option",
+        "removeOption": "Remove option {rank}",
+        "inenregistrableTropPeuDePropositions": "At least two options are needed for a playable question",
+        "inenregistrablePropositionVide": "An option with neither text nor image would show nothing",
+        "inenregistrableJusteNonDesignee": "Mark exactly one option as the correct answer",
+        "inenregistrableAucuneReponseAcceptee": "At least one accepted answer is needed"
       }
     }
   }
