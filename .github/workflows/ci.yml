@@ -8,8 +8,8 @@ on:
 env:
   NODE_VERSION: 22.12.0
   # modules shipped by this build: the host route generator and the API registry read these
-  MODULES: hello,loto
-  NEXT_PUBLIC_MODULES: hello,loto
+  MODULES: hello,loto,quiz
+  NEXT_PUBLIC_MODULES: hello,loto,quiz
 
 jobs:
   quality:
@@ -107,8 +107,8 @@ jobs:
       HOST_URL: http://localhost:3000
       API_URL: http://localhost:3001
       NEXT_PUBLIC_API_URL: http://localhost:3001
-      NEXT_PUBLIC_MODULES: hello,loto
-      MODULES: hello,loto
+      NEXT_PUBLIC_MODULES: hello,loto,quiz
+      MODULES: hello,loto,quiz
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
