@@ -56,6 +56,13 @@ Une vérification écrite ainsi passerait donc pour verte en n’ayant rien
 exécuté. Il faut `pnpm --filter @quetzal/db exec prisma <quoi>`, et les
 scripts déjà nommés (`prisma:generate`, `prisma:migrate:deploy`, `schema:merge`)
 se lancent eux sans `exec`.
+
+⛔ **Et un troisieme piege du meme genre, mesure le 12/11 :**
+pnpm --filter <pkg> test:integration -- --reporter=verbose passe le « -- »
+LITTERALEMENT a vitest, qui avale le reporter. La commande sort en 0, les tests
+tournent, et aucun nom n apparait. Il faut
+pnpm --filter <pkg> exec vitest run --config vitest.integration.config.ts --reporter=verbose.
+
 **Après tout changement de modèle Prisma**, dans cet ordre, sinon le client
 généré mentira : `schema:merge`, `generate:tenant-registry`, `prisma:generate`.
 
@@ -2845,13 +2852,41 @@ masquerait une fuite si l'extension venait à ne plus être montée.
 
 - [ ] **Step 4 : lancer les tests d'intégration pour les voir passer**
 
+⛔ **D ABORD, RECONSTRUIRE `@quetzal/db`, sinon les cinq tests échouent en
+`UnknownTenantModelError`.** Étape absente de la première version de ce plan,
+et son absence coûte une fausse piste : le `dist/` de ce paquet porte le
+registre des modèles cloisonnés, et il date d'avant la migration de la tâche 8,
+donc il ignore les tables du quiz.
+
+Témoin de fraîcheur à afficher **avant** de lancer quoi que ce soit :
+
+```bash
+grep -c "quiz_Deck" packages/db/src/model-tenant-registry.ts
+grep -c "quiz_Deck" packages/db/dist/model-tenant-registry.js
+```
+
+Expected: **1 et 1**. Si le second rend **0** : `pnpm --filter @quetzal/db build`,
+puis revérifier. `dist/` est gitignoré, donc il n'y a rien à commiter.
+
+⚠️ Règle générale, qui vaut aussi pour le plan 2 : **tout plan qui ajoute des
+tables à un module doit reconstruire `@quetzal/db` avant sa première suite
+d'intégration.**
+
 ```bash
 export DATABASE_URL="postgresql://test:test@localhost:5432/quetzal_test"
 case "$DATABASE_URL" in *neon*) echo "STOP"; exit 1;; esac
-pnpm --filter @quetzal/module-quiz test:integration
+case "$DATABASE_URL" in *localhost:5432*) : ;; *) echo "STOP pas local"; exit 1;; esac
+pnpm --filter @quetzal/module-quiz exec vitest run --config vitest.integration.config.ts \
+  --reporter=verbose > /tmp/i.log 2>&1; echo "CODE : $?"
+grep -cE "^ *✓" /tmp/i.log
 ```
 
-Expected: 5 tests verts.
+Expected: **CODE : 0** et **5** tests nommés verts.
+
+⚠️ `exec vitest run --config …` et non `test:integration -- --reporter=…` :
+la seconde forme passe le `--` **littéralement** à vitest, qui avale le
+reporter. La commande sort en 0, les tests tournent, et aucun nom
+n'apparaît, ce qui fait croire deux fois que le reporter ne marche pas.
 
 - [ ] **Step 5 : prouver le tri par rang, par mutation**
 
@@ -2864,10 +2899,36 @@ cp /tmp/r.bak packages/module-quiz/src/infrastructure/prisma-question-bank.repos
 pnpm --filter @quetzal/module-quiz test:integration
 ```
 
-Expected: rouge sur « rend les propositions dans l ordre de leur rang », puis 5
-verts restaurés. ⚠️ Si la mutation reste verte, c'est que la base a rendu les
-lignes dans le bon ordre **par hasard** : le test est alors trop faible, et il
-faut insérer les propositions dans un ordre inverse de leur rang pour le durcir.
+⛔ **CE STEP ETAIT FAUX DEUX FOIS, ET MESURE LE 12/11.** Ni la mutation ni le
+remède annoncés ne tenaient.
+
+**1. La mutation ne pouvait pas rougir.** Le texte parlait de « ceinture
+par-dessus une bretelle » en désignant l'`orderBy` de l'inclusion. Faux :
+cet `orderBy` porte sur les `questions`, pas sur les `options`, qui
+n'en ont **jamais eu**. Il n'y avait pas de bretelle.
+
+**2. Le test ne gardait rien, et le remède proposé non plus.** Le plan
+suggérait d'insérer les propositions dans un ordre inverse de leur rang : elles
+l'étaient déjà (3, 1, 2). La vraie cause est ailleurs, et un `EXPLAIN` la
+nomme : avec une **seule** question dans la banque, Postgres sert les
+propositions par `Index Scan using "Quiz_Option_questionId_rank_tenantId_key"`,
+donc **déjà triées par rang, gratuitement**. Le `.sort()` du code ne changeait
+rien à l'ordre observé, et son retrait restait invisible.
+
+Mesuré : **dès deux questions dans la banque**, la lecture imbriquée passe en
+Seq Scan et rend l'ordre d'insertion.
+
+**Le durcissement qui marche** : deux questions, chacune avec ses propositions
+insérées hors rang, et les questions elles-mêmes créées hors rang. Contre le
+code muté, le test rougit alors sur
+`expected [ 'A3', 'A1', 'A2' ] to deeply equal [ 'A1', 'A2', 'A3' ]`.
+
+⚠️ **Ce qui reste non prouvé, et il faut le dire** : l'`orderBy` sur les
+`questions` n'est falsifiable par aucun test de ce port. `findById` ne lit
+qu'une banque, donc Postgres sert toujours ses questions par un Index Scan sur
+`Quiz_Question_deckId_rank_tenantId_key`, déjà triées, même à quarante
+questions. On le garde parce que c'est la seule garantie SQL, pas parce qu'un
+test le tient.
 
 - [ ] **Step 6 : commit, en deux**
 
