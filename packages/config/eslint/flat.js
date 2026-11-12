@@ -163,4 +163,28 @@ module.exports = tseslint.config(
       ],
     },
   },
+  {
+    // LES DEUX REGLES MAISON DE CLAUDE.md §7 ET §9, TENUES POUR DE VRAI.
+    //
+    // rules/no-raw-room-string.js et rules/tenant-safety.js existaient depuis
+    // l'origine et fonctionnaient ; aucun fichier ne les chargeait. Mesure le
+    // 12/11 par sonde : 1 probleme vu sur 3. Issue #98.
+    //
+    // Sans `ignores` sur les specs, contrairement au bloc ci-dessus : un test
+    // d'integration a besoin du client non cloisonne pour prouver le
+    // cloisonnement, il n'a jamais besoin de SQL brut pour le faire.
+    files: ['packages/module-*/**/*.ts', 'packages/module-*/**/*.tsx'],
+    plugins: {
+      quetzal: {
+        rules: {
+          'no-raw-room-string': require('./rules/no-raw-room-string.js'),
+          'tenant-safety': require('./rules/tenant-safety.js'),
+        },
+      },
+    },
+    rules: {
+      'quetzal/no-raw-room-string': 'error',
+      'quetzal/tenant-safety': 'error',
+    },
+  },
 );
