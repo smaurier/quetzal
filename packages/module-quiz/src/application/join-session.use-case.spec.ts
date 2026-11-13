@@ -11,7 +11,9 @@ import { FakeSessionRepository, sessionOf } from './testing/fake-repositories.js
 
 type NouveauParticipant = Parameters<FakeSessionRepository['ajouterParticipant']>[0];
 
-function build(sessions = new FakeSessionRepository()) {
+function build(): { sessions: FakeSessionRepository; useCase: JoinSessionUseCase };
+function build<R extends FakeSessionRepository>(sessions: R): { sessions: R; useCase: JoinSessionUseCase };
+function build(sessions: FakeSessionRepository = new FakeSessionRepository()) {
   const useCase = new JoinSessionUseCase(sessions);
   return { sessions, useCase };
 }
