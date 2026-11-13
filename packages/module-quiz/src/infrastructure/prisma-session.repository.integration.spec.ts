@@ -3,6 +3,8 @@ import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core
 import { tenantStore } from '@quetzal/core';
 import { PrismaSessionRepository } from './prisma-session.repository.js';
 import type { FrozenQuestion } from '../domain/ports/session.repository.js';
+import type { SessionStatus } from '../domain/session-status.js';
+import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError } from '../domain/errors.js';
 
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -192,5 +194,115 @@ describe('PrismaSessionRepository (intégration)', () => {
     expect(
       await inTenant(chezNous.tenantId, chezNous.ownerId, () => repo.findByJoinCode('VOISIN01')),
       'et son code d entree ne doit pas la trouver non plus').toBeNull();
+  });
+  /**
+   * Ce qui suit tient l'adaptateur a la hauteur de la doublure
+   * `FakeSessionRepository`, qui fait foi pour les cas d'usage : une
+   * production plus permissive ou plus bavarde que la doublure ferait passer
+   * des tests de cas d'usage qui echoueraient en vrai.
+   */
+  describe('fidelite a la doublure', () => {
+    async function uneSeance(code: string) {
+      const { tenantId, ownerId } = await seedTenant();
+      const deckId = await unJeu(tenantId, ownerId);
+      const repo = new PrismaSessionRepository();
+      const dans = <T>(fn: () => Promise<T>) => inTenant(tenantId, ownerId, fn);
+      const nouvelle = (joinCode: string) => dans(() =>
+        repo.create({
+          deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
+          guestLocale: null, joinCode, createdBy: ownerId,
+        }));
+      const session = await nouvelle(code);
+      return { repo, session, dans, nouvelle, tenantId, ownerId, deckId };
+    }
+
+    it('traduit un code d entree deja pris dans le locataire en JoinCodeAlreadyUsedError', async () => {
+      const { nouvelle } = await uneSeance('PRIS0001');
+      await expect(nouvelle('PRIS0001')).rejects.toBeInstanceOf(JoinCodeAlreadyUsedError);
+    });
+
+    it('accepte le meme code d entree dans un autre locataire', async () => {
+      await uneSeance('PARTAGE1');
+      const { session } = await uneSeance('PARTAGE1');
+      expect(session.joinCode).toBe('PARTAGE1');
+    });
+
+    it('traduit un participantIndex deja pris en ParticipantIndexTakenError', async () => {
+      const { repo, session, dans } = await uneSeance('INDEX001');
+      await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
+      await expect(dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 })))
+        .rejects.toBeInstanceOf(ParticipantIndexTakenError);
+    });
+
+    it('accepte le meme participantIndex dans une autre seance', async () => {
+      const { repo, session, dans, nouvelle } = await uneSeance('INDEX002');
+      const autre = await nouvelle('INDEX003');
+      await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
+      await expect(dans(() => repo.addParticipant({ sessionId: autre.id, participantIndex: 1 })))
+        .resolves.toMatchObject({ participantIndex: 1 });
+    });
+
+    it('rend les participants tries par participantIndex', async () => {
+      const { repo, session, dans, nouvelle } = await uneSeance('PART0001');
+      const autre = await nouvelle('PART0002');
+      // Deux seances, et des index inseres a l'envers dans chacune : avec une
+      // seule seance, Postgres peut servir la lecture par l'index unique
+      // (sessionId, participantIndex, tenantId) et rendre l'ordre gratuitement.
+      for (const id of [autre.id, session.id]) {
+        for (const participantIndex of [3, 1, 2]) {
+          await dans(() => repo.addParticipant({ sessionId: id, participantIndex }));
+        }
+      }
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.participants.map((p) => p.participantIndex)).toEqual([1, 2, 3]);
+    });
+
+    it('rend les questions triees par rang, meme a cote d une autre seance', async () => {
+      const { repo, session, dans, nouvelle } = await uneSeance('RANG0001');
+      const autre = await nouvelle('RANG0002');
+      const alEnvers = (prefixe: string) => [3, 1, 2].map((rank) => ({ ...FIGEE, rank, prompt: `${prefixe}${rank}` }));
+      await dans(() => repo.freezeQuestions(autre.id, alEnvers('B')));
+      await dans(() => repo.freezeQuestions(session.id, alEnvers('A')));
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.questions.map((q) => q.prompt)).toEqual(['A1', 'A2', 'A3']);
+    });
+
+    it('ignore un membre en double et garde le premier nom', async () => {
+      const { repo, session, dans } = await uneSeance('MEMB0001');
+      const participant = await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
+      await dans(() => repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa' }));
+      await dans(() => repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa bis' }));
+      await dans(() => repo.addMember({ participantId: participant.id, guestId: 'g-2', displayName: 'Léa' }));
+      const relue = await dans(() => repo.findById(session.id));
+      expect([...(relue?.participants[0]?.memberNames ?? [])].sort()).toEqual(['Léa', 'Léa']);
+    });
+
+    it('rend une reponse sous la forme exacte du port, sans colonne de la base', async () => {
+      const { repo, session, dans } = await uneSeance('FORME001');
+      await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
+      const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
+      const participant = await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
+      const reponse = {
+        sessionQuestionId: sqId, participantId: participant.id, authorGuestId: 'g-1',
+        optionId: 'o-1', value: null, isCorrect: true, elapsedMs: 1200, points: 1200,
+      };
+
+      const ecrite = await dans(() => repo.recordAnswer(reponse));
+
+      expect(ecrite).toEqual({ ...reponse, id: ecrite?.id });
+      expect(await dans(() => repo.answersFor(sqId))).toEqual([ecrite]);
+      expect(await dans(() => repo.allAnswers(session.id))).toEqual([ecrite]);
+    });
+
+    /**
+     * Le garde `isSessionStatus` de la lecture ne peut pas etre atteint depuis
+     * une vraie base : la CHECK le precede. Ce test prouve ce premier rempart ;
+     * le garde lui-meme est prouve par le test unitaire de la lecture.
+     */
+    it('la base refuse un statut inconnu', async () => {
+      const { repo, session, dans } = await uneSeance('STAT0001');
+      const inconnu = 'archivee' as unknown as SessionStatus;
+      await expect(dans(() => repo.setStatus(session.id, inconnu))).rejects.toThrow(/Quiz_Session_status_check/);
+    });
   });
 });
