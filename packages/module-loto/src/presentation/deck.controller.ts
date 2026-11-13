@@ -46,8 +46,7 @@ export class DeckController {
     const { label, imageId } = parsed.data;
     // Champ par champ : exactOptionalPropertyTypes refuse un
     // `imageId: string | null | undefined` assigne a `imageId?: string | null`.
-    const carte: { deckId: string; label?: string; imageId?: string | null } = { deckId: id };
-    if (label !== undefined) carte.label = label;
+    const carte: { deckId: string; label: string; imageId?: string | null } = { deckId: id, label };
     if (imageId !== undefined) carte.imageId = imageId;
     return this.decks.addCard(carte);
   }

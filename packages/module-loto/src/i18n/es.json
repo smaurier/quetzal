@@ -11,6 +11,7 @@
         "duplicate": "Duplicar",
         "createBlank": "Crear una baraja vacía",
         "addCard": "Añadir una carta",
+        "newCardName": "Nombre de la nueva carta",
         "rename": "Renombrar",
         "delete": "Eliminar",
         "deleteWarning": "Eliminar esta baraja borra también el historial de las partidas asociadas. Esta acción es definitiva.",

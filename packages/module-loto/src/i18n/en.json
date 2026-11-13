@@ -11,6 +11,7 @@
         "duplicate": "Duplicate",
         "createBlank": "Create an empty deck",
         "addCard": "Add a card",
+        "newCardName": "Name of the new card",
         "rename": "Rename",
         "delete": "Delete",
         "deleteWarning": "Deleting this deck also erases the history of the games that use it. This cannot be undone.",

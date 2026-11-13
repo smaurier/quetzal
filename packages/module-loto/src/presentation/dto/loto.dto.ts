@@ -14,7 +14,7 @@ export const patchDeckSchema = z.object({
   card: z
     .object({
       rank: z.number().int().min(1),
-      label: z.string().min(1).max(80).optional(),
+      label: z.string().trim().min(1).max(80).optional(),
       imageId: z.string().min(1).nullable().optional(),
     })
     .optional(),
@@ -24,7 +24,8 @@ export const patchDeckSchema = z.object({
 // addCard), sinon le client devrait connaitre le prochain rang libre et
 // pourrait se heurter a @@unique([deckId, rank, tenantId]). Issue #26.
 export const addCardSchema = z.object({
-  label: z.string().max(80).optional(),
+  // Une carte est toujours nommee (#102) : le nom est exige a la creation.
+  label: z.string().trim().min(1).max(80),
   imageId: z.string().min(1).nullable().optional(),
 });
 

@@ -181,16 +181,17 @@ describe('ManageDecksUseCase', () => {
     expect((await useCase.addCard({ deckId: 'deck-1', label: 'La Luna' })).rank).toBe(10);
   });
 
-  // Le bouton de l editeur cree une carte VIERGE que l animatrice nomme
-  // ensuite, comme les autres champs de l ecran qui s editent au blur. Le
-  // libelle est donc optionnel a la creation.
-  it('cree une carte sans libelle, a nommer ensuite', async () => {
+  // RENVERSÉ le 13/11 (#102). Le bouton de l editeur creait une carte VIERGE,
+  // nommee ensuite au blur : rien n empechait donc une carte sans nom d arriver
+  // en partie. Sylvain a tranche qu une carte est toujours nommee ; l ecran
+  // demande le nom AVANT de creer, et le nom donne est celui qui est garde.
+  it('cree la carte avec le nom donne, et non un nom vide a remplir', async () => {
     const { decks, useCase } = build();
     decks.add(deckOf(0));
 
-    const carte = await useCase.addCard({ deckId: 'deck-1' });
+    const carte = await useCase.addCard({ deckId: 'deck-1', label: 'El Nopal' });
 
-    expect(carte.label).toBe('');
+    expect(carte.label).toBe('El Nopal');
     expect(carte.rank).toBe(1);
   });
 
