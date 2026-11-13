@@ -10,6 +10,7 @@ model Quiz_Deck {
   updatedAt  DateTime @updatedAt
 
   questions Quiz_Question[]
+  sessions  Quiz_Session[]
 
   @@id([id, tenantId])
   @@index([tenantId])
@@ -84,4 +85,153 @@ model Quiz_AcceptedAnswer {
 
   @@id([id, tenantId])
   @@index([tenantId, questionId])
+}
+
+/// Une séance. Même forme que Loto_Game pour ce qui se ressemble.
+model Quiz_Session {
+  id              String
+  tenantId        String
+  deckId          String
+  mode            String   @db.VarChar(10)
+  status          String   @db.VarChar(12) @default("brouillon")
+  maxParticipants Int
+  joinCode        String   @db.VarChar(8)
+  /// ⚠️ Valeur de RÉDACTION uniquement, lue une seule fois au figement de
+  /// chaque question. Jamais lue en séance : le délai qui fait foi vit sur
+  /// `Quiz_SessionQuestion.timeLimitResolved` (D10). La garder ici ne contredit
+  /// donc pas D10, qui interdit que le délai FAISANT FOI y vive.
+  defaultTimeLimit Int?
+  guestLocale     String?  @db.VarChar(5)
+  createdBy       String
+  createdAt       DateTime @default(now())
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  updatedAt       DateTime @updatedAt
+
+  deck         Quiz_Deck             @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  questions    Quiz_SessionQuestion[]
+  participants Quiz_Participant[]
+
+  @@id([id, tenantId])
+  @@index([tenantId])
+  @@index([tenantId, joinCode])
+}
+
+/// ⛔ LA QUESTION FIGÉE, et c'est la table la plus importante du module.
+///
+/// Copie prise au lancement de la séance (D10, même jurisprudence que D5 du
+/// loto qui fige son jeu de cartes). Sans elle, corriger une question en pleine
+/// séance changerait le sens des réponses déjà données.
+///
+/// `timeLimitResolved` est la SEULE source du délai qui fait foi :
+/// `Quiz_Question.timeLimit` n'est qu'une valeur de rédaction, lue une fois ici.
+model Quiz_SessionQuestion {
+  id         String
+  tenantId   String
+  sessionId  String
+  rank       Int
+  /// Trace de l'origine, pour le retour de séance. Pas une clé étrangère : la
+  /// question vivante peut être supprimée après la séance, et le retour doit
+  /// rester lisible.
+  questionId String
+  prompt     String   @db.VarChar(400)
+  imageId    String?
+  imageAlt   String?  @db.VarChar(200)
+  answerMode String   @db.VarChar(8)
+  /// Figé au lancement. `null` en mode contrôle, qui n'a aucun minuteur (D6).
+  timeLimitResolved Int?
+  accentsSensibles  Boolean @default(true)
+  casseSensible     Boolean @default(false)
+  /// Les propositions et les réponses acceptées, figées en JSON : une séance
+  /// n'a aucun besoin de les requêter, et des tables filles obligeraient à les
+  /// dupliquer ligne par ligne au lancement de chaque séance.
+  options         Json
+  acceptedAnswers Json
+  openedAt   DateTime?
+  deadlineAt DateTime?
+  closedAt   DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  session Quiz_Session   @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  answers Quiz_Answer[]
+
+  @@id([id, tenantId])
+  @@unique([sessionId, rank, tenantId])
+  @@index([tenantId, sessionId])
+}
+
+/// Une équipe, ou un élève seul. Le domaine ne connaît qu'un nombre (D4) ;
+/// l'interface présente le choix solo / équipes.
+model Quiz_Participant {
+  id               String
+  tenantId         String
+  sessionId        String
+  participantIndex Int
+  /// Nom choisi par l'animatrice. NULL est le cas normal, pas un cas dégradé :
+  /// le participant porte alors son nom dérivé. Même décision que l'issue #29
+  /// pour les équipes du loto.
+  name             String? @db.VarChar(40)
+  score            Int     @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  session Quiz_Session   @relation(fields: [sessionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  members Quiz_Member[]
+  answers Quiz_Answer[]
+
+  @@id([id, tenantId])
+  @@unique([sessionId, participantIndex, tenantId])
+  @@index([tenantId, sessionId])
+}
+
+/// L'invité derrière un participant. Permet de garder l'AUTEUR d'une réponse
+/// même en mode équipes (D4), donc un retour nominatif sans exclure personne.
+model Quiz_Member {
+  id            String
+  tenantId      String
+  participantId String
+  guestId       String
+  displayName   String   @db.VarChar(32)
+  joinedAt      DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  participant Quiz_Participant @relation(fields: [participantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@id([id, tenantId])
+  @@unique([participantId, guestId, tenantId])
+  @@index([tenantId, participantId])
+}
+
+/// Une réponse.
+model Quiz_Answer {
+  id                 String
+  tenantId           String
+  sessionQuestionId  String
+  participantId      String
+  /// Qui a appuyé, même quand l'unité de score est l'équipe (D4).
+  authorGuestId      String
+  optionId           String?
+  value              String? @db.VarChar(160)
+  isCorrect          Boolean
+  /// Enregistré dans les deux modes, mais ne pèse sur aucun score en contrôle
+  /// (spec § 5.3) : il n'est là que pour le retour de séance.
+  elapsedMs          Int
+  /// ⚠️ CALCULÉ au moment de la réponse et STOCKÉ. Ce n'est pas de la
+  /// dénormalisation paresseuse : recalculer après coup demanderait que la
+  /// formule et les délais d'alors soient encore vrais, et D10 fige précisément
+  /// parce qu'ils ne le resteront pas.
+  points             Int
+  answeredAt         DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  sessionQuestion Quiz_SessionQuestion @relation(fields: [sessionQuestionId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  participant     Quiz_Participant     @relation(fields: [participantId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  /// On répond UNE FOIS par question et par participant.
+  @@id([id, tenantId])
+  @@unique([sessionQuestionId, participantId, tenantId])
+  @@index([tenantId, sessionQuestionId])
 }
