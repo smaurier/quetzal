@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   BankNotFoundError,
   InvalidSessionTransitionError,
+  JoinCodeAlreadyUsedError,
   SessionNotFoundError,
   TimeLimitUnresolvableError,
 } from '../domain/errors.js';
@@ -13,6 +14,38 @@ import {
   questionOf,
   sessionOf,
 } from './testing/fake-repositories.js';
+
+type NouvelleSeance = Parameters<FakeSessionRepository['create']>[0];
+
+/**
+ * La base est seule juge de l'unicite : entre le `findByJoinCode` et le
+ * `create`, une autre seance peut prendre le code. Cette doublure rejoue cette
+ * course en levant au premier `create`, alors que `findByJoinCode` a dit libre.
+ */
+class SessionsQuiPerdentLaCourse extends FakeSessionRepository {
+  readonly codesTentes: string[] = [];
+
+  override async create(input: NouvelleSeance) {
+    this.codesTentes.push(input.joinCode);
+    if (this.codesTentes.length === 1) throw new JoinCodeAlreadyUsedError(input.joinCode);
+    return super.create(input);
+  }
+}
+
+class SessionsEnPanne extends FakeSessionRepository {
+  appels = 0;
+  readonly panne = new Error('base injoignable');
+
+  override async create(): Promise<never> {
+    this.appels += 1;
+    throw this.panne;
+  }
+}
+
+const CREATION = {
+  deckId: 'bank-1', mode: 'defi', maxParticipants: 6,
+  defaultTimeLimit: 20, createdBy: 'u-1',
+} as const;
 
 function build() {
   const banks = new FakeQuestionBankRepository();
@@ -64,6 +97,31 @@ describe('ManageSessionUseCase, creation', () => {
         deckId: 'fantome', mode: 'defi', maxParticipants: 6,
         defaultTimeLimit: 20, createdBy: 'u-1',
       })).rejects.toThrow(BankNotFoundError);
+  });
+});
+
+describe('ManageSessionUseCase, collision du code d entree', () => {
+  it('retente un autre code quand la base refuse le premier', async () => {
+    const banks = new FakeQuestionBankRepository();
+    banks.add(bankOf(1));
+    const sessions = new SessionsQuiPerdentLaCourse();
+    const useCase = new ManageSessionUseCase(sessions, banks);
+
+    const session = await useCase.create(CREATION);
+
+    expect(sessions.codesTentes).toHaveLength(2);
+    expect(session.joinCode).toBe(sessions.codesTentes[1]);
+    expect(await sessions.findById(session.id)).not.toBeNull();
+  });
+
+  it('laisse remonter intacte toute autre erreur de la base, sans retenter', async () => {
+    const banks = new FakeQuestionBankRepository();
+    banks.add(bankOf(1));
+    const sessions = new SessionsEnPanne();
+    const useCase = new ManageSessionUseCase(sessions, banks);
+
+    await expect(useCase.create(CREATION)).rejects.toBe(sessions.panne);
+    expect(sessions.appels).toBe(1);
   });
 });
 
