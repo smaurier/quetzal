@@ -12,7 +12,10 @@ import {
   frozenQuestionOf,
   sessionOf,
 } from '../application/testing/fake-repositories.js';
+import { rooms } from '@quetzal/core';
+import { QuizBroadcaster } from './quiz.broadcaster.js';
 import { SessionController } from './session.controller.js';
+import { fakeServer } from './testing/doublures-ws.js';
 
 const T0 = 1_700_000_000_000;
 
@@ -26,18 +29,25 @@ describe('SessionController, par HTTP', () => {
   let base: string;
   let sessions: FakeSessionRepository;
   let banques: FakeQuestionBankRepository;
+  let emis: ReturnType<typeof fakeServer>['emis'];
 
   beforeEach(async () => {
     sessions = new FakeSessionRepository();
     banques = new FakeQuestionBankRepository();
     const horloge = () => T0;
+    const manage = new ManageSessionUseCase(sessions, banques);
+    const diffuseur = new QuizBroadcaster(manage, new SessionReportUseCase(sessions));
+    const serveur = fakeServer();
+    diffuseur.attach(serveur.server);
+    emis = serveur.emis;
     const moduleRef = await Test.createTestingModule({
       controllers: [SessionController],
       providers: [
-        { provide: ManageSessionUseCase, useValue: new ManageSessionUseCase(sessions, banques) },
+        { provide: ManageSessionUseCase, useValue: manage },
         { provide: RunQuestionUseCase, useValue: new RunQuestionUseCase(sessions, horloge) },
         { provide: FinishSessionUseCase, useValue: new FinishSessionUseCase(sessions, horloge) },
         { provide: SessionReportUseCase, useValue: new SessionReportUseCase(sessions) },
+        { provide: QuizBroadcaster, useValue: diffuseur },
       ],
     }).compile();
     app = moduleRef.createNestApplication({ logger: false });
@@ -141,5 +151,70 @@ describe('SessionController, par HTTP', () => {
   it('rend le retour d une seance encore en cours', async () => {
     sessions.add(sessionOf({ status: 'en-cours' }));
     expect((await appel('GET', '/session-1/report')).status).toBe(200);
+  });
+
+  describe('diffusion apres chaque ecriture', () => {
+    const salle = rooms.session('quiz', 'session-1');
+    const evenements = () => emis.map((e) => [e.room, e.event]);
+
+    it('previent la salle a l ouverture', async () => {
+      sessions.add(sessionOf({ status: 'brouillon' }));
+      await appel('POST', '/session-1/open');
+      expect(evenements()).toEqual([[salle, 'session-changed']]);
+    });
+
+    it('previent la salle au demarrage', async () => {
+      banques.add(bankOf(2));
+      sessions.add(sessionOf({ status: 'ouverte', questions: [] }));
+      await appel('POST', '/session-1/start');
+      expect(evenements()).toEqual([[salle, 'session-changed']]);
+    });
+
+    it('diffuse la question ouverte, apres l avoir ecrite', async () => {
+      sessions.add(sessionOf({ status: 'en-cours' }));
+      await appel('POST', '/session-1/questions/next');
+      expect(evenements()).toEqual([[salle, 'question-opened']]);
+      const ouverte = (await sessions.findById('session-1'))?.questions[0];
+      expect(emis[0]?.payload).toMatchObject({ sessionQuestionId: ouverte?.id, rank: 1 });
+      expect(ouverte?.openedAt).not.toBeNull();
+    });
+
+    it('diffuse la fermeture puis les scores', async () => {
+      sessions.add(sessionOf({
+        status: 'en-cours',
+        questions: [frozenQuestionOf(1, { openedAt: new Date(T0 - 1_000), deadlineAt: new Date(T0 + 19_000) })],
+      }));
+      await appel('POST', '/session-1/questions/close');
+      expect(evenements()).toEqual([[salle, 'question-closed'], [salle, 'session-changed']]);
+    });
+
+    it('diffuse la fin de seance', async () => {
+      sessions.add(sessionOf({ status: 'en-cours' }));
+      await appel('POST', '/session-1/finish');
+      expect(evenements()).toEqual([[salle, 'session-finished']]);
+    });
+
+    // DELETE termine la séance : les téléphones doivent l'apprendre comme pour
+    // « terminer », sinon ils attendent une question qui ne viendra plus.
+    it('diffuse la fin de seance quand on la supprime', async () => {
+      sessions.add(sessionOf({ status: 'en-cours' }));
+      await appel('DELETE', '/session-1');
+      expect(evenements()).toEqual([[salle, 'session-finished']]);
+    });
+
+    it('previent la salle d un renommage', async () => {
+      sessions.add(sessionOf());
+      const ana = await sessions.ajouterParticipant({
+        sessionId: 'session-1', participantIndex: 1, guestId: 'g-1', displayName: 'Ana',
+      });
+      await appel('PATCH', `/session-1/participants/${ana.id}`, { name: 'Les As' });
+      expect(evenements()).toEqual([[salle, 'session-changed']]);
+    });
+
+    it('ne diffuse rien quand la commande echoue', async () => {
+      sessions.add(sessionOf({ status: 'terminee' }));
+      await appel('POST', '/session-1/open');
+      expect(emis).toHaveLength(0);
+    });
   });
 });
