@@ -62,14 +62,14 @@ export class ManageDecksUseCase {
     await this.decks.updateCard(input.deckId, input.rank, input.patch);
   }
 
-  async addCard(input: { deckId: string; label?: string; imageId?: string | null }): Promise<DeckCard> {
+  async addCard(input: { deckId: string; label: string; imageId?: string | null }): Promise<DeckCard> {
     const deck = await this.requireUnlocked(input.deckId);
     // Le plus haut rang et non le nombre de cartes : les rangs peuvent avoir
     // des trous, et @@unique([deckId, rank, tenantId]) refuserait un doublon.
     const rang = deck.cards.reduce((haut, carte) => Math.max(haut, carte.rank), 0) + 1;
     return this.decks.addCard(input.deckId, {
       rank: rang,
-      label: input.label ?? '',
+      label: input.label,
       imageId: input.imageId ?? null,
     });
   }
