@@ -4,6 +4,7 @@ import { emitQuiz } from '@quetzal/core/events/quiz';
 import {
   BankNotFoundError,
   InvalidSessionTransitionError,
+  JoinCodeAlreadyUsedError,
   SessionNotFoundError,
   TimeLimitUnresolvableError,
 } from '../domain/errors.js';
@@ -53,15 +54,21 @@ export class ManageSessionUseCase {
     for (let essai = 0; essai < 10; essai += 1) {
       const joinCode = frapperUnCode();
       if ((await this.sessions.findByJoinCode(joinCode)) !== null) continue;
-      return this.sessions.create({
-        deckId: input.deckId,
-        mode: input.mode,
-        maxParticipants: input.maxParticipants,
-        defaultTimeLimit: input.defaultTimeLimit,
-        guestLocale: input.guestLocale ?? null,
-        joinCode,
-        createdBy: input.createdBy,
-      });
+      try {
+        return await this.sessions.create({
+          deckId: input.deckId,
+          mode: input.mode,
+          maxParticipants: input.maxParticipants,
+          defaultTimeLimit: input.defaultTimeLimit,
+          guestLocale: input.guestLocale ?? null,
+          joinCode,
+          createdBy: input.createdBy,
+        });
+      } catch (erreur) {
+        // La lecture ci-dessus ne protège pas d'une séance créée entre-temps :
+        // seule l'unicité en base tranche.
+        if (!(erreur instanceof JoinCodeAlreadyUsedError)) throw erreur;
+      }
     }
     throw new SessionNotFoundError('aucun code d entrée libre après dix essais');
   }
