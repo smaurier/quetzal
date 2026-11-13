@@ -41,7 +41,7 @@ export class SessionClosedToJoinError extends DomainError {
 
 export class SessionFullError extends DomainError {
   constructor(maxParticipants: number) {
-    super(`Séance complète : ${String(maxParticipants)} participants`);
+    super(`Séance complète : ${maxParticipants} participants`);
   }
 }
 
