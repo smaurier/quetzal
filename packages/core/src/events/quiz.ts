@@ -49,6 +49,14 @@ export interface QuizSessionFinishedEvent {
   topParticipantId: string | null;
 }
 
+// Les `typeRef` du manifeste sont vérifiés À L'EXÉCUTION par le test de
+// contrat, or une interface s'efface à la compilation : même motif que le loto.
+export const QuizSessionStartedEvent = 'QuizSessionStartedEvent' as const;
+export const QuizQuestionOpenedEvent = 'QuizQuestionOpenedEvent' as const;
+export const QuizAnswerRecordedEvent = 'QuizAnswerRecordedEvent' as const;
+export const QuizQuestionClosedEvent = 'QuizQuestionClosedEvent' as const;
+export const QuizSessionFinishedEvent = 'QuizSessionFinishedEvent' as const;
+
 /**
  * Le nom d'un événement lié à la forme de sa charge. Issue #53.
  *
