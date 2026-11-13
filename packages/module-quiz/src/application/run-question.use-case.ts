@@ -7,7 +7,12 @@ import {
   NoQuestionOpenError,
   SessionNotFoundError,
 } from '../domain/errors.js';
-import type { FrozenQuestion, Session, SessionRepository } from '../domain/ports/session.repository.js';
+import type {
+  AnswerRow,
+  FrozenQuestion,
+  Session,
+  SessionRepository,
+} from '../domain/ports/session.repository.js';
 
 export type Horloge = () => number;
 
@@ -15,6 +20,16 @@ export interface FermetureResultat {
   sessionQuestionId: string;
   answerCount: number;
   correctCount: number;
+}
+
+export function comptesDeFermeture(
+  sessionQuestionId: string,
+  reponses: readonly AnswerRow[]): FermetureResultat {
+  return {
+    sessionQuestionId,
+    answerCount: reponses.length,
+    correctCount: reponses.filter((r) => r.isCorrect).length,
+  };
 }
 
 @Injectable()
@@ -85,12 +100,7 @@ export class RunQuestionUseCase {
     const closedAt = new Date(Math.min(maintenant, fin));
     await this.sessions.closeQuestion({ sessionQuestionId: ouverte.id, closedAt });
 
-    const reponses = await this.sessions.answersFor(ouverte.id);
-    const resultat: FermetureResultat = {
-      sessionQuestionId: ouverte.id,
-      answerCount: reponses.length,
-      correctCount: reponses.filter((r) => r.isCorrect).length,
-    };
+    const resultat = comptesDeFermeture(ouverte.id, await this.sessions.answersFor(ouverte.id));
 
     if (this.eventBus !== undefined) {
       await emitQuiz(this.eventBus, 'quiz.question.closed', {
