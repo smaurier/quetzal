@@ -13,6 +13,7 @@ import {
   AlreadyAnsweredError,
   TimeLimitUnresolvableError,
   JoinCodeAlreadyUsedError,
+  ParticipantIndexTakenError,
 } from './errors';
 
 /**
@@ -35,6 +36,7 @@ describe('erreurs du domaine quiz', () => {
     new AlreadyAnsweredError('p-1'),
     new TimeLimitUnresolvableError(2, 'aucun delai'),
     new JoinCodeAlreadyUsedError('ABCD1234'),
+    new ParticipantIndexTakenError(3),
   ];
 
   it('heritent toutes de DomainError', () => {
