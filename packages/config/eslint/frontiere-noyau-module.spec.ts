@@ -300,3 +300,93 @@ describe('regles maison de la plateforme, tenues par ESLint', () => {
     expect(declenchees).toContain('quetzal/tenant-safety');
   });
 });
+
+/**
+ * LES COUCHES DE CLAUDE.md §4, TENUES POUR DE VRAI (issue #98, point 3).
+ *
+ * `eslint-plugin-boundaries` était installé et requis par `base.js`, qui ne
+ * déclarait ni élément ni règle : la promesse « enforced ESLint » de §4 n'a
+ * jamais été tenue par rien.
+ *
+ * ⛔ Les cibles importées EXISTENT dans le dépôt. Le greffon résout chaque
+ * import sur disque pour savoir à quelle couche il appartient : une cible
+ * inventée ne serait rangée dans aucune couche et passerait au vert sans rien
+ * prouver.
+ */
+describe('couches de la Clean Architecture, tenues par ESLint', () => {
+  const COUCHE = 'boundaries/element-types';
+
+  async function importe(depuis: string, cible: string): Promise<readonly string[]> {
+    return reglesDeclenchees(
+      `import * as cible from '${cible}';\nexport const sonde = cible;\n`,
+      `packages/module-quiz/src/${depuis}`,
+    );
+  }
+
+  it('refuse que le domaine depende de l application', async () => {
+    expect(await importe('domain/sonde.ts', '../application/manage-bank.use-case.js')).toContain(COUCHE);
+  });
+
+  it('refuse que le domaine depende de l infrastructure', async () => {
+    expect(await importe('domain/sonde.ts', '../infrastructure/prisma-question-bank.repository.js')).toContain(COUCHE);
+  });
+
+  it('refuse que l application depende de l infrastructure', async () => {
+    expect(await importe('application/sonde.ts', '../infrastructure/prisma-question-bank.repository.js')).toContain(COUCHE);
+  });
+
+  it('refuse que l application depende de la presentation', async () => {
+    expect(await importe('application/sonde.ts', '../presentation/bank.controller.js')).toContain(COUCHE);
+  });
+
+  it('refuse que l infrastructure depende de la presentation', async () => {
+    expect(await importe('infrastructure/sonde.ts', '../presentation/bank.controller.js')).toContain(COUCHE);
+  });
+
+  /**
+   * Les contre-épreuves : sans elles, une règle qui refuse TOUT import entre
+   * fichiers passerait les cinq tests ci-dessus.
+   */
+  it('laisse le domaine dependre de lui-meme', async () => {
+    expect(await importe('domain/sonde.ts', './errors.js')).not.toContain(COUCHE);
+  });
+
+  it('laisse l application dependre du domaine', async () => {
+    expect(await importe('application/sonde.ts', '../domain/errors.js')).not.toContain(COUCHE);
+  });
+
+  it('laisse l infrastructure implementer les ports du domaine', async () => {
+    expect(await importe('infrastructure/sonde.ts', '../domain/errors.js')).not.toContain(COUCHE);
+  });
+
+  it('laisse la presentation dependre de l application et du domaine', async () => {
+    expect(await importe('presentation/sonde.ts', '../application/manage-bank.use-case.js')).not.toContain(COUCHE);
+    expect(await importe('presentation/sonde.ts', '../domain/errors.js')).not.toContain(COUCHE);
+  });
+
+  /**
+   * ⛔ La racine de composition (`quiz.module.ts`, `index.ts`) branche les
+   * adaptateurs sur les ports : elle DOIT voir l'infrastructure. Elle n'est
+   * dans aucune couche, et c'est voulu.
+   */
+  /**
+   * ⛔ Un test d'intégration EST une racine de composition : il branche le vrai
+   * adaptateur Prisma derrière la route pour la tester de bout en bout, comme
+   * `hello.controller.integration.spec.ts`. Trouvé par la règle elle-même,
+   * qu'un premier relevé au grep avait manqué en excluant les specs.
+   */
+  it('laisse un test d integration assembler la presentation et l infrastructure', async () => {
+    expect(
+      await importe('presentation/sonde.integration.spec.ts', '../infrastructure/prisma-question-bank.repository.js'),
+    ).not.toContain(COUCHE);
+  });
+
+  /** La contre-épreuve : un test UNITAIRE reste tenu par les couches. */
+  it('tient un test unitaire du domaine a l ecart de l infrastructure', async () => {
+    expect(await importe('domain/sonde.spec.ts', '../infrastructure/prisma-question-bank.repository.js')).toContain(COUCHE);
+  });
+
+  it('laisse la racine de composition brancher l infrastructure', async () => {
+    expect(await importe('quiz.module.sonde.ts', './infrastructure/prisma-question-bank.repository.js')).not.toContain(COUCHE);
+  });
+});
