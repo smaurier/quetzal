@@ -15,6 +15,7 @@ import {
   JoinCodeAlreadyUsedError,
   ParticipantIndexTakenError,
   ParticipantNotFoundError,
+  EmptyBankError,
 } from './errors';
 
 /**
@@ -39,6 +40,7 @@ describe('erreurs du domaine quiz', () => {
     new JoinCodeAlreadyUsedError('ABCD1234'),
     new ParticipantIndexTakenError(3),
     new ParticipantNotFoundError('p-1'),
+    new EmptyBankError('b-1'),
   ];
 
   it('heritent toutes de DomainError', () => {
@@ -49,6 +51,7 @@ describe('erreurs du domaine quiz', () => {
     expect(new BankNotFoundError('b-42').message).toContain('b-42');
     expect(new QuestionNotFoundError('q-42').message).toContain('q-42');
     expect(new ParticipantNotFoundError('p-42').message).toContain('p-42');
+    expect(new EmptyBankError('b-42').message).toContain('b-42');
   });
 
   it('nomment la transition refusee, pas seulement son echec', () => {
