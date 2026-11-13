@@ -16,10 +16,27 @@ describe('HelloController.doGreet (integration)', () => {
     const controller = new HelloController(new GreetUseCase(new PrismaGreetingRepository(), eventBus));
 
     const result = await new Promise<{ msg: string; tenantId: string }>((resolve, reject) => {
-      tenantStore.run({ tenantId, userId: ownerId, requestId: 'req-1' }, () => controller.doGreet().then(resolve, reject));
+      tenantStore.run({ tenantId, userId: ownerId, userName: 'Elda', requestId: 'req-1' }, () => controller.doGreet().then(resolve, reject));
     });
 
     expect(result).toMatchObject({ msg: 'Hello Elda', tenantId });
+  });
+
+  /**
+   * #91 : le nom vient du CONTEXTE, plus de la table `User`. Le contexte porte
+   * un nom different de celui stocke en base ; saluer celui du contexte prouve
+   * que le controleur ne lit plus la base, ce que `rootPrisma` faisait.
+   */
+  it('salue par le nom du contexte, sans lire la table User', async () => {
+    const { tenantId, ownerId } = await seedTenant('Elda');
+    const controller = new HelloController(new GreetUseCase(new PrismaGreetingRepository(), eventBus));
+
+    const result = await new Promise<{ msg: string }>((resolve, reject) => {
+      tenantStore.run({ tenantId, userId: ownerId, userName: 'Ana', requestId: 'req-3' }, () =>
+        controller.doGreet().then(resolve, reject));
+    });
+
+    expect(result.msg).toBe('Hello Ana');
   });
 
   it('refuses a context without user', async () => {
