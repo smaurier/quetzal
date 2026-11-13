@@ -4,6 +4,7 @@ import {
   EmptyBankError,
   InvalidSessionTransitionError,
   JoinCodeAlreadyUsedError,
+  SessionBankDeletedError,
   SessionNotFoundError,
   TimeLimitUnresolvableError,
 } from '../domain/errors.js';
@@ -279,6 +280,21 @@ describe('ManageSessionUseCase, demarrage et figement', () => {
 
     await expect(useCase.start({ sessionId: 'session-1' })).rejects.toBeInstanceOf(EmptyBankError);
     expect((await sessions.findById('session-1'))?.status).toBe('ouverte');
+  });
+
+  /**
+   * Supprimer une banque garde ses seances (tache 6b) : une seance pas encore
+   * demarree n'a plus rien a figer. Le refus est typé pour que l'ecran dise
+   * « banque supprimee », pas « banque introuvable » sur un identifiant nul.
+   */
+  it('refuse de demarrer une seance dont la banque a ete supprimee, sans rien ecrire', async () => {
+    const { sessions, useCase } = build();
+    sessions.add(sessionOf({ status: 'ouverte', deckId: null, questions: [] }));
+
+    await expect(useCase.start({ sessionId: 'session-1' })).rejects.toBeInstanceOf(SessionBankDeletedError);
+    const session = await sessions.findById('session-1');
+    expect(session?.status).toBe('ouverte');
+    expect(session?.questions).toEqual([]);
   });
 
   it('refuse de demarrer depuis un brouillon, sans passer par ouverte', async () => {

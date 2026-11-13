@@ -21,8 +21,14 @@ function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Pr
 /** Le client cloisonne, pour poser en test ce que le port ne sait pas ecrire : des horodatages imposes. */
 function brut() {
   return getTenantScopedPrisma() as unknown as {
-    quiz_Member: { createMany(args: unknown): Promise<unknown> };
-    quiz_Answer: { createMany(args: unknown): Promise<unknown> };
+    quiz_Member: { createMany(args: unknown): Promise<unknown>; count(args?: unknown): Promise<number> };
+    quiz_Answer: { createMany(args: unknown): Promise<unknown>; count(args?: unknown): Promise<number> };
+    quiz_Session: {
+      findFirst(args: unknown): Promise<{ tenantId: string; deckId: string | null } | null>;
+      deleteMany(args: unknown): Promise<unknown>;
+    };
+    quiz_SessionQuestion: { count(args?: unknown): Promise<number> };
+    quiz_Participant: { count(args?: unknown): Promise<number> };
   };
 }
 
@@ -510,6 +516,72 @@ describe('PrismaSessionRepository (intégration)', () => {
       }))).rejects.toThrow();
       expect(await score()).toBe(1200);
       expect((await dans(() => repo.findById(session.id)))?.participants).toHaveLength(1);
+    });
+  });
+
+  /**
+   * Supprimer une banque garde l'historique de ses seances (decision de
+   * Sylvain, tache 6b) : la seance a COPIE ses questions au demarrage (D10),
+   * elle n'a donc plus besoin de la banque pour etre relue.
+   */
+  describe('suppression d une banque ou d une seance', () => {
+    async function uneSeanceJouee(code: string) {
+      const { tenantId, ownerId } = await seedTenant();
+      const dans = <T>(fn: () => Promise<T>) => inTenant(tenantId, ownerId, fn);
+      const { PrismaQuestionBankRepository } = await import('./prisma-question-bank.repository.js');
+      const banques = new PrismaQuestionBankRepository();
+      const banque = await dans(() =>
+        banques.create({ name: 'Vocabulaire', isTemplate: false, createdBy: ownerId, questions: [] }));
+      const repo = new PrismaSessionRepository();
+      const session = await dans(() => repo.create({
+        deckId: banque.id, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
+        guestLocale: null, joinCode: code, createdBy: ownerId,
+      }));
+      await dans(() => repo.demarrer(session.id, [FIGEE_COMPLETE]));
+      const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
+      const participant = await dans(() =>
+        repo.ajouterParticipant({ sessionId: session.id, participantIndex: 1, guestId: 'g-1', displayName: 'Ana' }));
+      await dans(() => repo.enregistrerReponse({
+        sessionQuestionId: sqId, participantId: participant.id, authorGuestId: 'g-1',
+        optionId: null, value: 'silla', isCorrect: true, elapsedMs: 900, points: 1100,
+      }));
+      return { tenantId, dans, banques, banqueId: banque.id, repo, sessionId: session.id };
+    }
+
+    it('supprimer la banque garde la seance, ses questions figees, ses participants et ses reponses', async () => {
+      const { tenantId, dans, banques, banqueId, repo, sessionId } = await uneSeanceJouee('HIST0001');
+      const avant = await dans(() => repo.findById(sessionId));
+      const reponsesAvant = await dans(() => repo.allAnswers(sessionId));
+      expect(avant?.deckId, 'temoin : la seance pointe sa banque').toBe(banqueId);
+      expect(reponsesAvant, 'temoin : une reponse est posee').toHaveLength(1);
+
+      await dans(() => banques.delete(banqueId));
+
+      expect(await dans(() => banques.findById(banqueId)), 'la banque est bien supprimee').toBeNull();
+      const apres = await dans(() => repo.findById(sessionId));
+      expect(apres).not.toBeNull();
+      expect(apres?.deckId).toBeNull();
+      expect(apres?.questions).toEqual(avant?.questions);
+      expect(apres?.participants).toEqual(avant?.participants);
+      expect(apres?.participants[0]?.score).toBe(1100);
+      expect(await dans(() => repo.allAnswers(sessionId))).toEqual(reponsesAvant);
+      const ligne = await dans(() => brut().quiz_Session.findFirst({ where: { id: sessionId } }));
+      expect(ligne?.tenantId, 'le cloisonnement ne bouge pas').toBe(tenantId);
+    });
+
+    it('supprimer une seance emporte toujours ses questions, participants, membres et reponses', async () => {
+      const { dans, sessionId } = await uneSeanceJouee('HIST0002');
+      const compter = () => dans(async () => [
+        await brut().quiz_SessionQuestion.count(),
+        await brut().quiz_Participant.count(),
+        await brut().quiz_Member.count(),
+        await brut().quiz_Answer.count(),
+      ]);
+      expect(await compter(), 'temoin : une ligne de chaque').toEqual([1, 1, 1, 1]);
+
+      await dans(() => brut().quiz_Session.deleteMany({ where: { id: sessionId } }));
+
+      expect(await compter()).toEqual([0, 0, 0, 0]);
     });
   });
 });

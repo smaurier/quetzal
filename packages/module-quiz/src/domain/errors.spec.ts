@@ -18,6 +18,7 @@ import {
   ParticipantNotFoundError,
   EmptyBankError,
   InvalidAnswerError,
+  SessionBankDeletedError,
 } from './errors';
 
 /**
@@ -45,6 +46,7 @@ describe('erreurs du domaine quiz', () => {
     new ParticipantNotFoundError('p-1'),
     new EmptyBankError('b-1'),
     new InvalidAnswerError('proposition etrangere a la question'),
+    new SessionBankDeletedError('s-1'),
   ];
 
   it('heritent toutes de DomainError', () => {
@@ -57,6 +59,7 @@ describe('erreurs du domaine quiz', () => {
     expect(new ParticipantNotFoundError('p-42').message).toContain('p-42');
     expect(new EmptyBankError('b-42').message).toContain('b-42');
     expect(new NoQuestionLeftError('s-42').message).toContain('s-42');
+    expect(new SessionBankDeletedError('s-42').message).toContain('s-42');
   });
 
   it('nomment la transition refusee, pas seulement son echec', () => {
