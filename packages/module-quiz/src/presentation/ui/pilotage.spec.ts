@@ -3,8 +3,13 @@ import {
   actionPrincipale,
   cleErreurDeCommande,
   cleErreurDeSalle,
+  apresFermeture,
   doitFermerAZero,
+  ESSAIS_DE_FERMETURE_MAX,
   etatDeSeance,
+  fermetureDemandee,
+  issueDeFermeture,
+  SUIVI_VIDE,
 } from './pilotage.js';
 import type { FermetureVue, SessionVue } from './quiz-socket-state.js';
 
@@ -96,25 +101,85 @@ describe('etatDeSeance', () => {
 });
 
 /**
- * D8 : le navigateur de l'animatrice ferme la question a zero, UNE fois.
+ * D8 : le navigateur de l'animatrice ferme la question a zero. Une fois
+ * qu'elle a abouti, jamais deux ; mais une fermeture perdue (commande en vol
+ * au zero, reseau, 5xx) laisserait la question ouverte sans que personne le
+ * sache : elle se retente, un nombre borne de fois.
  */
 describe('doitFermerAZero', () => {
+  const zero = (suivi = SUIVI_VIDE, partiel: { questionOuverteId?: string | null; commandeEnCours?: boolean } = {}) =>
+    doitFermerAZero({
+      sessionQuestionId: 'q1',
+      questionOuverteId: partiel.questionOuverteId === undefined ? 'q1' : partiel.questionOuverteId,
+      suivi,
+      commandeEnCours: partiel.commandeEnCours ?? false,
+    });
+
   it('ferme la premiere fois que le decompte d une question atteint zero', () => {
-    expect(doitFermerAZero({ sessionQuestionId: 'q1', dejaDemandees: new Set(), commandeEnCours: false })).toBe(true);
+    expect(zero()).toBe(true);
   });
 
-  it('ne redemande jamais la fermeture d une meme question', () => {
-    expect(doitFermerAZero({ sessionQuestionId: 'q1', dejaDemandees: new Set(['q1']), commandeEnCours: false })).toBe(false);
+  it('ne redemande pas la fermeture tant que la requete est partie', () => {
+    expect(zero(fermetureDemandee(SUIVI_VIDE, 'q1'))).toBe(false);
   });
 
   /**
-   * ⛔ `questions/close` ferme LA question ouverte, sans la nommer. Si Elda
-   * vient de cliquer « suivante », N+1 est peut-etre deja ouverte en base :
-   * fermer a ce moment fermerait N+1 a peine ouverte. Toute commande en vol
-   * (suivante, fermer, terminer) ferme deja N, donc s'abstenir ne perd rien.
+   * ⛔ `questions/close` ferme LA question ouverte, sans la nommer : pendant
+   * une commande en vol, N+1 est peut-etre deja ouverte en base. S'abstenir,
+   * puis retenter quand la commande est finie : rien n'a ete enregistre.
    */
-  it('s abstient pendant qu une commande de seance est en vol', () => {
-    expect(doitFermerAZero({ sessionQuestionId: 'q1', dejaDemandees: new Set(), commandeEnCours: true })).toBe(false);
+  it('s abstient pendant une commande en vol, puis ferme quand elle est finie', () => {
+    expect(zero(SUIVI_VIDE, { commandeEnCours: true })).toBe(false);
+    expect(zero(SUIVI_VIDE, { commandeEnCours: false })).toBe(true);
+  });
+
+  /** La commande en vol etait « suivante » : N+1 est ouverte, la fermer serait l avoir volee. */
+  it('ne ferme jamais une question qui n est plus l ouverte', () => {
+    expect(zero(SUIVI_VIDE, { questionOuverteId: 'q2' })).toBe(false);
+    expect(zero(SUIVI_VIDE, { questionOuverteId: null })).toBe(false);
+  });
+
+  it('retente une fermeture qui a echoue', () => {
+    const suivi = apresFermeture(fermetureDemandee(SUIVI_VIDE, 'q1'), 'q1', 'echec');
+
+    expect(zero(suivi)).toBe(true);
+  });
+
+  it('ne retente ni une fermeture aboutie, ni une question deja fermee', () => {
+    expect(zero(apresFermeture(fermetureDemandee(SUIVI_VIDE, 'q1'), 'q1', 'fermee'))).toBe(false);
+    expect(zero(apresFermeture(fermetureDemandee(SUIVI_VIDE, 'q1'), 'q1', 'deja-fermee'))).toBe(false);
+  });
+
+  it('cesse de retenter apres le nombre maximal d essais', () => {
+    let suivi = SUIVI_VIDE;
+    for (let essai = 0; essai < ESSAIS_DE_FERMETURE_MAX; essai += 1) {
+      expect(zero(suivi)).toBe(true);
+      suivi = apresFermeture(fermetureDemandee(suivi, 'q1'), 'q1', 'echec');
+    }
+
+    expect(zero(suivi)).toBe(false);
+  });
+
+  it('ne partage pas le suivi d une question avec une autre', () => {
+    const suivi = fermetureDemandee(SUIVI_VIDE, 'q1');
+
+    expect(doitFermerAZero({ sessionQuestionId: 'q2', questionOuverteId: 'q2', suivi, commandeEnCours: false })).toBe(true);
+  });
+});
+
+describe('issueDeFermeture', () => {
+  it('dit qu une reponse ok a ferme la question', () => {
+    expect(issueDeFermeture(true, null)).toBe('fermee');
+  });
+
+  /** 409 `no_question_open` : Elda a ferme a la main, ou une autre fenetre l a fait. */
+  it('dit qu un refus « aucune question ouverte » veut dire deja fermee', () => {
+    expect(issueDeFermeture(false, 'errorNoQuestionOpen')).toBe('deja-fermee');
+  });
+
+  it('compte tout autre refus comme un echec', () => {
+    expect(issueDeFermeture(false, 'errorGeneric')).toBe('echec');
+    expect(issueDeFermeture(false, null)).toBe('echec');
   });
 });
 
