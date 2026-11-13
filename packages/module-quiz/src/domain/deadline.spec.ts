@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { GRACE_MS } from './scoring.js';
-import { accueilDeLaReponse } from './deadline.js';
+import { accueilDeLaReponse, instantDeFermeture } from './deadline.js';
 
 /**
  * D8 : une question se ferme par une ECHEANCE PERSISTEE, evaluee
@@ -143,5 +143,19 @@ describe('accueilDeLaReponse, mode controle', () => {
       kind: 'trop-tard',
       raison: 'question-fermee',
     });
+  });
+});
+
+describe('instantDeFermeture', () => {
+  it('ferme a maintenant quand rien n expire (mode controle)', () => {
+    expect(instantDeFermeture(null, 7_000)).toBe(7_000);
+  });
+
+  it('ferme a maintenant quand l echeance n est pas encore la', () => {
+    expect(instantDeFermeture(20_000, 7_000)).toBe(7_000);
+  });
+
+  it('ferme a l echeance, pas a maintenant, quand elle est depassee', () => {
+    expect(instantDeFermeture(20_000, 90_000)).toBe(20_000);
   });
 });
