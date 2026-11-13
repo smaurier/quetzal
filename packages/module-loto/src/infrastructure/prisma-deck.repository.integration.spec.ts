@@ -125,6 +125,41 @@ describe('PrismaDeckRepository (intégration)', () => {
     expect(relu?.cardCount).toBe(1);
   });
 
+  /**
+   * ⛔ LE DERNIER REMPART (#102). Le depot ecrit sans DTO, comme un seed ou un
+   * import. La CHECK est posee NOT VALID, pour ne pas faire echouer le
+   * deploiement sur d eventuelles cartes vides deja en production : elle doit
+   * quand meme refuser toute NOUVELLE ecriture, insertion comme mise a jour.
+   */
+  describe('carte sans nom', () => {
+    async function jeuAvecUneCarte() {
+      const { tenantId, ownerId } = await seedTenant();
+      const repo = new PrismaDeckRepository();
+      const deck = await inTenant(tenantId, ownerId, () =>
+        repo.create({ name: 'Garde', isTemplate: false, createdBy: ownerId,
+          cards: [{ rank: 1, label: 'El Gallo', imageId: null }] }));
+      return { repo, deck, dans: <T>(fn: () => Promise<T>) => inTenant(tenantId, ownerId, fn) };
+    }
+
+    it('la base refuse d inserer une carte au nom vide', async () => {
+      const { repo, deck, dans } = await jeuAvecUneCarte();
+      await expect(dans(() => repo.addCard(deck.id, { rank: 2, label: '', imageId: null })))
+        .rejects.toThrow(/Loto_Card_label_check/);
+    });
+
+    it('la base refuse d inserer une carte au nom fait d espaces', async () => {
+      const { repo, deck, dans } = await jeuAvecUneCarte();
+      await expect(dans(() => repo.addCard(deck.id, { rank: 2, label: '   ', imageId: null })))
+        .rejects.toThrow(/Loto_Card_label_check/);
+    });
+
+    it('la base refuse de vider le nom d une carte existante', async () => {
+      const { repo, deck, dans } = await jeuAvecUneCarte();
+      await expect(dans(() => repo.updateCard(deck.id, 1, { label: ' ' })))
+        .rejects.toThrow(/Loto_Card_label_check/);
+    });
+  });
+
   // L ancien chemin, garde en regard : il ne cree rien et ne crie pas. C est
   // ce silence qui a fait croire que le bouton etait casse cote interface.
   it('updateCard sur un rang absent ne cree rien, et ne leve pas', async () => {
