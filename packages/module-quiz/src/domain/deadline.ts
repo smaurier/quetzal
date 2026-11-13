@@ -24,15 +24,26 @@ export type AccueilDeReponse =
 export function accueilDeLaReponse(
   fenetre: FenetreOuverte,
   arriveeMs: number): AccueilDeReponse {
-  // Le geste de l'animatrice passe AVANT l'échéance : sans ça, « on passe à la
-  // suite » n'aurait aucun effet tant que le délai n'est pas écoulé.
-  if (fenetre.closedAt !== null) return { kind: 'trop-tard', raison: 'question-fermee' };
+  const fin = finEffective(fenetre);
+  if (fin === null) return { kind: 'a-temps' };
 
-  // Mode contrôle : rien n'expire, et surtout pas de grâce, il n'y a rien dont
-  // elle serait la marge.
-  if (fenetre.deadlineAt === null) return { kind: 'a-temps' };
+  if (arriveeMs <= fin.instant) return { kind: 'a-temps' };
+  // §8 point 1 : la grace motrice part de « la fermeture », manuelle ou
+  // echue. D8 fait fermer le navigateur de l'animatrice a zero : sans grace
+  // apres `closedAt`, elle ne s'appliquerait jamais.
+  if (arriveeMs <= fin.instant + GRACE_MS) return { kind: 'dans-la-grace' };
+  return { kind: 'trop-tard', raison: fin.raison };
+}
 
-  if (arriveeMs <= fenetre.deadlineAt) return { kind: 'a-temps' };
-  if (arriveeMs <= fenetre.deadlineAt + GRACE_MS) return { kind: 'dans-la-grace' };
-  return { kind: 'trop-tard', raison: 'echeance-depassee' };
+interface FinEffective {
+  readonly instant: number;
+  readonly raison: 'echeance-depassee' | 'question-fermee';
+}
+
+function finEffective({ deadlineAt, closedAt }: FenetreOuverte): FinEffective | null {
+  if (closedAt !== null && (deadlineAt === null || closedAt <= deadlineAt)) {
+    return { instant: closedAt, raison: 'question-fermee' };
+  }
+  if (deadlineAt !== null) return { instant: deadlineAt, raison: 'echeance-depassee' };
+  return null;
 }

@@ -7,7 +7,6 @@ import {
   NoQuestionOpenError,
   SessionNotFoundError,
 } from '../domain/errors.js';
-import { GRACE_MS } from '../domain/scoring.js';
 import type { FrozenQuestion, Session, SessionRepository } from '../domain/ports/session.repository.js';
 
 export type Horloge = () => number;
@@ -80,8 +79,10 @@ export class RunQuestionUseCase {
 
   private async fermer(session: Session, ouverte: FrozenQuestion): Promise<FermetureResultat> {
     const maintenant = this.maintenant();
-    const finDeRecevabilite = ouverte.deadlineAt === null ? maintenant : ouverte.deadlineAt.getTime() + GRACE_MS;
-    const closedAt = new Date(Math.min(maintenant, finDeRecevabilite));
+    // La grace s'ajoute a la fin effective dans `accueilDeLaReponse` : la
+    // compter ici aussi l'accorderait deux fois.
+    const fin = ouverte.deadlineAt === null ? maintenant : ouverte.deadlineAt.getTime();
+    const closedAt = new Date(Math.min(maintenant, fin));
     await this.sessions.closeQuestion({ sessionQuestionId: ouverte.id, closedAt });
 
     const reponses = await this.sessions.answersFor(ouverte.id);
