@@ -86,3 +86,9 @@ export class ParticipantNotFoundError extends DomainError {
     super(`Participant introuvable : ${participantId}`);
   }
 }
+
+export class EmptyBankError extends DomainError {
+  constructor(bankId: string) {
+    super(`La banque ${bankId} ne contient aucune question`);
+  }
+}
