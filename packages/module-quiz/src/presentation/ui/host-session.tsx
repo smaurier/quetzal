@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { apiClient } from '@quetzal/core/client';
 import { Button, Card, Input, Label } from '@quetzal/ui';
@@ -9,10 +9,15 @@ import {
   actionPrincipale,
   cleErreurDeCommande,
   cleErreurDeSalle,
+  apresFermeture,
   doitFermerAZero,
   etatDeSeance,
+  fermetureDemandee,
+  issueDeFermeture,
+  SUIVI_VIDE,
   type ActionPrincipale,
   type CleErreur,
+  type SuiviDesFermetures,
 } from './pilotage.js';
 import type { ParticipantVue } from './quiz-socket-state.js';
 import { useQuizSocket } from './use-quiz-socket.js';
@@ -49,64 +54,89 @@ export default function HostSession(props: Props) {
   const { session, question, closed, finished, error } = useQuizSocket({ sessionId: sessionId ?? '' });
   const [erreur, setErreur] = useState<CleErreur | null>(null);
   const [enVol, setEnVol] = useState(false);
-  // Lu par le rappel du décompte, qui doit voir la valeur du moment et non
-  // celle du rendu où il a été créé.
+  // Lu au moment même où une fermeture à zéro se décide, pas à celui du rendu.
   const enVolMaintenant = useRef(false);
-  const fermeturesDemandees = useRef(new Set<string>());
+  const suiviDesFermetures = useRef<SuiviDesFermetures>(SUIVI_VIDE);
+  const [zeroAtteintPour, setZeroAtteintPour] = useState<string | null>(null);
   const [renommage, setRenommage] = useState<Record<string, string>>({});
 
   /**
    * ⛔ Une commande à la fois. Un double appui sur « suivante » sauterait une
    * question : le serveur ouvrirait N+1 puis N+2.
    */
-  async function commande(action: Commande, automatique = false): Promise<void> {
+  async function commande(action: Commande, fermetureAZeroDe?: string): Promise<void> {
     if (sessionId === undefined || enVolMaintenant.current) return;
     enVolMaintenant.current = true;
     setEnVol(true);
     setErreur(null);
+    const ouverteAuDepart = question?.sessionQuestionId ?? null;
+    let ok = false;
+    let cle: CleErreur | null = null;
     try {
       const res = await apiClient().apiFetch(`/api/modules/quiz/sessions/${sessionId}/${CHEMIN[action]}`, {
         method: 'POST',
       });
-      if (!res.ok) {
-        const cle = cleErreurDeCommande(res.status, await lireCorps(res));
-        // Elda a fermé à la main juste avant le zéro : rien à lui signaler.
-        if (!(automatique && cle === 'errorNoQuestionOpen')) setErreur(cle);
-      }
+      ok = res.ok;
+      if (!res.ok) cle = cleErreurDeCommande(res.status, await lireCorps(res));
     } catch {
-      setErreur('errorGeneric');
-    } finally {
-      enVolMaintenant.current = false;
-      setEnVol(false);
+      cle = 'errorGeneric';
     }
+    const issue = issueDeFermeture(ok, cle);
+    if (fermetureAZeroDe !== undefined) {
+      suiviDesFermetures.current = apresFermeture(suiviDesFermetures.current, fermetureAZeroDe, issue);
+    } else if (ok && action !== 'open' && action !== 'start' && ouverteAuDepart !== null) {
+      // « Suivante », « fermer » et « terminer » ferment la question ouverte.
+      // ⛔ La réponse HTTP peut devancer `question-opened` sur la socket : sans
+      // cette marque, un zéro tombé pendant la commande fermerait N+1.
+      suiviDesFermetures.current = apresFermeture(
+        fermetureDemandee(suiviDesFermetures.current, ouverteAuDepart), ouverteAuDepart, 'fermee');
+    }
+    // Une fermeture à zéro refusée parce que la question l'est déjà (Elda a
+    // cliqué juste avant) n'a rien à lui dire.
+    if (cle !== null && !(fermetureAZeroDe !== undefined && issue === 'deja-fermee')) setErreur(cle);
+    enVolMaintenant.current = false;
+    setEnVol(false);
   }
 
-  /** D8 : ce navigateur ferme la question quand son décompte atteint zéro. */
-  function fermerAZero(sessionQuestionId: string): void {
+  const questionOuverteId = question?.sessionQuestionId ?? null;
+
+  /**
+   * D8 : ce navigateur ferme la question quand son décompte atteint zéro.
+   * Réévalué à la fin de chaque commande : une fermeture empêchée par une
+   * commande en vol, ou en échec, se retente (`doitFermerAZero` la borne).
+   */
+  useEffect(() => {
+    if (zeroAtteintPour === null) return;
     const permis = doitFermerAZero({
-      sessionQuestionId,
-      dejaDemandees: fermeturesDemandees.current,
+      sessionQuestionId: zeroAtteintPour,
+      questionOuverteId,
+      suivi: suiviDesFermetures.current,
       commandeEnCours: enVolMaintenant.current,
     });
     if (!permis) return;
-    fermeturesDemandees.current.add(sessionQuestionId);
-    void commande('close', true);
-  }
+    suiviDesFermetures.current = fermetureDemandee(suiviDesFermetures.current, zeroAtteintPour);
+    void commande('close', zeroAtteintPour);
+    // `commande` change à chaque rendu et n'a pas à relancer l'effet.
+  }, [zeroAtteintPour, questionOuverteId, enVol]);
 
   async function renommer(participant: ParticipantVue): Promise<void> {
     if (sessionId === undefined) return;
     const saisi = renommage[participant.id];
     if (saisi === undefined || saisi.trim() === (participant.name ?? '')) return;
-    const res = await apiClient().apiFetch(
-      `/api/modules/quiz/sessions/${sessionId}/participants/${participant.id}`,
-      {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        // `null` est VOULU : il efface le nom choisi et rend au participant son
-        // nom dérivé (issue #29 du loto).
-        body: JSON.stringify({ name: saisi.trim() === '' ? null : saisi.trim() }),
-      });
-    if (!res.ok) setErreur(cleErreurDeCommande(res.status, await lireCorps(res)));
+    try {
+      const res = await apiClient().apiFetch(
+        `/api/modules/quiz/sessions/${sessionId}/participants/${participant.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          // `null` est VOULU : il efface le nom choisi et rend au participant son
+          // nom dérivé (issue #29 du loto).
+          body: JSON.stringify({ name: saisi.trim() === '' ? null : saisi.trim() }),
+        });
+      if (!res.ok) setErreur(cleErreurDeCommande(res.status, await lireCorps(res)));
+    } catch {
+      setErreur('errorGeneric');
+    }
   }
 
   if (sessionId === undefined) return null;
@@ -184,7 +214,7 @@ export default function HostSession(props: Props) {
           <Countdown
             key={question.sessionQuestionId}
             echeanceMs={question.echeanceMs}
-            onZero={() => fermerAZero(question.sessionQuestionId)}
+            onZero={() => setZeroAtteintPour(question.sessionQuestionId)}
           />
           <p className="text-4xl">{question.prompt}</p>
           {question.imageId !== null && (
