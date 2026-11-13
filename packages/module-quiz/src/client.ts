@@ -17,6 +17,13 @@ export const clientManifest: ClientModuleManifest = {
       requiredRoles: ['owner', 'creator'],
       layout: 'shell',
     },
+    {
+      path: 'sessions/:sessionId',
+      component: () => import('./presentation/ui/host-session.js'),
+      requiredRoles: ['owner', 'creator'],
+      // Projeté : la coquille mangerait la place du code d'entrée.
+      layout: 'full',
+    },
   ],
   navItem: {
     icon: 'list-checks',
