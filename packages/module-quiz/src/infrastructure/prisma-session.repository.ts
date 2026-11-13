@@ -4,7 +4,12 @@ import { getTenantScopedPrisma } from '@quetzal/core';
 import { isAnswerMode } from '../domain/answer-mode.js';
 import { isSessionMode } from '../domain/session-mode.js';
 import { isSessionStatus } from '../domain/session-status.js';
-import { InvalidQuestionShapeError, SessionNotFoundError } from '../domain/errors.js';
+import {
+  InvalidQuestionShapeError,
+  JoinCodeAlreadyUsedError,
+  ParticipantIndexTakenError,
+  SessionNotFoundError,
+} from '../domain/errors.js';
 import type { QuestionOption } from '../domain/ports/question-bank.repository.js';
 import type {
   AnswerRow,
@@ -16,8 +21,33 @@ import type {
 } from '../domain/ports/session.repository.js';
 import type { SessionStatus } from '../domain/session-status.js';
 
-/** La violation d'unicité de Prisma. Pas une panne : un geste répété. */
 const VIOLATION_UNICITE = 'P2002';
+
+/**
+ * Chaque table de la séance porte deux contraintes d'unicité : la clé
+ * `(id, tenantId)` et celle qui a un sens métier. Seule la seconde est un geste
+ * répété qu'on traduit ; une violation de la clé est une vraie panne et doit
+ * remonter telle quelle. Prisma nomme les champs violés dans `meta.target`
+ * (mesuré contre Postgres : `["joinCode","tenantId"]`).
+ */
+export function violeLUnicite(err: unknown, ...champs: readonly string[]): boolean {
+  if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== VIOLATION_UNICITE) return false;
+  const cible = err.meta?.['target'];
+  if (!Array.isArray(cible)) return false;
+  return champs.every((champ) => cible.includes(champ));
+}
+
+const COLONNES_REPONSE = {
+  id: true,
+  sessionQuestionId: true,
+  participantId: true,
+  authorGuestId: true,
+  optionId: true,
+  value: true,
+  isCorrect: true,
+  elapsedMs: true,
+  points: true,
+} as const;
 
 interface LigneMembre { guestId: string; displayName: string }
 interface LigneParticipant {
@@ -32,11 +62,105 @@ interface LigneQuestion {
   options: unknown; acceptedAnswers: unknown;
   openedAt: Date | null; deadlineAt: Date | null; closedAt: Date | null;
 }
-interface LigneSession {
+export interface LigneSession {
   id: string; deckId: string; mode: string; status: string;
   maxParticipants: number; joinCode: string;
   defaultTimeLimit: number | null; guestLocale: string | null;
   questions: LigneQuestion[]; participants: LigneParticipant[];
+}
+
+/**
+ * Les propositions figées sont relues d'un `Json`, donc `unknown`. Narrowé
+ * sans `as` (CLAUDE.md §14) : une ligne mal formée en base ne doit pas
+ * devenir une question injouable en silence.
+ */
+function lireOptions(valeur: unknown): readonly QuestionOption[] {
+  if (!Array.isArray(valeur)) return [];
+  const options: QuestionOption[] = [];
+  for (const brut of valeur) {
+    if (typeof brut !== 'object' || brut === null) continue;
+    if (!('id' in brut) || typeof brut.id !== 'string') continue;
+    if (!('rank' in brut) || typeof brut.rank !== 'number') continue;
+    options.push({
+      id: brut.id,
+      rank: brut.rank,
+      label: 'label' in brut && typeof brut.label === 'string' ? brut.label : null,
+      imageId: 'imageId' in brut && typeof brut.imageId === 'string' ? brut.imageId : null,
+      imageAlt: 'imageAlt' in brut && typeof brut.imageAlt === 'string' ? brut.imageAlt : null,
+      isCorrect: 'isCorrect' in brut && brut.isCorrect === true,
+    });
+  }
+  return options.sort((a, b) => a.rank - b.rank);
+}
+
+function lireChaines(valeur: unknown): readonly string[] {
+  if (!Array.isArray(valeur)) return [];
+  return valeur.filter((v): v is string => typeof v === 'string');
+}
+
+function lireQuestion(ligne: LigneQuestion): FrozenQuestion {
+  if (!isAnswerMode(ligne.answerMode)) {
+    throw new InvalidQuestionShapeError('choix', `mode inconnu en base : ${ligne.answerMode}`);
+  }
+  return {
+    id: ligne.id,
+    rank: ligne.rank,
+    questionId: ligne.questionId,
+    prompt: ligne.prompt,
+    imageId: ligne.imageId,
+    imageAlt: ligne.imageAlt,
+    answerMode: ligne.answerMode,
+    timeLimitResolved: ligne.timeLimitResolved,
+    regles: {
+      accentsSensibles: ligne.accentsSensibles,
+      casseSensible: ligne.casseSensible,
+    },
+    options: lireOptions(ligne.options),
+    acceptedAnswers: lireChaines(ligne.acceptedAnswers),
+    openedAt: ligne.openedAt,
+    deadlineAt: ligne.deadlineAt,
+    closedAt: ligne.closedAt,
+  };
+}
+
+function lireParticipant(ligne: LigneParticipant): Participant {
+  return {
+    id: ligne.id,
+    participantIndex: ligne.participantIndex,
+    name: ligne.name,
+    score: ligne.score,
+    memberNames: ligne.members.map((m) => m.displayName),
+  };
+}
+
+export function lireSession(ligne: LigneSession): Session {
+  if (!isSessionMode(ligne.mode)) {
+    throw new SessionNotFoundError(`${ligne.id} (mode inconnu : ${ligne.mode})`);
+  }
+  if (!isSessionStatus(ligne.status)) {
+    throw new SessionNotFoundError(`${ligne.id} (statut inconnu : ${ligne.status})`);
+  }
+  return {
+    id: ligne.id,
+    deckId: ligne.deckId,
+    mode: ligne.mode,
+    status: ligne.status,
+    maxParticipants: ligne.maxParticipants,
+    joinCode: ligne.joinCode,
+    defaultTimeLimit: ligne.defaultTimeLimit,
+    guestLocale: ligne.guestLocale,
+    // Trié ici en plus de l'`orderBy` : sans ORDER BY, Postgres ne garantit
+    // aucun ordre. Mesuré le 13/11, retirer les deux gardes des questions ne
+    // fait rougir aucun test : l'index unique (sessionId, rank) rend l'ordre
+    // aujourd'hui, ce qui n'est pas un contrat. Ne pas en retirer un sur la foi
+    // d'un test vert.
+    questions: [...ligne.questions]
+      .sort((a, b) => a.rank - b.rank)
+      .map(lireQuestion),
+    participants: [...ligne.participants]
+      .sort((a, b) => a.participantIndex - b.participantIndex)
+      .map(lireParticipant),
+  };
 }
 
 /**
@@ -72,98 +196,6 @@ export class PrismaSessionRepository implements SessionRepository {
     };
   }
 
-  /**
-   * Les propositions figées sont relues d'un `Json`, donc `unknown`. Narrowé
-   * sans `as` (CLAUDE.md §14) : une ligne mal formée en base ne doit pas
-   * devenir une question injouable en silence.
-   */
-  private lireOptions(valeur: unknown): readonly QuestionOption[] {
-    if (!Array.isArray(valeur)) return [];
-    const options: QuestionOption[] = [];
-    for (const brut of valeur) {
-      if (typeof brut !== 'object' || brut === null) continue;
-      if (!('id' in brut) || typeof brut.id !== 'string') continue;
-      if (!('rank' in brut) || typeof brut.rank !== 'number') continue;
-      options.push({
-        id: brut.id,
-        rank: brut.rank,
-        label: 'label' in brut && typeof brut.label === 'string' ? brut.label : null,
-        imageId: 'imageId' in brut && typeof brut.imageId === 'string' ? brut.imageId : null,
-        imageAlt: 'imageAlt' in brut && typeof brut.imageAlt === 'string' ? brut.imageAlt : null,
-        isCorrect: 'isCorrect' in brut && brut.isCorrect === true,
-      });
-    }
-    return options.sort((a, b) => a.rank - b.rank);
-  }
-
-  private lireChaines(valeur: unknown): readonly string[] {
-    if (!Array.isArray(valeur)) return [];
-    return valeur.filter((v): v is string => typeof v === 'string');
-  }
-
-  private toQuestion(ligne: LigneQuestion): FrozenQuestion {
-    if (!isAnswerMode(ligne.answerMode)) {
-      throw new InvalidQuestionShapeError('choix', `mode inconnu en base : ${ligne.answerMode}`);
-    }
-    return {
-      id: ligne.id,
-      rank: ligne.rank,
-      questionId: ligne.questionId,
-      prompt: ligne.prompt,
-      imageId: ligne.imageId,
-      imageAlt: ligne.imageAlt,
-      answerMode: ligne.answerMode,
-      timeLimitResolved: ligne.timeLimitResolved,
-      regles: {
-        accentsSensibles: ligne.accentsSensibles,
-        casseSensible: ligne.casseSensible,
-      },
-      options: this.lireOptions(ligne.options),
-      acceptedAnswers: this.lireChaines(ligne.acceptedAnswers),
-      openedAt: ligne.openedAt,
-      deadlineAt: ligne.deadlineAt,
-      closedAt: ligne.closedAt,
-    };
-  }
-
-  private toParticipant(ligne: LigneParticipant): Participant {
-    return {
-      id: ligne.id,
-      participantIndex: ligne.participantIndex,
-      name: ligne.name,
-      score: ligne.score,
-      memberNames: ligne.members.map((m) => m.displayName),
-    };
-  }
-
-  private toSession(ligne: LigneSession): Session {
-    if (!isSessionMode(ligne.mode)) {
-      throw new SessionNotFoundError(`${ligne.id} (mode inconnu : ${ligne.mode})`);
-    }
-    if (!isSessionStatus(ligne.status)) {
-      throw new SessionNotFoundError(`${ligne.id} (statut inconnu : ${ligne.status})`);
-    }
-    return {
-      id: ligne.id,
-      deckId: ligne.deckId,
-      mode: ligne.mode,
-      status: ligne.status,
-      maxParticipants: ligne.maxParticipants,
-      joinCode: ligne.joinCode,
-      defaultTimeLimit: ligne.defaultTimeLimit,
-      guestLocale: ligne.guestLocale,
-      // Trié par rang ici, et non laissé à l'ordre de la base : sans ORDER BY,
-      // l'ordre n'est pas garanti, et une séance jouerait ses questions dans le
-      // désordre une fois sur deux.
-      questions: [...ligne.questions]
-        .sort((a, b) => a.rank - b.rank)
-        .map((q) => this.toQuestion(q)),
-      participants: [...ligne.participants]
-        .sort((a, b) => a.participantIndex - b.participantIndex)
-        .map((p) => this.toParticipant(p)),
-    };
-  }
-
   private get inclusion() {
     return {
       questions: { orderBy: { rank: 'asc' as const } },
@@ -184,6 +216,20 @@ export class PrismaSessionRepository implements SessionRepository {
     createdBy: string;
   }): Promise<Session> {
     const id = newId();
+    try {
+      await this.creerLigne(id, input);
+    } catch (err) {
+      if (violeLUnicite(err, 'joinCode')) throw new JoinCodeAlreadyUsedError(input.joinCode);
+      throw err;
+    }
+    const relue = await this.findById(id);
+    // Jamais un cast sur un `null` : introuvable juste après création signale un
+    // cloisonnement mal posé, ce qu'un cast masquerait.
+    if (relue === null) throw new SessionNotFoundError(id);
+    return relue;
+  }
+
+  private async creerLigne(id: string, input: Parameters<SessionRepository['create']>[0]): Promise<void> {
     await this.prisma.quiz_Session.create({
       data: {
         id,
@@ -197,11 +243,6 @@ export class PrismaSessionRepository implements SessionRepository {
         createdBy: input.createdBy,
       },
     });
-    const relue = await this.findById(id);
-    // Jamais un cast sur un `null` : introuvable juste après création signale un
-    // cloisonnement mal posé, ce qu'un cast masquerait.
-    if (relue === null) throw new SessionNotFoundError(id);
-    return relue;
   }
 
   async findById(sessionId: string): Promise<Session | null> {
@@ -209,7 +250,7 @@ export class PrismaSessionRepository implements SessionRepository {
       where: { id: sessionId },
       include: this.inclusion,
     });
-    return ligne === null ? null : this.toSession(ligne);
+    return ligne === null ? null : lireSession(ligne);
   }
 
   async findByJoinCode(joinCode: string): Promise<Session | null> {
@@ -217,7 +258,7 @@ export class PrismaSessionRepository implements SessionRepository {
       where: { joinCode },
       include: this.inclusion,
     });
-    return ligne === null ? null : this.toSession(ligne);
+    return ligne === null ? null : lireSession(ligne);
   }
 
   async list(): Promise<readonly Session[]> {
@@ -225,7 +266,7 @@ export class PrismaSessionRepository implements SessionRepository {
       orderBy: { createdAt: 'desc' },
       include: this.inclusion,
     });
-    return lignes.map((ligne) => this.toSession(ligne));
+    return lignes.map(lireSession);
   }
 
   async setStatus(sessionId: string, status: SessionStatus): Promise<void> {
@@ -287,9 +328,16 @@ export class PrismaSessionRepository implements SessionRepository {
     participantIndex: number;
   }): Promise<Participant> {
     const id = newId();
-    await this.prisma.quiz_Participant.createMany({
-      data: [{ id, sessionId: input.sessionId, participantIndex: input.participantIndex }],
-    });
+    try {
+      await this.prisma.quiz_Participant.createMany({
+        data: [{ id, sessionId: input.sessionId, participantIndex: input.participantIndex }],
+      });
+    } catch (err) {
+      if (violeLUnicite(err, 'sessionId', 'participantIndex')) {
+        throw new ParticipantIndexTakenError(input.participantIndex);
+      }
+      throw err;
+    }
     return {
       id,
       participantIndex: input.participantIndex,
@@ -314,11 +362,9 @@ export class PrismaSessionRepository implements SessionRepository {
         }],
       });
     } catch (err) {
-      // Idempotent : `@@unique([participantId, guestId, tenantId])` refuse le
-      // doublon, et une reconnexion n'est pas une erreur.
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === VIOLATION_UNICITE) {
-        return;
-      }
+      // Une reconnexion n'est pas une erreur, et le premier nom reste : la
+      // ligne existante n'est jamais réécrite.
+      if (violeLUnicite(err, 'participantId', 'guestId')) return;
       throw err;
     }
   }
@@ -331,7 +377,7 @@ export class PrismaSessionRepository implements SessionRepository {
       where: { sessionId: input.sessionId, members: { some: { guestId: input.guestId } } },
       include: { members: true },
     });
-    return ligne === null ? null : this.toParticipant(ligne);
+    return ligne === null ? null : lireParticipant(ligne);
   }
 
   async renameParticipant(input: { participantId: string; name: string | null }): Promise<void> {
@@ -343,14 +389,15 @@ export class PrismaSessionRepository implements SessionRepository {
 
   async recordAnswer(answer: NewAnswer): Promise<AnswerRow | null> {
     try {
-      return await this.prisma.quiz_Answer.create({ data: { id: newId(), ...answer } });
+      return await this.prisma.quiz_Answer.create({
+        data: { id: newId(), ...answer },
+        select: COLONNES_REPONSE,
+      });
     } catch (err) {
       // ⛔ Rendu `null` et NON laissé remonter : deux doigts sur un téléphone
       // d'élève suffisent à déclencher deux émissions, et un 500 sur un
       // double-appui serait un défaut de produit.
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === VIOLATION_UNICITE) {
-        return null;
-      }
+      if (violeLUnicite(err, 'sessionQuestionId', 'participantId')) return null;
       throw err;
     }
   }
@@ -363,13 +410,14 @@ export class PrismaSessionRepository implements SessionRepository {
   }
 
   async answersFor(sessionQuestionId: string): Promise<readonly AnswerRow[]> {
-    return this.prisma.quiz_Answer.findMany({ where: { sessionQuestionId } });
+    return this.prisma.quiz_Answer.findMany({ where: { sessionQuestionId }, select: COLONNES_REPONSE });
   }
 
   async allAnswers(sessionId: string): Promise<readonly AnswerRow[]> {
     return this.prisma.quiz_Answer.findMany({
       where: { sessionQuestion: { sessionId } },
       orderBy: { answeredAt: 'asc' },
+      select: COLONNES_REPONSE,
     });
   }
 }
