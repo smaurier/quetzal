@@ -94,7 +94,7 @@ CREATE TABLE "Quiz_Answer" (
 CREATE INDEX "Quiz_Session_tenantId_idx" ON "Quiz_Session"("tenantId");
 
 -- CreateIndex
-CREATE INDEX "Quiz_Session_tenantId_joinCode_idx" ON "Quiz_Session"("tenantId", "joinCode");
+CREATE UNIQUE INDEX "Quiz_Session_joinCode_tenantId_key" ON "Quiz_Session"("joinCode", "tenantId");
 
 -- CreateIndex
 CREATE INDEX "Quiz_SessionQuestion_tenantId_sessionId_idx" ON "Quiz_SessionQuestion"("tenantId", "sessionId");

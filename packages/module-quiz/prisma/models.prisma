@@ -114,7 +114,7 @@ model Quiz_Session {
 
   @@id([id, tenantId])
   @@index([tenantId])
-  @@index([tenantId, joinCode])
+  @@unique([joinCode, tenantId])
 }
 
 /// ⛔ LA QUESTION FIGÉE, et c'est la table la plus importante du module.
