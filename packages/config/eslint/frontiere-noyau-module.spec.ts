@@ -390,3 +390,53 @@ describe('couches de la Clean Architecture, tenues par ESLint', () => {
     expect(await importe('quiz.module.sonde.ts', './infrastructure/prisma-question-bank.repository.js')).not.toContain(COUCHE);
   });
 });
+
+/**
+ * « DOMAIN NE DÉPEND DE RIEN » (CLAUDE.md §4), POUR LES PAQUETS EXTERNES (#104).
+ *
+ * `element-types` ne juge que les imports entre fichiers du module. Un
+ * `@nestjs/common` dans le domaine passait. Relevé du 13/11 : le domaine de
+ * production n'importe que `@quetzal/core` (pour `DomainError`, que §8 impose),
+ * et ses specs `vitest`. Poser la règle ne coûte donc aucune correction.
+ */
+describe('domaine sans dependance externe, tenu par ESLint', () => {
+  const EXTERNE = 'boundaries/external';
+
+  async function domaineImporte(cible: string, fichier = 'domain/sonde.ts'): Promise<readonly string[]> {
+    return reglesDeclenchees(
+      `import * as cible from '${cible}';\nexport const sonde = cible;\n`,
+      `packages/module-quiz/src/${fichier}`,
+    );
+  }
+
+  it('refuse un cadriciel dans le domaine', async () => {
+    expect(await domaineImporte('@nestjs/common')).toContain(EXTERNE);
+  });
+
+  it('refuse le client de base dans le domaine', async () => {
+    expect(await domaineImporte('@prisma/client')).toContain(EXTERNE);
+  });
+
+  /** Zod valide aux frontières (§8), le domaine porte des règles, pas des schémas. */
+  it('refuse zod dans le domaine', async () => {
+    expect(await domaineImporte('zod')).toContain(EXTERNE);
+  });
+
+  it('laisse le domaine heriter de DomainError du noyau', async () => {
+    expect(await domaineImporte('@quetzal/core')).not.toContain(EXTERNE);
+    expect(await domaineImporte('@quetzal/core/errors')).not.toContain(EXTERNE);
+  });
+
+  it('laisse une spec du domaine importer son outil de test', async () => {
+    expect(await domaineImporte('vitest', 'domain/sonde.spec.ts')).not.toContain(EXTERNE);
+  });
+
+  /**
+   * La portée, dite par un test : l'application importe `@nestjs/common` pour
+   * ses `@Injectable` (13 imports au 13/11). Ce n'est pas l'objet de cette
+   * règle, et l'interdire casserait tout le câblage Nest.
+   */
+  it('ne juge pas les dependances externes de l application', async () => {
+    expect(await domaineImporte('@nestjs/common', 'application/sonde.ts')).not.toContain(EXTERNE);
+  });
+});
