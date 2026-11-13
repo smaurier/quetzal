@@ -47,41 +47,54 @@ function apres(...evenements: Parameters<typeof reduireQuiz>[1][]): EtatQuiz {
 }
 
 describe('echeanceLocale', () => {
-  it('ne donne aucune echeance en mode controle', () => {
-    expect(echeanceLocale(question({ deadlineAt: null, timeLimitResolved: null }), 1_000, 'ouverture')).toBeNull();
+  it('ne donne aucune echeance sans temps restant, en mode controle', () => {
+    expect(echeanceLocale(1_000, null)).toBeNull();
   });
 
-  /**
-   * ⛔ D8 : c'est CE navigateur qui ferme la question a zero. Caler le zero sur
-   * `deadlineAt` lu avec l'horloge locale fermerait trop TOT un navigateur dont
-   * l'horloge avance : la question serait close avant l'echeance, et des eleves
-   * perdraient leur temps de reponse. La reception de `question-opened` suit
-   * l'ouverture en base, donc reception + delai ne tombe jamais avant
-   * l'echeance du serveur ; un retard de livraison est sans danger, le serveur
-   * borne la fermeture a `deadlineAt`.
-   */
-  it('a l ouverture, compte le delai depuis la reception, jamais depuis l horloge du serveur', () => {
-    const horlogeEnAvance = question({ timeLimitResolved: 20, deadlineAt: new Date(5_000).toISOString() });
+  it('place le zero a la reception plus le temps restant', () => {
+    expect(echeanceLocale(100_000, 18_000)).toBe(118_000);
+  });
+});
 
-    expect(echeanceLocale(horlogeEnAvance, 100_000, 'ouverture')).toBe(120_000);
+/**
+ * ⛔ D8 : c'est CE navigateur qui ferme la question a zero. `deadlineAt` est
+ * un instant de l'horloge du SERVEUR : le comparer a `Date.now()` fermerait
+ * trop tot un navigateur dont l'horloge avance, pour toute la classe. Le zero
+ * ne se calcule donc QUE depuis des durees : le delai a l'ouverture, le temps
+ * restant mesure par le serveur a une reprise.
+ */
+describe('reduireQuiz, echeance du decompte', () => {
+  it('a l ouverture, compte le delai depuis la reception, quel que soit deadlineAt', () => {
+    const etat = apres({
+      type: 'question-opened',
+      payload: question({ timeLimitResolved: 20, deadlineAt: new Date(5_000).toISOString() }),
+      recuA: 100_000,
+    });
+
+    expect(etat.question?.echeanceMs).toBe(120_000);
   });
 
-  it('a une reprise, se cale sur l echeance du serveur', () => {
-    const q = question({ timeLimitResolved: 20, deadlineAt: new Date(110_000).toISOString() });
+  it('a une reprise, une horloge en avance de vingt secondes ne change pas l echeance', () => {
+    const recuA = 100_000;
+    const vueParUneHorlogeEnAvance = question({ deadlineAt: new Date(recuA - 2_000).toISOString() });
 
-    expect(echeanceLocale(q, 100_000, 'reprise')).toBe(110_000);
+    const etat = apres({
+      type: 'state',
+      payload: { session: session(), participantId: null, question: vueParUneHorlogeEnAvance, restantMs: 18_000 },
+      recuA,
+    });
+
+    expect(etat.question?.echeanceMs).toBe(118_000);
   });
 
-  it('a une reprise, ne place jamais l echeance avant la reception', () => {
-    const depassee = question({ timeLimitResolved: 20, deadlineAt: new Date(50_000).toISOString() });
+  it('n a aucune echeance en mode controle', () => {
+    const etat = apres({
+      type: 'question-opened',
+      payload: question({ timeLimitResolved: null, deadlineAt: null }),
+      recuA: 100_000,
+    });
 
-    expect(echeanceLocale(depassee, 100_000, 'reprise')).toBe(100_000);
-  });
-
-  it('a une reprise, ne place jamais l echeance au-dela d un delai entier', () => {
-    const horlogeEnRetard = question({ timeLimitResolved: 20, deadlineAt: new Date(900_000).toISOString() });
-
-    expect(echeanceLocale(horlogeEnRetard, 100_000, 'reprise')).toBe(120_000);
+    expect(etat.question?.echeanceMs).toBeNull();
   });
 });
 
@@ -89,7 +102,7 @@ describe('reduireQuiz', () => {
   it('prend l etat complet envoye a chaque connexion', () => {
     const etat = apres({
       type: 'state',
-      payload: { session: session(), participantId: null, question: question() },
+      payload: { session: session(), participantId: null, question: question(), restantMs: 20_000 },
       recuA: 100_000,
     });
 
@@ -100,7 +113,7 @@ describe('reduireQuiz', () => {
 
   it('remplace la seance a chaque session-changed, sans toucher la question ouverte', () => {
     const etat = apres(
-      { type: 'state', payload: { session: session(), participantId: null, question: question() }, recuA: 100_000 },
+      { type: 'state', payload: { session: session(), participantId: null, question: question(), restantMs: 20_000 }, recuA: 100_000 },
       { type: 'session-changed', payload: session({ participants: [{ id: 'p1', participantIndex: 1, name: null, score: 1200, memberNames: ['Ana'] }] }) });
 
     expect(etat.session?.participants[0]?.score).toBe(1200);
@@ -113,7 +126,7 @@ describe('reduireQuiz', () => {
 
   it('ouvre une question, et efface la correction et la reponse de la precedente', () => {
     const etat = apres(
-      { type: 'state', payload: { session: session(), participantId: 'p1', question: question() }, recuA: 0 },
+      { type: 'state', payload: { session: session(), participantId: 'p1', question: question(), restantMs: 20_000 }, recuA: 0 },
       { type: 'answer-result', payload: { isCorrect: true, points: 1100, dansLaGrace: false } },
       { type: 'question-closed', payload: { sessionQuestionId: 'q1', answerCount: 2, correctCount: 1 } },
       { type: 'question-opened', payload: question({ sessionQuestionId: 'q2', rank: 2 }), recuA: 200_000 });
@@ -161,7 +174,7 @@ describe('reduireQuiz', () => {
   /** `session-finished` ne porte que le podium : aucun `session-changed` ne le suit. */
   it('termine la seance a la reception du podium', () => {
     const etat = apres(
-      { type: 'state', payload: { session: session(), participantId: null, question: question() }, recuA: 0 },
+      { type: 'state', payload: { session: session(), participantId: null, question: question(), restantMs: 20_000 }, recuA: 0 },
       { type: 'session-finished', payload: { questionCount: 3, classement: [{ participantId: 'p1', label: 'Ana', score: 2100 }] } });
 
     expect(etat.session?.status).toBe('terminee');
