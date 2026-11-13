@@ -87,6 +87,19 @@ export const renameParticipantSchema = z.object({
  */
 export const guestDisplayNameSchema = z.string().trim().min(1).max(32);
 
+/**
+ * Le seul message entrant du module. Le participant n'y est PAS : il vient de
+ * l'identité du socket, sinon un invité répondrait au nom d'un autre.
+ * `sessionQuestionId` est obligatoire : une réponse de grâce pour N serait
+ * sinon jugée sur N+1. `value` non nettoyée (la normalisation est au domaine),
+ * bornée par `Quiz_Answer.value` (`VarChar(160)`).
+ */
+export const answerMessageSchema = z.object({
+  sessionQuestionId: z.string().min(1),
+  optionId: z.string().min(1).optional(),
+  value: z.string().max(160).optional(),
+});
+
 export type CreateBankBody = z.infer<typeof createBankSchema>;
 export type RenameBankBody = z.infer<typeof renameBankSchema>;
 export type AddQuestionBody = z.infer<typeof addQuestionSchema>;

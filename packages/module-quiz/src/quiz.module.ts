@@ -1,8 +1,10 @@
 import { Module } from '@nestjs/common';
 import { eventBus } from '@quetzal/core';
 import { PrismaCardImageStore } from '@quetzal/core/images';
+import { AnswerQuestionUseCase } from './application/answer-question.use-case.js';
 import { FinishSessionUseCase } from './application/finish-session.use-case.js';
 import { ManageBankUseCase } from './application/manage-bank.use-case.js';
+import { JoinSessionUseCase } from './application/join-session.use-case.js';
 import { ManageSessionUseCase } from './application/manage-session.use-case.js';
 import { RunQuestionUseCase, type Horloge } from './application/run-question.use-case.js';
 import { SessionReportUseCase } from './application/session-report.use-case.js';
@@ -12,6 +14,8 @@ import { PrismaQuestionBankRepository } from './infrastructure/prisma-question-b
 import { PrismaSessionRepository } from './infrastructure/prisma-session.repository.js';
 import { BankController } from './presentation/bank.controller.js';
 import { QuizImageController, QUIZ_IMAGE_STORE } from './presentation/image.controller.js';
+import { QuizBroadcaster } from './presentation/quiz.broadcaster.js';
+import { QuizGateway } from './presentation/quiz.gateway.js';
 import { SessionController } from './presentation/session.controller.js';
 
 const BANKS = 'QuizQuestionBankRepository';
@@ -45,6 +49,17 @@ const horlogeMurale: Horloge = () => Date.now();
       inject: [QUIZ_SESSIONS, HORLOGE],
     },
     {
+      provide: JoinSessionUseCase,
+      useFactory: (sessions: SessionRepository) => new JoinSessionUseCase(sessions),
+      inject: [QUIZ_SESSIONS],
+    },
+    {
+      provide: AnswerQuestionUseCase,
+      useFactory: (sessions: SessionRepository, maintenant: Horloge) =>
+        new AnswerQuestionUseCase(sessions, maintenant, eventBus),
+      inject: [QUIZ_SESSIONS, HORLOGE],
+    },
+    {
       provide: FinishSessionUseCase,
       useFactory: (sessions: SessionRepository, maintenant: Horloge) =>
         new FinishSessionUseCase(sessions, maintenant, eventBus),
@@ -55,6 +70,8 @@ const horlogeMurale: Horloge = () => Date.now();
       useFactory: (sessions: SessionRepository) => new SessionReportUseCase(sessions),
       inject: [QUIZ_SESSIONS],
     },
+    QuizBroadcaster,
+    QuizGateway,
   ],
 })
 export class QuizModule {}

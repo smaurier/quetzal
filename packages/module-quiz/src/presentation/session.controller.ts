@@ -15,6 +15,7 @@ import { FinishSessionUseCase } from '../application/finish-session.use-case.js'
 import { ManageSessionUseCase } from '../application/manage-session.use-case.js';
 import { RunQuestionUseCase } from '../application/run-question.use-case.js';
 import { SessionReportUseCase } from '../application/session-report.use-case.js';
+import { QuizBroadcaster } from './quiz.broadcaster.js';
 import { createSessionSchema, renameParticipantSchema } from './dto/quiz.dto.js';
 import { SessionErrorsFilter } from './session-errors.filter.js';
 
@@ -32,7 +33,8 @@ export class SessionController {
     @Inject(ManageSessionUseCase) private readonly sessions: ManageSessionUseCase,
     @Inject(RunQuestionUseCase) private readonly questions: RunQuestionUseCase,
     @Inject(FinishSessionUseCase) private readonly finish: FinishSessionUseCase,
-    @Inject(SessionReportUseCase) private readonly report: SessionReportUseCase) {}
+    @Inject(SessionReportUseCase) private readonly report: SessionReportUseCase,
+    @Inject(QuizBroadcaster) private readonly broadcaster: QuizBroadcaster) {}
 
   @Get()
   async list() {
@@ -74,29 +76,37 @@ export class SessionController {
   @Post(':id/open')
   async open(@Param('id') id: string) {
     await this.sessions.open({ sessionId: id });
+    await this.broadcaster.sessionChanged(id);
     return { ok: true };
   }
 
   @Post(':id/start')
   async start(@Param('id') id: string) {
     await this.sessions.start({ sessionId: id });
+    await this.broadcaster.sessionChanged(id);
     return { ok: true };
   }
 
   @Post(':id/questions/next')
   async next(@Param('id') id: string) {
     const ouverte = await this.questions.openNext({ sessionId: id });
+    // APRÈS l'écriture : un élève qui recevrait la question avant qu'elle soit
+    // ouverte en base verrait sa réponse refusée.
+    await this.broadcaster.questionOpened(id, ouverte);
     return { rank: ouverte.rank, deadlineAt: ouverte.deadlineAt };
   }
 
   @Post(':id/questions/close')
   async close(@Param('id') id: string) {
-    return this.questions.close({ sessionId: id });
+    const resultat = await this.questions.close({ sessionId: id });
+    await this.broadcaster.questionClosed(id, resultat);
+    return resultat;
   }
 
   @Post(':id/finish')
   async finishSession(@Param('id') id: string) {
     await this.finish.execute({ sessionId: id });
+    await this.broadcaster.sessionFinished(id);
     return { ok: true };
   }
 
@@ -108,6 +118,7 @@ export class SessionController {
     const parsed = renameParticipantSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
     await this.sessions.rename({ sessionId: id, participantId, name: parsed.data.name });
+    await this.broadcaster.sessionChanged(id);
     return { ok: true };
   }
 
@@ -116,6 +127,7 @@ export class SessionController {
     // Terminer, et non supprimer : une séance jouée porte un retour qu'Elda
     // peut vouloir relire. La suppression serait une autre décision.
     await this.finish.execute({ sessionId: id });
+    await this.broadcaster.sessionFinished(id);
     return { ok: true };
   }
 }
