@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { SessionNotFoundError } from '../domain/errors.js';
 import type { NewAnswer } from '../domain/ports/session.repository.js';
-import { SessionReportUseCase } from './session-report.use-case.js';
+import { SessionReportUseCase, construireClassement } from './session-report.use-case.js';
 import { FakeSessionRepository, frozenQuestionOf, sessionOf } from './testing/fake-repositories.js';
 
 const T0 = 1_700_000_000_000;
@@ -113,15 +113,13 @@ describe('SessionReportUseCase', () => {
     expect(rapport.classement.map((l) => l.participantId)).toEqual(['a', 'z']);
   });
 
-  it('departage deux labels identiques par le numero d arrivee, jamais par le hasard', async () => {
-    const { useCase } = classementDe([
-      { id: 'tard', index: 2, name: 'Lynx', score: 500 },
-      { id: 'tot', index: 1, name: 'Lynx', score: 500 },
-    ]);
+  it('departage deux labels identiques par le numero d arrivee, jamais par l ordre recu', () => {
+    const participant = (id: string, participantIndex: number) =>
+      ({ id, participantIndex, name: 'Lynx', score: 500, memberNames: ['m'] });
 
-    const rapport = await useCase.execute({ sessionId: 'session-1' });
+    const classement = construireClassement([participant('tard', 2), participant('tot', 1)], [], []);
 
-    expect(rapport.classement.map((l) => l.participantId)).toEqual(['tot', 'tard']);
+    expect(classement.map((l) => l.participantId)).toEqual(['tot', 'tard']);
   });
 
   /**

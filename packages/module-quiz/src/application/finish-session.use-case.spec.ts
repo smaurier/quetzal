@@ -122,6 +122,37 @@ describe('FinishSessionUseCase', () => {
     expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 90_000);
   });
 
+  /**
+   * Fermer et terminer sont deux ecritures du port, non atomiques. L'ordre est
+   * ce qui les rend reparables : un echec a la fermeture laisse la seance
+   * `en-cours`, et relancer termine. L'ordre inverse laisserait une seance
+   * terminee a question ouverte, que la machine d'etats refuse de rouvrir.
+   */
+  it('reste en cours si la fermeture echoue, et relancer termine', async () => {
+    class FermetureEnPanne extends FakeSessionRepository {
+      panne = true;
+      override async closeQuestion(input: { sessionQuestionId: string; closedAt: Date }): Promise<void> {
+        if (this.panne) throw new Error('panne simulee');
+        await super.closeQuestion(input);
+      }
+    }
+    const sessions = new FermetureEnPanne();
+    const useCase = new FinishSessionUseCase(sessions, () => T0 + 5_000);
+    sessions.add(sessionOf({
+      status: 'en-cours',
+      questions: [frozenQuestionOf(1, { openedAt: new Date(T0) })],
+    }));
+
+    await expect(useCase.execute({ sessionId: 'session-1' })).rejects.toThrow('panne simulee');
+    expect((await sessions.findById('session-1'))?.status).toBe('en-cours');
+
+    sessions.panne = false;
+    await useCase.execute({ sessionId: 'session-1' });
+    const lue = await sessions.findById('session-1');
+    expect(lue?.status).toBe('terminee');
+    expect(lue?.questions[0]?.closedAt?.getTime()).toBe(T0 + 5_000);
+  });
+
   it('ne touche pas une question deja fermee ni une question jamais ouverte', async () => {
     const { sessions, useCase } = build(T0 + 90_000);
     sessions.add(sessionOf({
