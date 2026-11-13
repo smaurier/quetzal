@@ -109,6 +109,25 @@ describe('RunQuestionUseCase, ouverture', () => {
     expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 5);
   });
 
+  it('ouvre les questions dans l ordre des rangs, pas la derniere restante', async () => {
+    const { sessions, useCase } = build();
+    sessions.add(sessionOf({
+      status: 'en-cours',
+      questions: [
+        frozenQuestionOf(1, { openedAt: new Date(T0), closedAt: new Date(T0 + 5) }),
+        frozenQuestionOf(2),
+        frozenQuestionOf(3),
+      ],
+    }));
+
+    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+
+    const lue = await sessions.findById('session-1');
+    expect(ouverte.rank).toBe(2);
+    expect(lue?.questions[1]?.openedAt).not.toBeNull();
+    expect(lue?.questions[2]?.openedAt).toBeNull();
+  });
+
   it('calcule l echeance de la suivante depuis SON ouverture et SON delai fige', async () => {
     const { sessions, useCase, avancerDe } = build();
     sessions.add(sessionOf({
