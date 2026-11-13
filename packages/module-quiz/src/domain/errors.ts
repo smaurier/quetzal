@@ -19,3 +19,96 @@ export class InvalidQuestionShapeError extends DomainError {
     super(`Forme de question invalide en mode ${mode} : ${raison}`);
   }
 }
+
+export class SessionNotFoundError extends DomainError {
+  constructor(sessionId: string) {
+    super(`Séance introuvable : ${sessionId}`);
+  }
+}
+
+/** La transition demandée, nommée : « invalide » seul n'aide personne. */
+export class InvalidSessionTransitionError extends DomainError {
+  constructor(depuis: string, vers: string) {
+    super(`Transition de séance refusée : ${depuis} vers ${vers}`);
+  }
+}
+
+export class SessionClosedToJoinError extends DomainError {
+  constructor(statut: string) {
+    super(`On ne rejoint pas une séance dans l'état ${statut}`);
+  }
+}
+
+export class SessionFullError extends DomainError {
+  constructor(maxParticipants: number) {
+    super(`Séance complète : ${maxParticipants} participants`);
+  }
+}
+
+export class NoQuestionOpenError extends DomainError {
+  constructor(sessionId: string) {
+    super(`Aucune question ouverte sur la séance ${sessionId}`);
+  }
+}
+
+export class NoQuestionLeftError extends DomainError {
+  constructor(sessionId: string) {
+    super(`Plus aucune question à ouvrir sur la séance ${sessionId}`);
+  }
+}
+
+export class AnswerTooLateError extends DomainError {
+  constructor(raison: string) {
+    super(`Réponse refusée : ${raison}`);
+  }
+}
+
+export class AlreadyAnsweredError extends DomainError {
+  constructor(participantId: string) {
+    super(`Le participant ${participantId} a déjà répondu à cette question`);
+  }
+}
+
+export class TimeLimitUnresolvableError extends DomainError {
+  constructor(rank: number, raison: string) {
+    super(`Délai impossible à résoudre pour la question ${String(rank)} : ${raison}`);
+  }
+}
+
+export class JoinCodeAlreadyUsedError extends DomainError {
+  constructor(joinCode: string) {
+    super(`Le code de séance ${joinCode} est déjà utilisé`);
+  }
+}
+
+export class ParticipantIndexTakenError extends DomainError {
+  constructor(participantIndex: number) {
+    super(`L'index de participant ${String(participantIndex)} est déjà pris dans cette séance`);
+  }
+}
+
+export class ParticipantNotFoundError extends DomainError {
+  constructor(participantId: string) {
+    super(`Participant introuvable : ${participantId}`);
+  }
+}
+
+/** Distincte de `BankNotFoundError` : la seance existe, c'est sa banque qui n'existe plus. */
+export class SessionBankDeletedError extends DomainError {
+  constructor(sessionId: string) {
+    super(`La banque de la seance ${sessionId} a ete supprimee : plus rien a figer`);
+  }
+}
+
+export class EmptyBankError extends DomainError {
+  constructor(bankId: string) {
+    super(`La banque ${bankId} ne contient aucune question`);
+  }
+}
+
+/** Une réponse qui ne désigne rien sur la question visée : refusée, jamais comptée fausse. */
+export class InvalidAnswerError extends DomainError {
+  constructor(raison: string) {
+    super(`Réponse irrecevable : ${raison}`);
+  }
+}
