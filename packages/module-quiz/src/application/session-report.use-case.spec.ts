@@ -232,7 +232,7 @@ describe('SessionReportUseCase', () => {
    * Une question figee mais jamais ouverte n'a pas « echoue » : la compter
    * ferait baisser tous les taux et gonflerait chaque absence.
    */
-  it('ignore une question figee jamais ouverte', async () => {
+  it('ignore une question figee jamais ouverte, et toute reponse qui lui serait rattachee', async () => {
     const sessions = new FakeSessionRepository();
     const jouee = frozenQuestionOf(1, { openedAt: new Date(T0), closedAt: new Date(T0 + 1) });
     const jamais = frozenQuestionOf(2);
@@ -241,13 +241,15 @@ describe('SessionReportUseCase', () => {
       questions: [jouee, jamais],
       participants: [{ id: 'p-1', participantIndex: 1, name: null, score: 0, memberNames: ['Ana'] }],
     }));
+    sessions.poserReponse(reponse(jamais.id, 'p-1', 'g-1', false, 100, 0));
     const useCase = new SessionReportUseCase(sessions);
 
     const rapport = await useCase.execute({ sessionId: 'session-1' });
 
     expect(rapport.questions.map((q) => q.rank)).toEqual([1]);
+    expect(rapport.questions[0]).toMatchObject({ answerCount: 0, correctCount: 0 });
     expect(rapport.questionCount).toBe(1);
-    expect(rapport.classement[0]?.missingCount).toBe(1);
+    expect(rapport.classement[0]).toMatchObject({ correctCount: 0, wrongCount: 0, missingCount: 1 });
   });
 
   /**
