@@ -17,6 +17,7 @@ import {
   ParticipantIndexTakenError,
   ParticipantNotFoundError,
   EmptyBankError,
+  InvalidAnswerError,
 } from './errors';
 
 /**
@@ -43,6 +44,7 @@ describe('erreurs du domaine quiz', () => {
     new ParticipantIndexTakenError(3),
     new ParticipantNotFoundError('p-1'),
     new EmptyBankError('b-1'),
+    new InvalidAnswerError('proposition etrangere a la question'),
   ];
 
   it('heritent toutes de DomainError', () => {
