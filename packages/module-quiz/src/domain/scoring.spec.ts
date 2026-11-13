@@ -25,6 +25,15 @@ describe('pointsPour, mode controle', () => {
   it('ignore completement le temps, meme enorme', () => {
     expect(pointsPour(controle, { isCorrect: true, arriveeMs: 9_000_000 })).toBe(1);
   });
+
+  /**
+   * Une seance mal figee pourrait porter une echeance en mode controle. Le
+   * score ne doit pas pour autant compter le temps, c'est le mode qui decide.
+   */
+  it('ignore le temps meme si une echeance est presente', () => {
+    const figeeParErreur = { mode: 'controle' as const, openedAt: 0, deadlineAt: 20_000 };
+    expect(pointsPour(figeeParErreur, { isCorrect: true, arriveeMs: 0 })).toBe(1);
+  });
 });
 
 describe('pointsPour, mode defi', () => {
