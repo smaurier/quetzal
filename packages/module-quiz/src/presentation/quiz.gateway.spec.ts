@@ -326,6 +326,28 @@ describe('QuizGateway, connexion', () => {
     expect(salles).toEqual([salle]);
   });
 
+  // ⛔ Une DUREE et non l'echeance : l'ecran ne compare plus l'horloge du
+  // serveur a la sienne (une horloge en avance fermerait trop tot).
+  it('donne dans l etat le temps restant de la question ouverte, a l horloge du serveur', async () => {
+    const { sessions, passerelle } = monter({ maintenant: T0 + 2_000 });
+    await seanceEnCours(sessions);
+    const { socket, emis } = fauxSocket({ role: 'owner', userId: 'u-1' }, { sessionId: 'session-1' });
+
+    await passerelle.handleConnection(socket);
+
+    expect(emis.find((e) => e.event === 'state')?.payload).toMatchObject({ restantMs: 18_000 });
+  });
+
+  it('donne un temps restant nul quand aucune question n est ouverte', async () => {
+    const { sessions, passerelle } = monter();
+    sessions.add(sessionOf({ status: 'ouverte' }));
+    const { socket, emis } = fauxSocket({ role: 'owner', userId: 'u-1' }, { sessionId: 'session-1' });
+
+    await passerelle.handleConnection(socket);
+
+    expect(emis.find((e) => e.event === 'state')?.payload).toMatchObject({ question: null, restantMs: null });
+  });
+
   it('donne le code d entree dans l etat, comme session-changed', async () => {
     const { sessions, passerelle } = monter();
     sessions.add(sessionOf({ status: 'ouverte' }));
