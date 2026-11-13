@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SessionNotFoundError } from '../domain/errors.js';
+import { labelDuParticipant } from '../domain/participant-label.js';
 import type {
   AnswerRow,
   FrozenQuestion,
@@ -41,20 +42,6 @@ export interface RapportDeSeance {
   participantCount: number;
   questions: readonly QuestionDuRapport[];
   classement: readonly LigneDeClassement[];
-}
-
-/**
- * Le nom d'affichage d'un participant. Un nom choisi gagne ; sinon un membre
- * unique prête le sien, et au-delà c'est le numéro.
- *
- * Même décision que `teamNameFor` du loto (issue #29) : `null` est le cas
- * normal, pas un cas dégradé.
- */
-export function labelDuParticipant(participant: Participant): string {
-  const choisi = participant.name?.trim();
-  if (choisi !== undefined && choisi !== '') return choisi;
-  if (participant.memberNames.length === 1) return participant.memberNames[0] ?? '';
-  return String(participant.participantIndex);
 }
 
 /** Seules les questions JOUÉES comptent : une question figée mais jamais ouverte n'a pas « échoué ». */
