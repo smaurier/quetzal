@@ -7,7 +7,7 @@ import type {
   SessionRepository,
 } from '../../domain/ports/session.repository.js';
 import type { SessionStatus } from '../../domain/session-status.js';
-import { JoinCodeAlreadyUsedError } from '../../domain/errors.js';
+import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError } from '../../domain/errors.js';
 import type {
   Bank,
   BankSummary,
@@ -197,10 +197,29 @@ export function sessionOf(overrides: Partial<Session> = {}): Session {
  */
 export class FakeSessionRepository implements SessionRepository {
   private readonly sessions = new Map<string, Session>();
-  readonly answers: AnswerRow[] = [];
+  private readonly answers: AnswerRow[] = [];
+  private readonly membres = new Map<string, Map<string, string>>();
 
   add(session: Session): void {
-    this.sessions.set(session.id, session);
+    this.sessions.set(session.id, structuredClone(session));
+  }
+
+  private participantRendu(participant: Participant): Participant {
+    const membres = this.membres.get(participant.id);
+    return {
+      ...structuredClone(participant),
+      memberNames: membres === undefined ? [...participant.memberNames] : [...membres.values()],
+    };
+  }
+
+  private rendre(session: Session): Session {
+    return {
+      ...structuredClone({ ...session, participants: [], questions: [] }),
+      questions: structuredClone([...session.questions].sort((a, b) => a.rank - b.rank)),
+      participants: [...session.participants]
+        .sort((a, b) => a.participantIndex - b.participantIndex)
+        .map((p) => this.participantRendu(p)),
+    };
   }
 
   private muter(sessionId: string, patch: (session: Session) => Session): void {
@@ -242,19 +261,21 @@ export class FakeSessionRepository implements SessionRepository {
       participants: [],
     });
     this.sessions.set(session.id, session);
-    return session;
+    return this.rendre(session);
   }
 
   async findById(sessionId: string): Promise<Session | null> {
-    return this.sessions.get(sessionId) ?? null;
+    const session = this.sessions.get(sessionId);
+    return session === undefined ? null : this.rendre(session);
   }
 
   async findByJoinCode(joinCode: string): Promise<Session | null> {
-    return [...this.sessions.values()].find((s) => s.joinCode === joinCode) ?? null;
+    const session = [...this.sessions.values()].find((s) => s.joinCode === joinCode);
+    return session === undefined ? null : this.rendre(session);
   }
 
   async list(): Promise<readonly Session[]> {
-    return [...this.sessions.values()];
+    return [...this.sessions.values()].map((s) => this.rendre(s));
   }
 
   async setStatus(sessionId: string, status: SessionStatus): Promise<void> {
@@ -266,7 +287,7 @@ export class FakeSessionRepository implements SessionRepository {
     questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void> {
     this.muter(sessionId, (session) => ({
       ...session,
-      questions: questions.map((q) => ({ ...q, id: nextId('sq') })),
+      questions: structuredClone(questions).map((q) => ({ ...q, id: nextId('sq') })),
     }));
   }
 
@@ -281,7 +302,7 @@ export class FakeSessionRepository implements SessionRepository {
       ...session,
       questions: session.questions.map((q) =>
         q.id === input.sessionQuestionId
-          ? { ...q, openedAt: input.openedAt, deadlineAt: input.deadlineAt }
+          ? { ...q, openedAt: structuredClone(input.openedAt), deadlineAt: structuredClone(input.deadlineAt) }
           : q),
     }));
   }
@@ -292,11 +313,15 @@ export class FakeSessionRepository implements SessionRepository {
     this.muter(trouve.session.id, (session) => ({
       ...session,
       questions: session.questions.map((q) =>
-        q.id === input.sessionQuestionId ? { ...q, closedAt: input.closedAt } : q),
+        q.id === input.sessionQuestionId ? { ...q, closedAt: structuredClone(input.closedAt) } : q),
     }));
   }
 
   async addParticipant(input: { sessionId: string; participantIndex: number }): Promise<Participant> {
+    const existante = this.sessions.get(input.sessionId);
+    if (existante?.participants.some((p) => p.participantIndex === input.participantIndex) === true) {
+      throw new ParticipantIndexTakenError(input.participantIndex);
+    }
     const participant: Participant = {
       id: nextId('participant'),
       participantIndex: input.participantIndex,
@@ -308,37 +333,17 @@ export class FakeSessionRepository implements SessionRepository {
       ...session,
       participants: [...session.participants, participant],
     }));
-    return participant;
+    return this.participantRendu(participant);
   }
-
-  private readonly membres = new Map<string, Set<string>>();
 
   async addMember(input: {
     participantId: string;
     guestId: string;
     displayName: string;
   }): Promise<void> {
-    const deja = this.membres.get(input.participantId) ?? new Set<string>();
-    // Idempotent : une reconnexion ne doit pas creer un second membre.
-    deja.add(input.guestId);
-    this.membres.set(input.participantId, deja);
-
-    for (const session of this.sessions.values()) {
-      if (!session.participants.some((p) => p.id === input.participantId)) continue;
-      this.muter(session.id, (courante) => ({
-        ...courante,
-        participants: courante.participants.map((p) =>
-          p.id === input.participantId
-            ? {
-                ...p,
-                memberNames: p.memberNames.includes(input.displayName)
-                  ? p.memberNames
-                  : [...p.memberNames, input.displayName],
-              }
-            : p),
-      }));
-      return;
-    }
+    const membres = this.membres.get(input.participantId) ?? new Map<string, string>();
+    if (!membres.has(input.guestId)) membres.set(input.guestId, input.displayName);
+    this.membres.set(input.participantId, membres);
   }
 
   async findParticipantByGuest(input: {
@@ -348,7 +353,9 @@ export class FakeSessionRepository implements SessionRepository {
     const session = this.sessions.get(input.sessionId);
     if (session === undefined) return null;
     for (const participant of session.participants) {
-      if (this.membres.get(participant.id)?.has(input.guestId) === true) return participant;
+      if (this.membres.get(participant.id)?.has(input.guestId) === true) {
+        return this.participantRendu(participant);
+      }
     }
     return null;
   }
@@ -377,7 +384,7 @@ export class FakeSessionRepository implements SessionRepository {
 
     const ligne: AnswerRow = { ...answer, id: nextId('answer') };
     this.answers.push(ligne);
-    return ligne;
+    return { ...ligne };
   }
 
   async addToScore(input: { participantId: string; points: number }): Promise<void> {
@@ -393,13 +400,13 @@ export class FakeSessionRepository implements SessionRepository {
   }
 
   async answersFor(sessionQuestionId: string): Promise<readonly AnswerRow[]> {
-    return this.answers.filter((a) => a.sessionQuestionId === sessionQuestionId);
+    return this.answers.filter((a) => a.sessionQuestionId === sessionQuestionId).map((a) => ({ ...a }));
   }
 
   async allAnswers(sessionId: string): Promise<readonly AnswerRow[]> {
     const session = this.sessions.get(sessionId);
     if (session === undefined) return [];
     const ids = new Set(session.questions.map((q) => q.id));
-    return this.answers.filter((a) => ids.has(a.sessionQuestionId));
+    return this.answers.filter((a) => ids.has(a.sessionQuestionId)).map((a) => ({ ...a }));
   }
 }

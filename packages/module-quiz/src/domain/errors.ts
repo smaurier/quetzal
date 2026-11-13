@@ -74,3 +74,9 @@ export class JoinCodeAlreadyUsedError extends DomainError {
     super(`Le code de séance ${joinCode} est déjà utilisé`);
   }
 }
+
+export class ParticipantIndexTakenError extends DomainError {
+  constructor(participantIndex: number) {
+    super(`L'index de participant ${String(participantIndex)} est déjà pris dans cette séance`);
+  }
+}
