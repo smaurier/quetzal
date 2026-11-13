@@ -5,6 +5,8 @@ import { TenantContextMissingError } from '../errors.js';
 export interface TenantExecutionContext {
   tenantId: string;
   userId?: string;
+  /** Nom affichable de l'utilisateur, posé par la plateforme (#91). Jamais pour un invité. */
+  userName?: string;
   role?: QuetzalRole;
   locale?: Locale;
   requestId: string;

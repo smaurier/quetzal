@@ -7,6 +7,7 @@ import { rootPrisma, newId } from '@quetzal/db';
 import { createSessionCreateHook } from './session-hooks.js';
 import { auditConnexion, auditInscription, type LigneAudit } from './audit-auth.js';
 import { originesDeConfiance, urlDeBase } from './origines-de-confiance.js';
+import { jwtPayload } from './jwt-payload';
 
 const statements = {
   ...defaultStatements,
@@ -122,16 +123,11 @@ export const auth = betterAuth({
       jwks: { keyPairConfig: { alg: 'RS256' } },
       jwt: {
         expirationTime: '1h',
-        definePayload: ({ session, user }) => {
-          const activeOrgId =
-            (session as { activeOrganizationId?: string }).activeOrganizationId ?? null;
-          const locale = (user as { locale?: string }).locale ?? 'fr';
-          return {
-            userId: user.id,
-            tenantId: activeOrgId,
-            locale,
-          };
-        },
+        definePayload: ({ session, user }) =>
+          jwtPayload({
+            session: session as { activeOrganizationId?: string | null },
+            user: user as { id: string; name?: string | null; locale?: string | null },
+          }),
       },
     }) as unknown as BetterAuthPlugin,
   ],

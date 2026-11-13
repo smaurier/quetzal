@@ -19,7 +19,10 @@ test('Elda logs in, sees Hello in sidebar, greets, pings', async ({ page }) => {
   await page.getByRole('link', { name: /hello|hola/i }).click();
 
   await page.getByRole('button', { name: /greet|saluer|saludar/i }).click();
-  await expect(page.getByTestId('greet-result')).toContainText('Hello');
+  // #91 : le nom vient du jeton signe par Better-Auth, plus de la table User.
+  // `Hello` seul passerait aussi avec `Hello Anonymous`, c est-a-dire avec un
+  // nom perdu en route : le nom seme (`packages/auth/scripts/seed.ts`) est exige.
+  await expect(page.getByTestId('greet-result')).toContainText('Hello Elda');
 
   await page.getByRole('button', { name: /^ping$/i }).click();
   await expect(page.getByTestId('ping-result')).toContainText(/latency/i);

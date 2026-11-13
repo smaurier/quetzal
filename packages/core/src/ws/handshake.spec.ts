@@ -18,7 +18,7 @@ const closedPolicy = { moduleSlug: 'hello', allowGuests: false };
 describe('resolveSocketIdentity', () => {
   it('identifies a signed-in user from auth.token', async () => {
     const id = await resolveSocketIdentity({ token: 'jwt' }, openPolicy, verifiers());
-    expect(id).toEqual({ role: 'owner', userId: 'u1', tenantId: 't1', locale: 'fr' });
+    expect(id).toEqual({ role: 'owner', userId: 'u1', tenantId: 't1', locale: 'fr', userName: 'Elda' });
   });
 
   it('identifies a guest from auth.guestToken when the module allows guests', async () => {

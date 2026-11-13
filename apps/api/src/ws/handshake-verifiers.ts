@@ -2,6 +2,7 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { verifyGuestToken, type HandshakeVerifiers, type UserTokenClaims } from '@quetzal/core';
 import { rootPrisma } from '@quetzal/db';
 import { jwksUrl } from '../auth/jwks-url.js';
+import { claimsFromPayload } from './claims-from-payload.js';
 
 let jwks: ReturnType<typeof createRemoteJWKSet> | null = null;
 
@@ -29,11 +30,8 @@ async function roleOf(userId: string, tenantId: string | null): Promise<string |
 export const handshakeVerifiers: HandshakeVerifiers = {
   async verifyUserToken(token: string): Promise<UserTokenClaims> {
     const { payload } = await jwtVerify(token, getJwks());
-    const userId = payload['userId'];
-    if (typeof userId !== 'string') throw new Error('payload without userId');
-    const tenantId = typeof payload['tenantId'] === 'string' ? payload['tenantId'] : null;
-    const locale = typeof payload['locale'] === 'string' ? payload['locale'] : undefined;
-    return { userId, tenantId, role: await roleOf(userId, tenantId), locale };
+    const claims = claimsFromPayload(payload);
+    return { ...claims, role: await roleOf(claims.userId, claims.tenantId) };
   },
   verifyGuestToken,
 };

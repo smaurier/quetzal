@@ -17,6 +17,7 @@ export class TenantMiddleware implements NestMiddleware {
         userId: auth.userId,
         ...(auth.role ? { role: auth.role as never } : {}),
         ...(auth.locale ? { locale: auth.locale as never } : {}),
+        ...(auth.name ? { userName: auth.name } : {}),
         requestId,
       },
       () => next(),
