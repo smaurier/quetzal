@@ -165,6 +165,22 @@ describe('JoinSessionUseCase', () => {
     expect(retour.participantId).toBe(premiere.participantId);
   });
 
+  /**
+   * ⛔ L'ecran de fin a besoin de l'identite de l'eleve pour lui montrer son
+   * resultat : une reconnexion aboutit meme sur une seance terminee. Une
+   * PREMIERE entree, elle, y reste refusee.
+   */
+  it('rend sa place a un invite deja present meme sur une seance terminee', async () => {
+    const { useCase, sessions } = build();
+    sessions.add(sessionOf({ status: 'ouverte', maxParticipants: 6, participants: [] }));
+    const premiere = await useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' });
+    await sessions.setStatus('session-1', 'terminee');
+
+    const retour = await useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' });
+
+    expect(retour).toEqual({ participantId: premiere.participantId, participantIndex: 1, retour: true });
+  });
+
   it('prend le rang le plus haut plus un, et non le nombre de participants', async () => {
     const { useCase, sessions } = build();
     // Un trou de rang : ce que laisse un participant retire a la main.

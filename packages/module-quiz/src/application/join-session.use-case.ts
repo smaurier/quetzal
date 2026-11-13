@@ -49,7 +49,8 @@ export class JoinSessionUseCase {
     // ⛔ La reconnexion est cherchée AVANT le plafond : un élève qui a déjà sa
     // place doit la retrouver même sur une séance pleine. L'ordre inverse
     // l'exclurait pour une coupure réseau, sur un wifi d'établissement peu
-    // fiable, le scénario de référence.
+    // fiable, le scénario de référence. Et AVANT le statut : l'écran de fin d'une
+    // séance terminée a besoin de l'identité de l'élève pour son résultat.
     const deja = await this.sessions.findParticipantByGuest({
       sessionId: session.id,
       guestId: input.guestId,
