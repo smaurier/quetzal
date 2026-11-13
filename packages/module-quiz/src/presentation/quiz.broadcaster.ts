@@ -1,10 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { logger, rooms } from '@quetzal/core';
 import type { Server } from 'socket.io';
-import { ManageSessionUseCase } from '../application/manage-session.use-case.js';
+import { ManageSessionUseCase, type VueDeSalle } from '../application/manage-session.use-case.js';
 import type { FermetureResultat } from '../application/run-question.use-case.js';
 import { SessionReportUseCase } from '../application/session-report.use-case.js';
-import type { FrozenQuestion, Participant, Session } from '../domain/ports/session.repository.js';
+import type { FrozenQuestion } from '../domain/ports/session.repository.js';
 
 /**
  * ⛔ LA CHARGE LA PLUS DANGEREUSE DU MODULE. Elle part vers les téléphones des
@@ -34,22 +34,25 @@ export function questionPourLaSalle(question: FrozenQuestion) {
 }
 
 /**
- * ⛔ Tant qu'une question est ouverte, la salle lit le score d'AVANT elle : un
- * score qui bouge dit qui a déjà répondu juste, donc sur qui copier. Les
- * points de la question ouverte sont ceux de ses réponses, retirés ici.
+ * ⛔ Ce que la salle et un invité lisent d'une séance. Tant qu'une question est
+ * ouverte, le score est celui d'AVANT elle (`scoresVisibles`) : un score qui
+ * bouge dit qui a déjà répondu juste, donc sur qui copier.
  */
-export function participantsPourLaSalle(
-  participants: readonly Participant[],
-  reponsesDeLaQuestionOuverte: readonly { participantId: string; points: number }[]) {
-  return participants.map((p) => ({
-    id: p.id,
-    participantIndex: p.participantIndex,
-    name: p.name,
-    score: p.score - reponsesDeLaQuestionOuverte
-      .filter((r) => r.participantId === p.id)
-      .reduce((total, r) => total + r.points, 0),
-    memberNames: p.memberNames,
-  }));
+export function etatPourLaSalle({ session, scoresVisibles }: VueDeSalle) {
+  return {
+    id: session.id,
+    status: session.status,
+    mode: session.mode,
+    joinCode: session.joinCode,
+    questionCount: session.questions.length,
+    participants: session.participants.map((p) => ({
+      id: p.id,
+      participantIndex: p.participantIndex,
+      name: p.name,
+      score: scoresVisibles.get(p.id) ?? 0,
+      memberNames: p.memberNames,
+    })),
+  };
 }
 
 /**
@@ -69,8 +72,9 @@ export class QuizBroadcaster {
 
   /**
    * Pas muet (issue #34 du loto : un `?.` avalait l'émission), mais ne lève
-   * pas : la commande HTTP est déjà persistée quand la diffusion part, échouer
-   * ici rendrait un 500 sur une opération réussie.
+   * jamais : la commande est déjà persistée quand la diffusion part. Lever
+   * rendrait un 500 sur une ouverture réussie (l'animatrice reclique, et
+   * « suivante » saute N+1), ou un refus derrière un résultat déjà envoyé.
    */
   private emit(room: string, event: string, payload: unknown): void {
     if (this.server === null) {
@@ -79,7 +83,15 @@ export class QuizBroadcaster {
         'quiz: diffusion demandée avant attachement du serveur');
       return;
     }
-    this.server.to(room).emit(event, payload);
+    try {
+      this.server.to(room).emit(event, payload);
+    } catch (err) {
+      this.journaliser(err, event, room);
+    }
+  }
+
+  private journaliser(err: unknown, event: string, room: string): void {
+    logger.error({ err, module: 'quiz', action: 'broadcast.failed', event, room }, 'quiz: diffusion en échec');
   }
 
   private room(sessionId: string): string {
@@ -90,25 +102,13 @@ export class QuizBroadcaster {
     return rooms.subgroup('quiz', sessionId, participantId);
   }
 
-  /** Les participants tels que la salle et un invité peuvent les lire. */
-  async participantsVisibles(session: Session) {
-    const ouverte = session.questions.find((q) => q.openedAt !== null && q.closedAt === null);
-    if (ouverte === undefined) return participantsPourLaSalle(session.participants, []);
-    const rapport = await this.report.execute({ sessionId: session.id });
-    const reponses = rapport.questions.find((q) => q.sessionQuestionId === ouverte.id)?.answers ?? [];
-    return participantsPourLaSalle(session.participants, reponses);
-  }
-
   async sessionChanged(sessionId: string): Promise<void> {
-    const session = await this.sessions.findOne({ sessionId });
-    this.emit(this.room(sessionId), 'session-changed', {
-      id: session.id,
-      status: session.status,
-      mode: session.mode,
-      joinCode: session.joinCode,
-      questionCount: session.questions.length,
-      participants: await this.participantsVisibles(session),
-    });
+    try {
+      const vue = await this.sessions.vueDeSalle({ sessionId });
+      this.emit(this.room(sessionId), 'session-changed', etatPourLaSalle(vue));
+    } catch (err) {
+      this.journaliser(err, 'session-changed', this.room(sessionId));
+    }
   }
 
   async questionOpened(sessionId: string, question: FrozenQuestion): Promise<void> {
@@ -126,15 +126,19 @@ export class QuizBroadcaster {
    * voisin, ce serait publier les résultats d'un contrôle.
    */
   async sessionFinished(sessionId: string): Promise<void> {
-    const rapport = await this.report.execute({ sessionId });
-    this.emit(this.room(sessionId), 'session-finished', {
-      questionCount: rapport.questionCount,
-      classement: rapport.classement.map((ligne) => ({
-        participantId: ligne.participantId,
-        label: ligne.label,
-        score: ligne.score,
-      })),
-    });
+    try {
+      const rapport = await this.report.execute({ sessionId });
+      this.emit(this.room(sessionId), 'session-finished', {
+        questionCount: rapport.questionCount,
+        classement: rapport.classement.map((ligne) => ({
+          participantId: ligne.participantId,
+          label: ligne.label,
+          score: ligne.score,
+        })),
+      });
+    } catch (err) {
+      this.journaliser(err, 'session-finished', this.room(sessionId));
+    }
   }
 
   /** Dire juste ou faux à la salle pendant que les autres répondent encore fuiterait la réponse. */

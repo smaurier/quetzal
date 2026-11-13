@@ -94,11 +94,17 @@ export const guestDisplayNameSchema = z.string().trim().min(1).max(32);
  * sinon jugée sur N+1. `value` non nettoyée (la normalisation est au domaine),
  * bornée par `Quiz_Answer.value` (`VarChar(160)`).
  */
-export const answerMessageSchema = z.object({
-  sessionQuestionId: z.string().min(1),
-  optionId: z.string().min(1).optional(),
-  value: z.string().max(160).optional(),
-});
+export const answerMessageSchema = z
+  .object({
+    sessionQuestionId: z.string().min(1),
+    optionId: z.string().min(1).optional(),
+    value: z.string().max(160).optional(),
+  })
+  // La ligne violerait `Quiz_Answer_option_ou_valeur_check`. Le cas d'usage le
+  // refuse aussi : la frontière ne remplace pas la règle, elle l'avance.
+  .refine((m) => m.optionId !== undefined || m.value !== undefined, {
+    message: 'une proposition ou une saisie',
+  });
 
 export type CreateBankBody = z.infer<typeof createBankSchema>;
 export type RenameBankBody = z.infer<typeof renameBankSchema>;

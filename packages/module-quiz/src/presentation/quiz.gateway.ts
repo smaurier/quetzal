@@ -15,7 +15,7 @@ import { JoinSessionUseCase } from '../application/join-session.use-case.js';
 import { ManageSessionUseCase } from '../application/manage-session.use-case.js';
 import { RunQuestionUseCase } from '../application/run-question.use-case.js';
 import { answerMessageSchema, guestDisplayNameSchema } from './dto/quiz.dto.js';
-import { QuizBroadcaster, questionPourLaSalle } from './quiz.broadcaster.js';
+import { etatPourLaSalle, QuizBroadcaster, questionPourLaSalle } from './quiz.broadcaster.js';
 
 interface SocketData {
   role?: string;
@@ -63,9 +63,10 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
 
     // Un invité tient sa séance de son JETON : il ne peut pas en viser une
     // autre. Une animatrice la passe en query, et le cloisonnement par
-    // locataire fait le reste.
-    const sessionId =
-      data.role === 'guest' ? data.sessionId : queryValue(client.handshake.query['sessionId']);
+    // locataire fait le reste. `guestId` et non `role` : le rôle d'un
+    // utilisateur est un QuetzalRole, qui contient 'guest' (cf. l'adaptateur).
+    const invite = 'guestId' in data && data.guestId !== undefined;
+    const sessionId = invite ? data.sessionId : queryValue(client.handshake.query['sessionId']);
     if (sessionId === undefined) {
       client.disconnect(true);
       return;
@@ -73,7 +74,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
     data.sessionId = sessionId;
 
     try {
-      if (data.role === 'guest' && data.guestId !== undefined) {
+      if (invite && data.guestId !== undefined) {
         // Le jeton borne le nom à 32 sans le nettoyer : un nom fait d'espaces y passe.
         const nom = guestDisplayNameSchema.safeParse(data.displayName ?? 'Invité');
         if (!nom.success) {
@@ -83,21 +84,20 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
         }
         const place = await this.join.execute({ sessionId, guestId: data.guestId, displayName: nom.data });
         data.participantId = place.participantId;
-        await client.join(rooms.subgroup('quiz', sessionId, place.participantId));
       }
 
+      // ⛔ La lecture cloisonnée AVANT toute salle : les salles ne portent pas
+      // le locataire, un `sessionId` d'ailleurs écouterait jusqu'à l'échec.
+      const vue = await this.sessions.vueDeSalle({ sessionId });
+      const courante = await this.questions.current({ sessionId });
+
+      if (data.participantId !== undefined) {
+        await client.join(rooms.subgroup('quiz', sessionId, data.participantId));
+      }
       await client.join(rooms.session('quiz', sessionId));
 
-      const session = await this.sessions.findOne({ sessionId });
-      const courante = await this.questions.current({ sessionId });
       client.emit('state', {
-        session: {
-          id: session.id,
-          status: session.status,
-          mode: session.mode,
-          questionCount: session.questions.length,
-          participants: await this.broadcaster.participantsVisibles(session),
-        },
+        session: etatPourLaSalle(vue),
         participantId: data.participantId ?? null,
         question: courante === null ? null : questionPourLaSalle(courante),
       });
@@ -122,8 +122,9 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
       return;
     }
 
+    let r: Awaited<ReturnType<AnswerQuestionUseCase['execute']>>;
     try {
-      const r = await this.answer.execute({
+      r = await this.answer.execute({
         sessionId,
         sessionQuestionId: message.data.sessionQuestionId,
         participantId,
@@ -131,21 +132,24 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
         ...(message.data.optionId === undefined ? {} : { optionId: message.data.optionId }),
         ...(message.data.value === undefined ? {} : { value: message.data.value }),
       });
-      // Diffusé vers le seul participant, jamais retourné : Nest transformerait
-      // un retour {event, data} en événement, piège du loto du 03/09.
-      this.broadcaster.answerAcknowledged(sessionId, participantId, {
-        isCorrect: r.isCorrect,
-        points: r.points,
-        dansLaGrace: r.dansLaGrace,
-      });
-      if (r.fermetureMiseAJour !== null) {
-        await this.broadcaster.questionClosed(sessionId, r.fermetureMiseAJour);
-      }
     } catch (err) {
       if (!(err instanceof DomainError)) logger.error({ err, sessionId }, 'quiz: réponse en échec');
       // Un refus d'échéance ou un double appui n'est PAS une panne : l'élève
       // doit le lire, pas voir sa page casser.
       this.broadcaster.answerRefused(sessionId, participantId, raisonDe(err));
+      return;
+    }
+
+    // Hors du `try` : la réponse est acquise, rien de ce qui suit ne doit
+    // envoyer un refus derrière le résultat. Diffusé vers le seul participant,
+    // jamais retourné : Nest ferait d'un retour {event, data} un événement.
+    this.broadcaster.answerAcknowledged(sessionId, participantId, {
+      isCorrect: r.isCorrect,
+      points: r.points,
+      dansLaGrace: r.dansLaGrace,
+    });
+    if (r.fermetureMiseAJour !== null) {
+      await this.broadcaster.questionClosed(sessionId, r.fermetureMiseAJour);
     }
   }
 }

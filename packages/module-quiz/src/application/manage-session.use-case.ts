@@ -18,6 +18,30 @@ import type { SessionStatus } from '../domain/session-status.js';
 import type { QuestionBankRepository } from '../domain/ports/question-bank.repository.js';
 import type { FrozenQuestion, Session, SessionRepository } from '../domain/ports/session.repository.js';
 
+export interface VueDeSalle {
+  session: Session;
+  /** Par participant ; absent vaut zéro. */
+  scoresVisibles: ReadonlyMap<string, number>;
+}
+
+/**
+ * Le score que la salle peut lire : les points des seules questions FERMÉES.
+ * Tiré des réponses et jamais par soustraction au score stocké, qui vient
+ * d'une autre lecture : une réponse arrivée entre les deux ferait baisser un
+ * score, et désignerait qui vient de répondre juste.
+ */
+export function scoresDesQuestionsFermees(
+  questions: readonly FrozenQuestion[],
+  reponses: readonly { sessionQuestionId: string; participantId: string; points: number }[]): Map<string, number> {
+  const fermees = new Set(questions.filter((q) => q.closedAt !== null).map((q) => q.id));
+  const scores = new Map<string, number>();
+  for (const r of reponses) {
+    if (!fermees.has(r.sessionQuestionId)) continue;
+    scores.set(r.participantId, (scores.get(r.participantId) ?? 0) + r.points);
+  }
+  return scores;
+}
+
 const ESSAIS_DE_CODE = 10;
 const ALPHABET_CODE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -169,6 +193,12 @@ export class ManageSessionUseCase {
 
   async findOne(input: { sessionId: string }): Promise<Session> {
     return this.require(input.sessionId);
+  }
+
+  async vueDeSalle(input: { sessionId: string }): Promise<VueDeSalle> {
+    const session = await this.require(input.sessionId);
+    const reponses = await this.sessions.allAnswers(session.id);
+    return { session, scoresVisibles: scoresDesQuestionsFermees(session.questions, reponses) };
   }
 
   private async transition(sessionId: string, vers: SessionStatus): Promise<void> {
