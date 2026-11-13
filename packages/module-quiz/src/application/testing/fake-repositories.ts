@@ -11,6 +11,7 @@ import {
   JoinCodeAlreadyUsedError,
   ParticipantIndexTakenError,
   ParticipantNotFoundError,
+  SessionNotFoundError,
 } from '../../domain/errors.js';
 import type {
   Bank,
@@ -309,13 +310,25 @@ export class FakeSessionRepository implements SessionRepository {
     this.muter(sessionId, (session) => ({ ...session, status }));
   }
 
-  async freezeQuestions(
+  async demarrer(
     sessionId: string,
     questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void> {
-    this.muter(sessionId, (session) => ({
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) throw new SessionNotFoundError(sessionId);
+    // La base refuse un rang déjà figé dans la séance (@@unique([sessionId, rank, tenantId]))
+    // et annule toute l'écriture, statut compris.
+    const rangs = [...session.questions, ...questions].map((q) => q.rank);
+    if (new Set(rangs).size !== rangs.length) {
+      throw new Error(`rang deja fige dans la seance ${sessionId}`);
+    }
+    this.sessions.set(sessionId, {
       ...session,
-      questions: structuredClone(questions).map((q) => ({ ...q, id: nextId('sq') })),
-    }));
+      status: 'en-cours',
+      questions: [
+        ...session.questions,
+        ...structuredClone(questions).map((q) => ({ ...q, id: nextId('sq') })),
+      ],
+    });
   }
 
   async openQuestion(input: {

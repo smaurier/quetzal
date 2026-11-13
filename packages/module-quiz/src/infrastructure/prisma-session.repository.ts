@@ -48,9 +48,17 @@ const PAR_ARRIVEE = [{ createdAt: 'asc' as const }, { id: 'asc' as const }];
  * `meta.modelName` (mesuré contre Postgres). Toute autre P2025 est une panne.
  */
 export function manqueLeParticipant(err: unknown): boolean {
+  return manque(err, 'Quiz_Participant');
+}
+
+export function manqueLaSession(err: unknown): boolean {
+  return manque(err, 'Quiz_Session');
+}
+
+function manque(err: unknown, modele: string): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError
     && err.code === LIGNE_INTROUVABLE
-    && err.meta?.['modelName'] === 'Quiz_Participant';
+    && err.meta?.['modelName'] === modele;
 }
 
 const COLONNES_REPONSE = {
@@ -149,6 +157,23 @@ function lireParticipant(ligne: LigneParticipant): Participant {
   };
 }
 
+function ligneFigee(q: Omit<FrozenQuestion, 'id'>) {
+  return {
+    id: newId(),
+    rank: q.rank,
+    questionId: q.questionId,
+    prompt: q.prompt,
+    imageId: q.imageId,
+    imageAlt: q.imageAlt,
+    answerMode: q.answerMode,
+    timeLimitResolved: q.timeLimitResolved,
+    accentsSensibles: q.regles.accentsSensibles,
+    casseSensible: q.regles.casseSensible,
+    options: q.options,
+    acceptedAnswers: q.acceptedAnswers,
+  };
+}
+
 export function lireSession(ligne: LigneSession): Session {
   if (!isSessionMode(ligne.mode)) {
     throw new SessionNotFoundError(`${ligne.id} (mode inconnu : ${ligne.mode})`);
@@ -193,10 +218,10 @@ export class PrismaSessionRepository implements SessionRepository {
         findMany(args?: unknown): Promise<LigneSession[]>;
         findFirst(args: unknown): Promise<LigneSession | null>;
         create(args: unknown): Promise<{ id: string }>;
+        update(args: unknown): Promise<unknown>;
         updateMany(args: unknown): Promise<unknown>;
       };
       quiz_SessionQuestion: {
-        createMany(args: unknown): Promise<unknown>;
         updateMany(args: unknown): Promise<unknown>;
       };
       quiz_Participant: {
@@ -293,29 +318,28 @@ export class PrismaSessionRepository implements SessionRepository {
     });
   }
 
-  async freezeQuestions(
+  /**
+   * Une seule écriture imbriquée depuis la séance, donc transactionnelle : le
+   * statut et les questions passent ensemble ou pas du tout. Les questions
+   * héritent `sessionId` et `tenantId` par la clé étrangère composite.
+   */
+  async demarrer(
     sessionId: string,
     questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void> {
-    if (questions.length === 0) return;
-    // `createMany` en une fois : un figement partiel serait une séance à moitié
-    // jouable, et c'est le pire état possible devant une classe.
-    await this.prisma.quiz_SessionQuestion.createMany({
-      data: questions.map((q) => ({
-        id: newId(),
-        sessionId,
-        rank: q.rank,
-        questionId: q.questionId,
-        prompt: q.prompt,
-        imageId: q.imageId,
-        imageAlt: q.imageAlt,
-        answerMode: q.answerMode,
-        timeLimitResolved: q.timeLimitResolved,
-        accentsSensibles: q.regles.accentsSensibles,
-        casseSensible: q.regles.casseSensible,
-        options: q.options,
-        acceptedAnswers: q.acceptedAnswers,
-      })),
-    });
+    try {
+      await this.prisma.quiz_Session.update({
+        where: { id_tenantId: { id: sessionId, tenantId: getCurrentTenant().tenantId } },
+        data: {
+          status: 'en-cours',
+          startedAt: new Date(),
+          questions: { createMany: { data: questions.map(ligneFigee) } },
+        },
+        select: { id: true },
+      });
+    } catch (err) {
+      if (manqueLaSession(err)) throw new SessionNotFoundError(sessionId);
+      throw err;
+    }
   }
 
   async openQuestion(input: {

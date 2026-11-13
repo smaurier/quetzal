@@ -128,8 +128,7 @@ export class ManageSessionUseCase {
       });
     }
 
-    await this.sessions.freezeQuestions(session.id, figees);
-    await this.sessions.setStatus(session.id, 'en-cours');
+    await this.sessions.demarrer(session.id, figees);
 
     if (this.eventBus !== undefined) {
       await emitQuiz(this.eventBus, 'quiz.session.started', {

@@ -76,8 +76,13 @@ export interface SessionRepository {
 
   setStatus(sessionId: string, status: SessionStatus): Promise<void>;
 
-  /** Écrit les questions figées, en une fois : un figement partiel serait une séance à moitié jouable. */
-  freezeQuestions(sessionId: string, questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void>;
+  /**
+   * Fige les questions ET passe la séance `en-cours`, en une seule écriture :
+   * une séance ouverte avec des questions figées ne pourrait plus démarrer
+   * (l'unicité `(sessionId, rank)` refuserait le second figement). Un rang déjà
+   * figé fait tout échouer ; une séance inconnue lève `SessionNotFoundError`.
+   */
+  demarrer(sessionId: string, questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void>;
 
   openQuestion(input: {
     sessionQuestionId: string;
