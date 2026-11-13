@@ -7,6 +7,7 @@ import {
   NoQuestionOpenError,
   SessionNotFoundError,
 } from '../domain/errors.js';
+import { GRACE_MS } from '../domain/scoring.js';
 import type { FrozenQuestion, Session, SessionRepository } from '../domain/ports/session.repository.js';
 
 export type Horloge = () => number;
@@ -78,7 +79,9 @@ export class RunQuestionUseCase {
   }
 
   private async fermer(session: Session, ouverte: FrozenQuestion): Promise<FermetureResultat> {
-    const closedAt = new Date(this.maintenant());
+    const maintenant = this.maintenant();
+    const finDeRecevabilite = ouverte.deadlineAt === null ? maintenant : ouverte.deadlineAt.getTime() + GRACE_MS;
+    const closedAt = new Date(Math.min(maintenant, finDeRecevabilite));
     await this.sessions.closeQuestion({ sessionQuestionId: ouverte.id, closedAt });
 
     const reponses = await this.sessions.answersFor(ouverte.id);
