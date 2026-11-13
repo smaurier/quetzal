@@ -70,7 +70,7 @@ Enforcement : ESLint `no-restricted-imports` + boundaries + custom rules dans `p
 
 ## 4. Clean Architecture
 
-Layers dans `apps/api` ET dans chaque `packages/module-*` :
+Layers dans chaque `packages/module-*` :
 
 ```
 Presentation  → Controllers Nest, Gateways WS, Pages React, DTOs entrée
@@ -79,11 +79,14 @@ Domain        → Entités, Value Objects, règles métier, événements (pur TS
 Infrastructure→ Prisma repos, Better-Auth adapters, Socket.io, Sentry
 ```
 
-**Règles de dépendances** (enforced ESLint) :
-- Domain ne dépend de RIEN
-- Application dépend de Domain seul
+**Règles de dépendances** (tenues par ESLint, `packages/config/eslint/flat.js`, tests dans `frontiere-noyau-module.spec.ts`) :
+- Domain ne dépend de RIEN : ni d'une autre couche, ni d'un paquet externe. Seule exception, `@quetzal/core`, pour hériter de `DomainError` (§8)
+- Application dépend de Domain seul, **plus les décorateurs d'injection de `@nestjs/common`** (`@Injectable`, `@Inject`) : c'est le prix du conteneur Nest, et il est payé dans tous les modules
 - Infrastructure implémente les interfaces (Ports) déclarées dans Domain
-- Presentation dépend de Application
+- Presentation dépend de Application et de Domain (DTO et contrôleurs lisent les types et erreurs du domaine)
+- La **racine de composition** (`<slug>.module.ts`, `index.ts`, `manifest.ts`) et les **tests d'intégration** (`*.integration.spec.ts`) ne sont dans aucune couche : ils branchent les adaptateurs sur les ports. Les tests unitaires, eux, restent tenus.
+
+**Pourquoi pas `apps/api`** (amendé le 13/11, #104) : l'hôte API est de la plomberie de plateforme (auth, garde invité, adaptateur WS, filtres, observabilité), sans domaine métier. Le découper en quatre couches vides ne protégerait rien. Le métier vit dans les modules ; si un domaine métier naît un jour dans le noyau, il prendra ces couches.
 
 **Ports & Adapters** : Domain déclare interface (Port), Infrastructure fournit implémentation (Adapter). Use-case reçoit le Port via injection (pas l'Adapter concret).
 
