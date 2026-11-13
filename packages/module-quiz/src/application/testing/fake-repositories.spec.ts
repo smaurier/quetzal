@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { DomainError } from '@quetzal/core';
-import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError } from '../../domain/errors.js';
+import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError, ParticipantNotFoundError } from '../../domain/errors.js';
 import { FakeSessionRepository, frozenQuestionOf, sessionOf } from './fake-repositories.js';
 
 const reponse = (sessionQuestionId: string, participantId: string) => ({
@@ -160,7 +160,8 @@ describe('FakeSessionRepository', () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
       const sqId = (await repo.findById('s-1'))?.questions[0]?.id ?? '';
-      const ligne = await repo.enregistrerReponse(reponse(sqId, 'p-1'));
+      const participant = await repo.ajouterParticipant(place('s-1', 1));
+      const ligne = await repo.enregistrerReponse(reponse(sqId, participant.id));
       if (ligne === null) throw new Error('reponse refusee');
       ligne.points = 0;
       ((await repo.answersFor(sqId))[0] as unknown as Mutable).points = -1;
@@ -191,11 +192,50 @@ describe('FakeSessionRepository', () => {
       expect(await score()).toBe(1000);
     });
 
+    it('refuse un participant inconnu, comme la base, sans rien ecrire', async () => {
+      const { repo, sqId } = await avecUnParticipant();
+      const echec = repo.enregistrerReponse(reponse(sqId, 'participant-fantome'));
+      await expect(echec).rejects.toBeInstanceOf(ParticipantNotFoundError);
+      expect(await repo.answersFor(sqId)).toEqual([]);
+    });
+
     it('une reponse en double ne touche pas au score', async () => {
       const { repo, participant, sqId, score } = await avecUnParticipant();
       await repo.enregistrerReponse(reponse(sqId, participant.id));
       await repo.enregistrerReponse(reponse(sqId, participant.id));
       expect(await score()).toBe(1000);
+    });
+  });
+
+  describe('preparation hors port', () => {
+    it('poserReponse pose une reponse sans toucher au score', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({
+        id: 's-1',
+        participants: [{ id: 'p-1', participantIndex: 1, name: null, score: 2200, memberNames: ['Ana'] }],
+      }));
+      const sqId = (await repo.findById('s-1'))?.questions[0]?.id ?? '';
+      const posee = repo.poserReponse(reponse(sqId, 'p-1'));
+      expect(await repo.answersFor(sqId)).toEqual([posee]);
+      expect((await repo.findById('s-1'))?.participants[0]?.score).toBe(2200);
+    });
+
+    it('poserReponse n exige pas de participant', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({ id: 's-1' }));
+      const sqId = (await repo.findById('s-1'))?.questions[0]?.id ?? '';
+      repo.poserReponse(reponse(sqId, 'p-absent'));
+      expect(await repo.allAnswers('s-1')).toHaveLength(1);
+    });
+
+    it('la reponse posee compte pour l unicite', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({ id: 's-1' }));
+      const participant = await repo.ajouterParticipant(place('s-1', 1));
+      const sqId = (await repo.findById('s-1'))?.questions[0]?.id ?? '';
+      repo.poserReponse(reponse(sqId, participant.id));
+      expect(await repo.enregistrerReponse(reponse(sqId, participant.id))).toBeNull();
+      expect((await repo.findById('s-1'))?.participants[0]?.score).toBe(0);
     });
   });
 });

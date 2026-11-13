@@ -14,6 +14,7 @@ import {
   TimeLimitUnresolvableError,
   JoinCodeAlreadyUsedError,
   ParticipantIndexTakenError,
+  ParticipantNotFoundError,
 } from './errors';
 
 /**
@@ -37,6 +38,7 @@ describe('erreurs du domaine quiz', () => {
     new TimeLimitUnresolvableError(2, 'aucun delai'),
     new JoinCodeAlreadyUsedError('ABCD1234'),
     new ParticipantIndexTakenError(3),
+    new ParticipantNotFoundError('p-1'),
   ];
 
   it('heritent toutes de DomainError', () => {
@@ -46,6 +48,7 @@ describe('erreurs du domaine quiz', () => {
   it('portent chacune son identifiant dans le message, pour etre diagnosticables', () => {
     expect(new BankNotFoundError('b-42').message).toContain('b-42');
     expect(new QuestionNotFoundError('q-42').message).toContain('q-42');
+    expect(new ParticipantNotFoundError('p-42').message).toContain('p-42');
   });
 
   it('nomment la transition refusee, pas seulement son echec', () => {

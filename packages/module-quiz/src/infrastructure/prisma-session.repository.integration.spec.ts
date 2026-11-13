@@ -5,7 +5,7 @@ import { newId } from '@quetzal/db';
 import { PrismaSessionRepository } from './prisma-session.repository.js';
 import type { FrozenQuestion } from '../domain/ports/session.repository.js';
 import type { SessionStatus } from '../domain/session-status.js';
-import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError } from '../domain/errors.js';
+import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError, ParticipantNotFoundError } from '../domain/errors.js';
 
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -383,6 +383,13 @@ describe('PrismaSessionRepository (intégration)', () => {
       expect(await dans(() => repo.allAnswers(session.id))).toEqual([]);
     });
 
+    it('traduit un participant inconnu en ParticipantNotFoundError, sans rien ecrire', async () => {
+      const { repo, dans, reponse, sqId } = await uneQuestionEtUnParticipant('FANT0001');
+      await expect(dans(() => repo.enregistrerReponse({ ...reponse, participantId: 'participant-fantome' })))
+        .rejects.toBeInstanceOf(ParticipantNotFoundError);
+      expect(await dans(() => repo.answersFor(sqId))).toEqual([]);
+    });
+
     it('cree le participant avec son premier membre', async () => {
       const { repo, dans, session, participant } = await uneQuestionEtUnParticipant('ATOM0004');
       expect(participant.memberNames).toEqual(['Ana']);
@@ -414,7 +421,8 @@ describe('PrismaSessionRepository (intégration)', () => {
       expect(await chezLeVoisin(() => repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-1' })))
         .toBeNull();
 
-      await expect(chezLeVoisin(() => repo.enregistrerReponse({ ...reponse, points: 50 }))).rejects.toThrow();
+      await expect(chezLeVoisin(() => repo.enregistrerReponse({ ...reponse, points: 50 })))
+        .rejects.toBeInstanceOf(ParticipantNotFoundError);
       await expect(chezLeVoisin(() => repo.ajouterParticipant({
         sessionId: session.id, participantIndex: 2, guestId: 'g-9', displayName: 'Intrus',
       }))).rejects.toThrow();
