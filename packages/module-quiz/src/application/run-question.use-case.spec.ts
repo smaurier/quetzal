@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { EventBus } from '@quetzal/core';
 import {
   InvalidSessionTransitionError,
+  NoQuestionLeftError,
   NoQuestionOpenError,
   SessionNotFoundError,
 } from '../domain/errors.js';
@@ -209,7 +210,7 @@ describe('RunQuestionUseCase, ouverture', () => {
       questions: [frozenQuestionOf(1, { openedAt: new Date(T0), closedAt: null })],
     }));
 
-    await expect(useCase.openNext({ sessionId: 'session-1' })).rejects.toThrow(NoQuestionOpenError);
+    await expect(useCase.openNext({ sessionId: 'session-1' })).rejects.toThrow(NoQuestionLeftError);
 
     expect((await sessions.findById('session-1'))?.questions[0]?.closedAt).toBeNull();
     expect(bus.emitted).toEqual([]);
@@ -222,7 +223,7 @@ describe('RunQuestionUseCase, ouverture', () => {
       questions: [frozenQuestionOf(1, { openedAt: new Date(T0), closedAt: new Date(T0 + 1) })],
     }));
 
-    await expect(useCase.openNext({ sessionId: 'session-1' })).rejects.toThrow(NoQuestionOpenError);
+    await expect(useCase.openNext({ sessionId: 'session-1' })).rejects.toThrow(NoQuestionLeftError);
   });
 
   it.each<SessionStatus>(['brouillon', 'ouverte', 'terminee'])(

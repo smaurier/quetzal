@@ -9,6 +9,7 @@ import {
   SessionClosedToJoinError,
   SessionFullError,
   NoQuestionOpenError,
+  NoQuestionLeftError,
   AnswerTooLateError,
   AlreadyAnsweredError,
   TimeLimitUnresolvableError,
@@ -34,6 +35,7 @@ describe('erreurs du domaine quiz', () => {
     new SessionClosedToJoinError('terminee'),
     new SessionFullError(30),
     new NoQuestionOpenError('s-1'),
+    new NoQuestionLeftError('s-1'),
     new AnswerTooLateError('delai depasse'),
     new AlreadyAnsweredError('p-1'),
     new TimeLimitUnresolvableError(2, 'aucun delai'),
@@ -52,6 +54,7 @@ describe('erreurs du domaine quiz', () => {
     expect(new QuestionNotFoundError('q-42').message).toContain('q-42');
     expect(new ParticipantNotFoundError('p-42').message).toContain('p-42');
     expect(new EmptyBankError('b-42').message).toContain('b-42');
+    expect(new NoQuestionLeftError('s-42').message).toContain('s-42');
   });
 
   it('nomment la transition refusee, pas seulement son echec', () => {
