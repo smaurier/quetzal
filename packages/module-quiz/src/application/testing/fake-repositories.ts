@@ -7,7 +7,11 @@ import type {
   SessionRepository,
 } from '../../domain/ports/session.repository.js';
 import type { SessionStatus } from '../../domain/session-status.js';
-import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError } from '../../domain/errors.js';
+import {
+  JoinCodeAlreadyUsedError,
+  ParticipantIndexTakenError,
+  ParticipantNotFoundError,
+} from '../../domain/errors.js';
 import type {
   Bank,
   BankSummary,
@@ -204,6 +208,29 @@ export class FakeSessionRepository implements SessionRepository {
     this.sessions.set(session.id, structuredClone(session));
   }
 
+  /**
+   * Préparation de test, hors port : pose une réponse sans toucher au score ni
+   * exiger de participant, pour qu'un test de cas d'usage pose ses données sans
+   * effet de bord. Le code de production n'a que `enregistrerReponse`.
+   */
+  poserReponse(answer: NewAnswer): AnswerRow {
+    if (this.dejaRepondu(answer)) {
+      throw new Error(`reponse deja posee dans la doublure : ${answer.participantId}`);
+    }
+    const ligne: AnswerRow = { ...answer, id: nextId('answer') };
+    this.answers.push(ligne);
+    return { ...ligne };
+  }
+
+  private dejaRepondu(answer: NewAnswer): boolean {
+    return this.answers.some(
+      (a) => a.sessionQuestionId === answer.sessionQuestionId && a.participantId === answer.participantId);
+  }
+
+  private participantConnu(participantId: string): boolean {
+    return [...this.sessions.values()].some((s) => s.participants.some((p) => p.id === participantId));
+  }
+
   private participantRendu(participant: Participant): Participant {
     const membres = this.membres.get(participant.id);
     return {
@@ -372,11 +399,9 @@ export class FakeSessionRepository implements SessionRepository {
     // ⛔ L'unicite est appliquee ICI aussi, parce que la base l'applique. Une
     // doublure plus permissive que la production ferait passer des tests de cas
     // d'usage qui echoueraient en vrai.
-    const deja = this.answers.some(
-      (a) =>
-        a.sessionQuestionId === answer.sessionQuestionId &&
-        a.participantId === answer.participantId);
-    if (deja) return null;
+    if (this.dejaRepondu(answer)) return null;
+    // La base refuse un participant inconnu (P2025, traduite par l'adaptateur).
+    if (!this.participantConnu(answer.participantId)) throw new ParticipantNotFoundError(answer.participantId);
 
     const ligne: AnswerRow = { ...answer, id: nextId('answer') };
     this.answers.push(ligne);

@@ -80,3 +80,9 @@ export class ParticipantIndexTakenError extends DomainError {
     super(`L'index de participant ${String(participantIndex)} est déjà pris dans cette séance`);
   }
 }
+
+export class ParticipantNotFoundError extends DomainError {
+  constructor(participantId: string) {
+    super(`Participant introuvable : ${participantId}`);
+  }
+}

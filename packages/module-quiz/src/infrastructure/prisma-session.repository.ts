@@ -8,6 +8,7 @@ import {
   InvalidQuestionShapeError,
   JoinCodeAlreadyUsedError,
   ParticipantIndexTakenError,
+  ParticipantNotFoundError,
   SessionNotFoundError,
 } from '../domain/errors.js';
 import type { QuestionOption } from '../domain/ports/question-bank.repository.js';
@@ -22,6 +23,7 @@ import type {
 import type { SessionStatus } from '../domain/session-status.js';
 
 const VIOLATION_UNICITE = 'P2002';
+const LIGNE_INTROUVABLE = 'P2025';
 
 /**
  * Chaque table de la séance porte deux contraintes d'unicité : la clé
@@ -39,6 +41,17 @@ export function violeLUnicite(err: unknown, ...champs: readonly string[]): boole
 
 /** L'ordre d'arrivée, celui de la doublure ; l'id (UUID v7) départage deux lignes de la même microseconde. */
 const PAR_ARRIVEE = [{ createdAt: 'asc' as const }, { id: 'asc' as const }];
+
+/**
+ * Un participant absent (ou d'un autre locataire) fait échouer l'écriture
+ * imbriquée de `enregistrerReponse` en P2025, modèle nommé dans
+ * `meta.modelName` (mesuré contre Postgres). Toute autre P2025 est une panne.
+ */
+export function manqueLeParticipant(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError
+    && err.code === LIGNE_INTROUVABLE
+    && err.meta?.['modelName'] === 'Quiz_Participant';
+}
 
 const COLONNES_REPONSE = {
   id: true,
@@ -399,6 +412,7 @@ export class PrismaSessionRepository implements SessionRepository {
       // d'élève suffisent à déclencher deux émissions, et un 500 sur un
       // double-appui serait un défaut de produit.
       if (violeLUnicite(err, 'sessionQuestionId', 'participantId')) return null;
+      if (manqueLeParticipant(err)) throw new ParticipantNotFoundError(participantId);
       throw err;
     }
   }
