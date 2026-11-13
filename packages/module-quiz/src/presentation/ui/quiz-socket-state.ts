@@ -88,7 +88,13 @@ export const ETAT_INITIAL: EtatQuiz = {
 export type EvenementQuiz =
   | {
       type: 'state';
-      payload: { session: SessionVue; participantId: string | null; question: QuestionVue | null };
+      payload: {
+        session: SessionVue;
+        participantId: string | null;
+        question: QuestionVue | null;
+        /** Mesuré par le serveur à SON horloge, `null` sans échéance. */
+        restantMs: number | null;
+      };
       recuA: number;
     }
   | { type: 'session-changed'; payload: SessionVue }
@@ -100,22 +106,16 @@ export type EvenementQuiz =
   | { type: 'join-failed'; payload: { reason: string } };
 
 /**
- * ⛔ D8 : ce zéro déclenche la fermeture. À l'ouverture, il se compte depuis
- * la RÉCEPTION de `question-opened`, qui suit l'écriture en base : il ne tombe
- * donc jamais avant l'échéance du serveur, quelle que soit l'horloge locale.
- * À une reprise (reconnexion en pleine question), la réception ne dit plus
- * rien de l'ouverture : seule `deadlineAt` reste, bornée à [réception,
- * réception + délai] pour qu'une horloge très décalée ne donne ni un zéro
- * passé ni un délai plus long que celui de la question.
+ * ⛔ D8 : ce zéro déclenche la fermeture. Il ne se calcule QUE depuis des
+ * durées, jamais depuis `deadlineAt` : c'est un instant de l'horloge du
+ * serveur, et le comparer à `Date.now()` fermerait trop tôt la question d'un
+ * navigateur dont l'horloge avance. À l'ouverture, la durée est le délai
+ * entier (la réception suit l'écriture en base, donc ce zéro ne tombe jamais
+ * avant l'échéance) ; à une reprise, c'est le temps restant mesuré par le
+ * serveur.
  */
-export function echeanceLocale(
-  question: QuestionVue,
-  recuA: number,
-  origine: 'ouverture' | 'reprise'): number | null {
-  if (question.deadlineAt === null || question.timeLimitResolved === null) return null;
-  const auPlusTard = recuA + question.timeLimitResolved * 1000;
-  if (origine === 'ouverture') return auPlusTard;
-  return Math.min(auPlusTard, Math.max(recuA, Date.parse(question.deadlineAt)));
+export function echeanceLocale(recuA: number, restantMs: number | null): number | null {
+  return restantMs === null ? null : recuA + restantMs;
 }
 
 export function reduireQuiz(etat: EtatQuiz, evenement: EvenementQuiz): EtatQuiz {
@@ -126,7 +126,7 @@ export function reduireQuiz(etat: EtatQuiz, evenement: EvenementQuiz): EtatQuiz 
         ...etat,
         session,
         participantId,
-        question: question === null ? null : enCours(question, evenement.recuA, 'reprise'),
+        question: question === null ? null : enCours(question, echeanceLocale(evenement.recuA, evenement.payload.restantMs)),
         closed: question === null ? etat.closed : null,
         error: null,
       };
@@ -136,7 +136,7 @@ export function reduireQuiz(etat: EtatQuiz, evenement: EvenementQuiz): EtatQuiz 
     case 'question-opened':
       return {
         ...etat,
-        question: enCours(evenement.payload, evenement.recuA, 'ouverture'),
+        question: enCours(evenement.payload, echeanceLocale(evenement.recuA, delaiEntierMs(evenement.payload))),
         closed: null,
         result: null,
         refusal: null,
@@ -159,8 +159,12 @@ export function reduireQuiz(etat: EtatQuiz, evenement: EvenementQuiz): EtatQuiz 
   }
 }
 
-function enCours(question: QuestionVue, recuA: number, origine: 'ouverture' | 'reprise'): QuestionEnCours {
-  return { ...question, echeanceMs: echeanceLocale(question, recuA, origine) };
+function delaiEntierMs(question: QuestionVue): number | null {
+  return question.timeLimitResolved === null ? null : question.timeLimitResolved * 1000;
+}
+
+function enCours(question: QuestionVue, echeanceMs: number | null): QuestionEnCours {
+  return { ...question, echeanceMs };
 }
 
 /**
