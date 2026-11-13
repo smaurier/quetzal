@@ -244,10 +244,10 @@ describe('AnswerQuestionUseCase, mode defi', () => {
     expect((await reponses())[0]?.authorGuestId).toBe('g-1');
   });
 
-  it('ecrit la proposition choisie, et aucune valeur saisie', async () => {
+  it('ecrit la proposition envoyee, et aucune valeur quand le client n en envoie pas', async () => {
     const { useCase, reponses } = build();
 
-    await useCase.execute({ ...ANA, optionId: 'o-juste-1', value: 'parasite' });
+    await useCase.execute({ ...ANA, optionId: 'o-juste-1' });
 
     expect((await reponses())[0]).toMatchObject({ optionId: 'o-juste-1', value: null, isCorrect: true });
   });
@@ -296,27 +296,69 @@ describe('AnswerQuestionUseCase, mode defi', () => {
 
 describe('AnswerQuestionUseCase, recevabilite', () => {
   /**
-   * ⛔ Une proposition etrangere a la question figee n'est pas un choix : la
-   * compter fausse consommerait l'unique reponse de l'eleve sur une saisie qui
-   * ne designe rien (par exemple une reponse pour la question precedente).
+   * ⛔ D5 : le serveur ne tient AUCUN compte de ce que le client affirme sur sa
+   * propre justesse. Envoyer l'identifiant d'une proposition qui n'existe pas
+   * est faux, jamais une erreur a exploiter.
    */
-  it('refuse une proposition qui n appartient pas a la question figee, sans rien ecrire', async () => {
-    const { useCase, reponses } = build();
+  it('traite un identifiant de proposition inconnu comme FAUX, et non comme une panne', async () => {
+    const { useCase } = build();
 
-    await expect(useCase.execute({ ...ANA, optionId: 'o-inventee' })).rejects.toThrow(InvalidAnswerError);
-    expect(await reponses()).toHaveLength(0);
+    const r = await useCase.execute({ ...ANA, optionId: 'o-inventee' });
+
+    expect(r.isCorrect).toBe(false);
+    expect(r.points).toBe(0);
   });
 
-  it('refuse une proposition d une AUTRE question de la seance', async () => {
+  it('traite une saisie envoyee a une question a choix comme fausse', async () => {
+    const { useCase } = build();
+
+    const r = await useCase.execute({ ...ANA, value: 'la silla' });
+
+    expect(r.isCorrect).toBe(false);
+  });
+
+  /**
+   * Faux, donc ecrit, compte et emis comme toute reponse : l'unique reponse de
+   * l'eleve est consommee, et elle figure au retour de seance.
+   */
+  it('ecrit, emet et consomme une proposition inconnue, comptee fausse', async () => {
+    const { useCase, reponses, bus, scoreDe } = build();
+
+    await useCase.execute({ ...ANA, optionId: 'o-inventee' });
+
+    expect(await reponses()).toEqual([
+      expect.objectContaining({ optionId: 'o-inventee', value: null, isCorrect: false, points: 0 }),
+    ]);
+    expect(bus.emitted.map((e) => e.name)).toEqual(['quiz.answer.recorded']);
+    expect(await scoreDe('p-1')).toBe(0);
+    await expect(useCase.execute({ ...ANA, optionId: 'o-juste-1' })).rejects.toThrow(AlreadyAnsweredError);
+  });
+
+  it('compte fausse une proposition d une AUTRE question de la seance', async () => {
     const { useCase } = build([q1Ouverte(), frozenQuestionOf(2, { id: 'sq-2' })]);
 
-    await expect(useCase.execute({ ...ANA, optionId: 'o-juste-2' })).rejects.toThrow(InvalidAnswerError);
+    const r = await useCase.execute({ ...ANA, optionId: 'o-juste-2' });
+
+    expect(r.isCorrect).toBe(false);
+    expect(r.points).toBe(0);
   });
 
-  it('refuse une question a choix recue sans proposition', async () => {
+  it('ecrit la saisie envoyee a une question a choix, telle qu envoyee', async () => {
     const { useCase, reponses } = build();
 
-    await expect(useCase.execute({ ...ANA, value: 'la silla' })).rejects.toThrow(InvalidAnswerError);
+    await useCase.execute({ ...ANA, value: 'la silla' });
+
+    expect((await reponses())[0]).toMatchObject({ optionId: null, value: 'la silla', isCorrect: false });
+  });
+
+  /**
+   * ⛔ La seule reponse REFUSEE pour sa forme : sans proposition ni saisie, la
+   * ligne violerait `Quiz_Answer_option_ou_valeur_check` en base.
+   */
+  it('refuse une reponse sans proposition ni saisie, sans rien ecrire', async () => {
+    const { useCase, reponses } = build();
+
+    await expect(useCase.execute({ ...ANA })).rejects.toThrow(InvalidAnswerError);
     expect(await reponses()).toHaveLength(0);
   });
 
@@ -462,31 +504,34 @@ describe('AnswerQuestionUseCase, mode saisie', () => {
     expect((await useCase.execute({ ...ANA, value: 'la cosa' })).isCorrect).toBe(false);
   });
 
-  it('ecrit la valeur saisie telle quelle, et aucune proposition', async () => {
+  it('ecrit la valeur saisie telle quelle', async () => {
     const { useCase, reponses } = enSaisie();
 
-    await useCase.execute({ ...ANA, value: 'el hogar', optionId: 'o-juste-1' });
+    await useCase.execute({ ...ANA, value: 'el hogar' });
 
     expect((await reponses())[0]).toMatchObject({ optionId: null, value: 'el hogar' });
   });
 
-  it('refuse une saisie vide, sans rien ecrire', async () => {
-    const { useCase, reponses } = enSaisie();
-
-    await expect(useCase.execute({ ...ANA, value: '' })).rejects.toThrow(InvalidAnswerError);
-    expect(await reponses()).toHaveLength(0);
+  it('refuse une saisie vide, sans lever', async () => {
+    const { useCase } = enSaisie();
+    expect((await useCase.execute({ ...ANA, value: '   ' })).isCorrect).toBe(false);
   });
 
-  it('refuse une saisie faite d espaces, sans rien ecrire', async () => {
+  it('compte fausse une saisie vide, et l ecrit', async () => {
     const { useCase, reponses } = enSaisie();
 
-    await expect(useCase.execute({ ...ANA, value: ' \t  ' })).rejects.toThrow(InvalidAnswerError);
-    expect(await reponses()).toHaveLength(0);
+    const r = await useCase.execute({ ...ANA, value: '' });
+
+    expect(r.isCorrect).toBe(false);
+    expect((await reponses())[0]).toMatchObject({ value: '', isCorrect: false, points: 0 });
   });
 
-  it('refuse une question en saisie recue sans valeur', async () => {
+  it('compte fausse une proposition envoyee a une question en saisie', async () => {
     const { useCase } = enSaisie();
 
-    await expect(useCase.execute({ ...ANA, optionId: 'o-juste-1' })).rejects.toThrow(InvalidAnswerError);
+    const r = await useCase.execute({ ...ANA, optionId: 'o-juste-1' });
+
+    expect(r.isCorrect).toBe(false);
+    expect(r.points).toBe(0);
   });
 });
