@@ -63,6 +63,23 @@ describe('peutPasserA', () => {
   });
 });
 
+describe('peutPasserA, la table entiere', () => {
+  const permises = new Set([
+    'brouillon>ouverte',
+    'brouillon>terminee',
+    'ouverte>en-cours',
+    'ouverte>terminee',
+    'en-cours>terminee',
+  ]);
+
+  it.each(SESSION_STATUSES.flatMap((depuis) => SESSION_STATUSES.map((vers) => [depuis, vers] as const)))(
+    'rend le bon verdict pour %s vers %s',
+    (depuis, vers) => {
+      expect(peutPasserA(depuis, vers)).toBe(permises.has(`${depuis}>${vers}`));
+    },
+  );
+});
+
 describe('peutRejoindre', () => {
   /**
    * Spec § 5.4 : on rejoint quand la session est `ouverte`, comme on entre en
