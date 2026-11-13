@@ -51,6 +51,12 @@ export class NoQuestionOpenError extends DomainError {
   }
 }
 
+export class NoQuestionLeftError extends DomainError {
+  constructor(sessionId: string) {
+    super(`Plus aucune question à ouvrir sur la séance ${sessionId}`);
+  }
+}
+
 export class AnswerTooLateError extends DomainError {
   constructor(raison: string) {
     super(`Réponse refusée : ${raison}`);

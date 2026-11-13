@@ -3,6 +3,7 @@ import type { EventBus } from '@quetzal/core';
 import { emitQuiz } from '@quetzal/core/events/quiz';
 import {
   InvalidSessionTransitionError,
+  NoQuestionLeftError,
   NoQuestionOpenError,
   SessionNotFoundError,
 } from '../domain/errors.js';
@@ -36,7 +37,7 @@ export class RunQuestionUseCase {
 
     const suivante = session.questions.find((q) => q.openedAt === null);
     if (suivante === undefined) {
-      throw new NoQuestionOpenError(`${session.id} (plus aucune question à ouvrir)`);
+      throw new NoQuestionLeftError(session.id);
     }
 
     // Deux écritures du port, non atomiques : fermer N puis ouvrir N+1. Un échec
