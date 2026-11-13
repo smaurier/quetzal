@@ -33,6 +33,7 @@ export default function DeckEditor(props: Props) {
   const t = useTranslations('module.loto.decks');
   const [deck, setDeck] = useState<Deck | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [nouveauNom, setNouveauNom] = useState('');
 
   const reload = useCallback(async () => {
     if (deckId === undefined) return;
@@ -61,23 +62,35 @@ export default function DeckEditor(props: Props) {
     await reload();
   }
 
-  // Issue #26 : ce geste passait par `patch({ card: { rank, label: '' } })`,
-  // donc un updateMany qui ne touchait aucune ligne, et un rang calcule ici
-  // alors que les rangs peuvent avoir des trous. Le serveur decide du rang.
+  // Le serveur decide du rang (#26). Le nom est demande AVANT la creation :
+  // une carte est toujours nommee (#102).
   async function addCard(): Promise<void> {
-    if (deckId === undefined) return;
+    const label = nouveauNom.trim();
+    if (deckId === undefined || label === '') return;
     setError(null);
     const res = await apiClient().apiFetch(`/api/modules/loto/decks/${deckId}/cards`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ label }),
     });
     if (!res.ok) {
       const payload = (await res.json()) as { error?: string };
       setError(payload.error ?? String(res.status));
       return;
     }
+    setNouveauNom('');
     await reload();
+  }
+
+  // Vider le nom d une carte ne l envoie pas : le serveur le refuserait, et
+  // le champ reprend le nom d avant au lieu de laisser croire qu il est vide.
+  function renommer(card: DeckCard, saisi: HTMLInputElement): void {
+    const label = saisi.value.trim();
+    if (label === '') {
+      saisi.value = card.label;
+      return;
+    }
+    if (label !== card.label) void patch({ card: { rank: card.rank, label } });
   }
 
   async function upload(rank: number, file: File): Promise<void> {
@@ -126,7 +139,8 @@ export default function DeckEditor(props: Props) {
               id={`card-name-${card.id}`}
               defaultValue={card.label}
               maxLength={80}
-              onBlur={(event) => void patch({ card: { rank: card.rank, label: event.target.value } })}
+              required
+              onBlur={(event) => renommer(card, event.target)}
             />
             <Label htmlFor={`card-image-${card.id}`} className="sr-only">
               {t('cardImage', { rank: card.rank })}
@@ -145,9 +159,27 @@ export default function DeckEditor(props: Props) {
         ))}
       </ol>
 
-      <Button onClick={() => void addCard()}>
-        {t('addCard')}
-      </Button>
+      <form
+        className="flex items-end gap-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void addCard();
+        }}
+      >
+        <div className="flex-1">
+          <Label htmlFor="new-card-name">{t('newCardName')}</Label>
+          <Input
+            id="new-card-name"
+            value={nouveauNom}
+            maxLength={80}
+            required
+            onChange={(event) => setNouveauNom(event.target.value)}
+          />
+        </div>
+        <Button type="submit" disabled={nouveauNom.trim() === ''}>
+          {t('addCard')}
+        </Button>
+      </form>
     </Card>
   );
 }

@@ -32,6 +32,7 @@ async function bearer(page: Page): Promise<string> {
 const NEW_DECK_NAME_LABEL = /^(nom du nouveau jeu de cartes|new deck name|nombre de la nueva baraja)$/i;
 const DECK_NAME_LABEL = /^(nom du jeu de cartes|deck name|nombre de la baraja)$/i;
 const ADD_CARD_LABEL = /^(ajouter une carte|add a card|añadir una carta)$/i;
+const NEW_CARD_NAME_LABEL = /^(nom de la nouvelle carte|name of the new card|nombre de la nueva carta)$/i;
 
 function cardNameLabel(rank: number): RegExp {
   return new RegExp(`^(nom de la carte ${rank}|name of card ${rank}|nombre de la carta ${rank})$`, 'i');
@@ -159,7 +160,12 @@ test('écrans animatrice du Lotería : liste des jeux et éditeur exposent leurs
   // relecture par l API. ---
   const avant = deck.cards.length;
 
-  await page.getByRole('button', { name: ADD_CARD_LABEL }).click();
+  // #102 : une carte est toujours nommee. Sans nom, le bouton ne cree rien.
+  const ajouter = page.getByRole('button', { name: ADD_CARD_LABEL });
+  await expect(ajouter).toBeDisabled();
+  await page.getByLabel(NEW_CARD_NAME_LABEL).fill('El Nopal');
+  await expect(ajouter).toBeEnabled();
+  await ajouter.click();
 
   // La carte apparait a l ecran, au rang que le SERVEUR a decide.
   const cartes = page.getByTestId('deck-cards').getByRole('listitem');
@@ -172,6 +178,7 @@ test('écrans animatrice du Lotería : liste des jeux et éditeur exposent leurs
   const apres = (await relu.json()) as Deck;
   expect(apres.cards).toHaveLength(avant + 1);
   expect(apres.cards.at(-1)?.rank).toBe(avant + 1);
+  expect(apres.cards.at(-1)?.label, 'la carte porte le nom saisi avant sa creation').toBe('El Nopal');
 
   // Rendre la base telle qu on l a trouvee. Sans ca, chaque execution laisse
   // une copie derriere elle et `list()` se remplit de jeux morts.
