@@ -45,6 +45,26 @@ const FIGEE: Omit<FrozenQuestion, 'id'> = {
   closedAt: null,
 };
 
+/** Chaque valeur differe du defaut de la base ou du JSON vide : un champ oublie a l ecriture se verrait. */
+const FIGEE_COMPLETE: Omit<FrozenQuestion, 'id'> = {
+  rank: 1,
+  questionId: 'q-complete',
+  prompt: 'Ecris « chaise » en espagnol',
+  imageId: 'img-1',
+  imageAlt: 'Une chaise en bois',
+  answerMode: 'saisie',
+  timeLimitResolved: 45,
+  regles: { accentsSensibles: false, casseSensible: true },
+  options: [
+    { id: 'o-a', rank: 1, label: null, imageId: 'img-o', imageAlt: 'Une table', isCorrect: false },
+    { id: 'o-b', rank: 2, label: 'la silla', imageId: null, imageAlt: null, isCorrect: true },
+  ],
+  acceptedAnswers: ['silla', 'la silla'],
+  openedAt: null,
+  deadlineAt: null,
+  closedAt: null,
+};
+
 describe('PrismaSessionRepository (intégration)', () => {
   beforeAll(async () => { await ensureTestPostgres(); });
   beforeEach(async () => { await resetTestDatabase(); });
@@ -101,6 +121,22 @@ describe('PrismaSessionRepository (intégration)', () => {
     expect(relue?.questions).toHaveLength(1);
     expect(relue?.questions[0]?.timeLimitResolved).toBe(20);
     expect(relue?.questions[0]?.options).toEqual(FIGEE.options);
+  });
+
+  it('fige une question et la relit champ par champ, a l identique', async () => {
+    const { tenantId, ownerId } = await seedTenant();
+    const deckId = await unJeu(tenantId, ownerId);
+    const repo = new PrismaSessionRepository();
+    const session = await inTenant(tenantId, ownerId, () =>
+      repo.create({
+        deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
+        guestLocale: null, joinCode: 'FIGE0002', createdBy: ownerId,
+      }));
+
+    await inTenant(tenantId, ownerId, () => repo.demarrer(session.id, [FIGEE_COMPLETE]));
+    const relue = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
+
+    expect(relue?.questions).toEqual([{ ...FIGEE_COMPLETE, id: expect.any(String) }]);
   });
 
   it('rend les questions figees dans l ordre de leur rang', async () => {

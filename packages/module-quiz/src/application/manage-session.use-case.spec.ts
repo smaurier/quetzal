@@ -288,6 +288,62 @@ describe('ManageSessionUseCase, demarrage et figement', () => {
 
     await expect(useCase.start({ sessionId: 'session-1' })).rejects.toThrow(
       InvalidSessionTransitionError);
+    const session = await sessions.findById('session-1');
+    expect(session?.status).toBe('brouillon');
+    expect(session?.questions).toEqual([]);
+  });
+
+  /**
+   * ⛔ D10 champ par champ : la copie figee est la seule que la seance lira.
+   * Un champ oublie au figement (image, texte alternatif, reponses acceptees,
+   * regles de saisie) disparaitrait en seance sans qu'aucune autre assertion
+   * ne le voie. Valeurs choisies differentes des defauts, expres.
+   */
+  it('fige chaque champ de chaque question, a l identique', async () => {
+    const { banks, sessions, useCase } = build();
+    const aImage = questionOf(1, {
+      prompt: 'Que montre l image ?',
+      imageId: 'img-1',
+      imageAlt: 'Une chaise en bois',
+      timeLimit: 30,
+      options: [
+        { id: 'o-a', rank: 1, label: null, imageId: 'img-o', imageAlt: 'Une table', isCorrect: false },
+        { id: 'o-b', rank: 2, label: 'la silla', imageId: null, imageAlt: null, isCorrect: true },
+      ],
+    });
+    const aSaisie = questionOf(2, {
+      prompt: 'Ecris « chaise » en espagnol',
+      answerMode: 'saisie',
+      timeLimit: null,
+      regles: { accentsSensibles: false, casseSensible: true },
+      options: [],
+      acceptedAnswers: ['silla', 'la silla'],
+    });
+    banks.add(bankOf(0, { questions: [aImage, aSaisie] }));
+    sessions.add(sessionOf({ status: 'ouverte', questions: [], defaultTimeLimit: 15 }));
+
+    await useCase.start({ sessionId: 'session-1' });
+
+    const figee = (q: typeof aImage, timeLimitResolved: number) => ({
+      id: expect.any(String),
+      rank: q.rank,
+      questionId: q.id,
+      prompt: q.prompt,
+      imageId: q.imageId,
+      imageAlt: q.imageAlt,
+      answerMode: q.answerMode,
+      timeLimitResolved,
+      regles: q.regles,
+      options: q.options,
+      acceptedAnswers: q.acceptedAnswers,
+      openedAt: null,
+      deadlineAt: null,
+      closedAt: null,
+    });
+    expect((await sessions.findById('session-1'))?.questions).toEqual([
+      figee(aImage, 30),
+      figee(aSaisie, 15),
+    ]);
   });
 });
 
