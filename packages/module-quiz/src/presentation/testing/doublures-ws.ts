@@ -1,12 +1,13 @@
 import type { Server, Socket } from 'socket.io';
 
 /** Un serveur socket.io réduit à ce que le diffuseur en utilise : `to(room).emit()`. */
-export function fakeServer() {
+export function fakeServer(options: { casse?: (event: string) => boolean } = {}) {
   const emis: { room: string; event: string; payload: unknown }[] = [];
   const server = {
     to: (room: string) => ({
       emit: (event: string, payload: unknown) => {
         emis.push({ room, event, payload });
+        if (options.casse?.(event) === true) throw new Error(`emission cassee : ${event}`);
       },
     }),
   };

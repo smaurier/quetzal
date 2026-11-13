@@ -9,11 +9,12 @@ import {
   SessionNotFoundError,
   TimeLimitUnresolvableError,
 } from '../domain/errors.js';
-import { ManageSessionUseCase } from './manage-session.use-case.js';
+import { ManageSessionUseCase, scoresDesQuestionsFermees } from './manage-session.use-case.js';
 import {
   FakeQuestionBankRepository,
   FakeSessionRepository,
   bankOf,
+  frozenQuestionOf,
   questionOf,
   sessionOf,
 } from './testing/fake-repositories.js';
@@ -427,5 +428,56 @@ describe('ManageSessionUseCase, renommage borne a la seance', () => {
     await expect(
       useCase.rename({ sessionId: 'inconnue', participantId: ailleurs.id, name: 'X' }),
     ).rejects.toBeInstanceOf(SessionNotFoundError);
+  });
+});
+
+describe('ManageSessionUseCase, vue de salle', () => {
+  const T0 = 1_700_000_000_000;
+  const fermee = frozenQuestionOf(1, { openedAt: new Date(T0 - 30_000), closedAt: new Date(T0 - 10_000) });
+  const ouverte = frozenQuestionOf(2, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) });
+  const ligne = (sessionQuestionId: string, participantId: string, points: number) => ({
+    sessionQuestionId, participantId, points,
+  });
+
+  // ⛔ Jamais une soustraction entre deux lectures : une réponse arrivée entre
+  // elles ferait BAISSER un score, et désignerait qui vient de répondre juste.
+  it('ne compte que les reponses aux questions fermees, que l ouverte ait des reponses ou non', () => {
+    const sans = scoresDesQuestionsFermees([fermee, ouverte], [ligne(fermee.id, 'p-1', 500)]);
+    const avec = scoresDesQuestionsFermees(
+      [fermee, ouverte],
+      [ligne(fermee.id, 'p-1', 500), ligne(ouverte.id, 'p-1', 1200)]);
+
+    expect(sans.get('p-1')).toBe(500);
+    expect(avec.get('p-1')).toBe(500);
+  });
+
+  it('tire les scores des reponses, jamais du score stocke', async () => {
+    const sessions = new FakeSessionRepository();
+    sessions.add(sessionOf({
+      status: 'en-cours',
+      questions: [fermee, ouverte],
+      participants: [
+        { id: 'p-1', participantIndex: 1, name: null, score: 1700, memberNames: ['Ana'] },
+        { id: 'p-2', participantIndex: 2, name: null, score: 0, memberNames: ['Bea'] },
+      ],
+    }));
+    const pose = (sessionQuestionId: string, points: number) => sessions.poserReponse({
+      sessionQuestionId, participantId: 'p-1', authorGuestId: 'g-1',
+      optionId: 'o', value: null, isCorrect: true, elapsedMs: 900, points,
+    });
+    pose(fermee.id, 500);
+    pose(ouverte.id, 1200);
+
+    const vue = await new ManageSessionUseCase(sessions, new FakeQuestionBankRepository())
+      .vueDeSalle({ sessionId: 'session-1' });
+
+    expect(vue.session.id).toBe('session-1');
+    expect(vue.scoresVisibles.get('p-1')).toBe(500);
+    expect(vue.scoresVisibles.get('p-2') ?? 0).toBe(0);
+  });
+
+  it('leve SessionNotFoundError sur une seance introuvable', async () => {
+    const usecase = new ManageSessionUseCase(new FakeSessionRepository(), new FakeQuestionBankRepository());
+    await expect(usecase.vueDeSalle({ sessionId: 'ailleurs' })).rejects.toThrow(SessionNotFoundError);
   });
 });

@@ -26,12 +26,16 @@ class SessionRepositoryEnPanne extends FakeSessionRepository {
   }
 }
 
-function monter(options: { maintenant?: number; sessions?: FakeSessionRepository } = {}) {
+function monter(options: {
+  maintenant?: number;
+  sessions?: FakeSessionRepository;
+  casse?: (event: string) => boolean;
+} = {}) {
   const sessions = options.sessions ?? new FakeSessionRepository();
   const horloge = () => options.maintenant ?? T0 + 2_000;
   const manage = new ManageSessionUseCase(sessions, new FakeQuestionBankRepository());
   const diffuseur = new QuizBroadcaster(manage, new SessionReportUseCase(sessions));
-  const { emis, server } = fakeServer();
+  const { emis, server } = fakeServer(options.casse === undefined ? {} : { casse: options.casse });
   const passerelle = new QuizGateway(
     new JoinSessionUseCase(sessions),
     new AnswerQuestionUseCase(sessions, horloge),
@@ -183,6 +187,22 @@ describe('QuizGateway, answer', () => {
     expect(emis[1]?.payload).toEqual({ sessionQuestionId: fermee.id, answerCount: 1, correctCount: 1 });
   });
 
+  // Le résultat est déjà parti : un « refusé » derrière dirait le contraire à l'élève.
+  it('n envoie jamais de refus apres un resultat, meme si la rediffusion de grace casse', async () => {
+    const fermee = frozenQuestionOf(1, {
+      openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000), closedAt: new Date(T0 + 5_000),
+    });
+    const { sessions, passerelle, emis } = monter({
+      maintenant: T0 + 5_200, casse: (event) => event === 'question-closed',
+    });
+    const { ana } = await seanceEnCours(sessions, fermee);
+
+    await passerelle.handleAnswer({ sessionQuestionId: fermee.id, optionId: 'o-juste-1' }, socketDe(ana.id, 'g-ana').socket);
+
+    expect(emis.map((e) => e.event)).toContain('answer-result');
+    expect(emis.map((e) => e.event)).not.toContain('answer-refused');
+  });
+
   it('ignore un socket sans participant, celui de l animatrice', async () => {
     const { sessions, passerelle, emis } = monter();
     const { question } = await seanceEnCours(sessions);
@@ -277,6 +297,43 @@ describe('QuizGateway, connexion', () => {
     expect(scoreDAna(state.session)).toBe(0);
     const diffusion = emis.find((e) => e.room === salle && e.event === 'session-changed');
     expect(scoreDAna(diffusion?.payload)).toBe(0);
+  });
+
+  // ⛔ Les salles ne portent pas le locataire : rejoindre avant la lecture
+  // cloisonnée laisserait un autre locataire écouter jusqu'à l'échec.
+  it('ne rejoint aucune salle pour une seance introuvable, celle d un autre locataire', async () => {
+    const { passerelle } = monter();
+    const { socket, salles, emis, etat } = fauxSocket({ role: 'owner', userId: 'u-1' }, { sessionId: 'ailleurs' });
+
+    await passerelle.handleConnection(socket);
+
+    expect(salles).toEqual([]);
+    expect(emis).toEqual([{ event: 'join-failed', payload: { reason: 'SessionNotFoundError' } }]);
+    expect(etat.coupe).toBe(true);
+  });
+
+  // Le piège documenté par l'adaptateur de la plateforme : le rôle d'un
+  // utilisateur est un QuetzalRole, qui contient 'guest'. Seul `guestId`
+  // désigne l'identité invitée.
+  it('traite en utilisateur une identite sans guestId, meme de role guest', async () => {
+    const { sessions, passerelle } = monter();
+    sessions.add(sessionOf({ status: 'ouverte' }));
+    const { socket, salles, etat } = fauxSocket({ role: 'guest', userId: 'u-1' }, { sessionId: 'session-1' });
+
+    await passerelle.handleConnection(socket);
+
+    expect(etat.coupe).toBe(false);
+    expect(salles).toEqual([salle]);
+  });
+
+  it('donne le code d entree dans l etat, comme session-changed', async () => {
+    const { sessions, passerelle } = monter();
+    sessions.add(sessionOf({ status: 'ouverte' }));
+    const { socket, emis } = fauxSocket({ role: 'owner', userId: 'u-1' }, { sessionId: 'session-1' });
+
+    await passerelle.handleConnection(socket);
+
+    expect(emis.find((e) => e.event === 'state')?.payload).toMatchObject({ session: { joinCode: 'ABCD1234' } });
   });
 
   it('coupe une connexion d animatrice sans identifiant de seance', async () => {

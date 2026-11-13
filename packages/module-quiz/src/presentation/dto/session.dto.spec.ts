@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  answerMessageSchema,
   createSessionSchema,
   guestDisplayNameSchema,
   renameParticipantSchema,
@@ -94,5 +95,17 @@ describe('guestDisplayNameSchema', () => {
 
   it('rend le nom sans ses espaces de bord', () => {
     expect(guestDisplayNameSchema.parse('  Ana  ')).toBe('Ana');
+  });
+});
+
+describe('answerMessageSchema', () => {
+  it('refuse une reponse sans proposition ni saisie, des la frontiere', () => {
+    expect(answerMessageSchema.safeParse({ sessionQuestionId: 'sq-1' }).success).toBe(false);
+  });
+
+  // D5 : une saisie vide est une réponse FAUSSE, pas une absence de réponse.
+  it('accepte une saisie vide, et une proposition seule', () => {
+    expect(answerMessageSchema.safeParse({ sessionQuestionId: 'sq-1', value: '' }).success).toBe(true);
+    expect(answerMessageSchema.safeParse({ sessionQuestionId: 'sq-1', optionId: 'o-1' }).success).toBe(true);
   });
 });

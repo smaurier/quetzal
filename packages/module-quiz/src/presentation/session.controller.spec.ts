@@ -30,6 +30,7 @@ describe('SessionController, par HTTP', () => {
   let sessions: FakeSessionRepository;
   let banques: FakeQuestionBankRepository;
   let emis: ReturnType<typeof fakeServer>['emis'];
+  const emissionsCassees = new Set<string>();
 
   beforeEach(async () => {
     sessions = new FakeSessionRepository();
@@ -37,7 +38,7 @@ describe('SessionController, par HTTP', () => {
     const horloge = () => T0;
     const manage = new ManageSessionUseCase(sessions, banques);
     const diffuseur = new QuizBroadcaster(manage, new SessionReportUseCase(sessions));
-    const serveur = fakeServer();
+    const serveur = fakeServer({ casse: (event) => emissionsCassees.has(event) });
     diffuseur.attach(serveur.server);
     emis = serveur.emis;
     const moduleRef = await Test.createTestingModule({
@@ -56,6 +57,7 @@ describe('SessionController, par HTTP', () => {
   });
 
   afterEach(async () => {
+    emissionsCassees.clear();
     await app.close();
   });
 
@@ -224,6 +226,18 @@ describe('SessionController, par HTTP', () => {
       });
       await appel('PATCH', `/session-1/participants/${ana.id}`, { name: 'Les As' });
       expect(evenements()).toEqual([[salle, 'session-changed']]);
+    });
+
+    // Une diffusion ratée rendait 500 sur une ouverture réussie : l'animatrice
+    // recliquait, et « suivante » sautait N+1.
+    it('repond 201 a « suivante » quand la diffusion casse, la question etant ouverte', async () => {
+      sessions.add(sessionOf({ status: 'en-cours' }));
+      emissionsCassees.add('question-opened');
+
+      const r = await appel('POST', '/session-1/questions/next');
+
+      expect(r.status).toBe(201);
+      expect((await sessions.findById('session-1'))?.questions[0]?.openedAt).not.toBeNull();
     });
 
     it('ne diffuse rien quand la commande echoue', async () => {

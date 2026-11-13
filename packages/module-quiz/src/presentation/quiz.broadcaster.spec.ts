@@ -10,6 +10,7 @@ import {
 } from '../application/testing/fake-repositories.js';
 import { QuizBroadcaster } from './quiz.broadcaster.js';
 import { clesProfondes, fakeServer } from './testing/doublures-ws.js';
+import type { AnswerRow } from '../domain/ports/session.repository.js';
 
 const T0 = 1_700_000_000_000;
 
@@ -134,6 +135,77 @@ describe('QuizBroadcaster, scores pendant une question ouverte', () => {
     await diffuseur.questionClosed('session-1', { sessionQuestionId: ouverte.id, answerCount: 1, correctCount: 1 });
 
     expect(emis[1]?.payload).toMatchObject({ participants: [{ score: 1700 }] });
+  });
+});
+
+/**
+ * Une réponse juste qui arrive PENDANT la lecture des réponses, entre la
+ * lecture des scores et celle des réponses si on en faisait deux.
+ */
+class SessionsAvecReponseEnVol extends FakeSessionRepository {
+  enVol: (() => Promise<unknown>) | null = null;
+
+  override async allAnswers(sessionId: string): Promise<readonly AnswerRow[]> {
+    const reponse = this.enVol;
+    this.enVol = null;
+    if (reponse !== null) await reponse();
+    return super.allAnswers(sessionId);
+  }
+}
+
+describe('QuizBroadcaster, course entre deux lectures', () => {
+  it('ne fait jamais baisser un score quand une reponse arrive pendant la diffusion', async () => {
+    const sessions = new SessionsAvecReponseEnVol();
+    const diffuseur = new QuizBroadcaster(
+      new ManageSessionUseCase(sessions, new FakeQuestionBankRepository()),
+      new SessionReportUseCase(sessions));
+    const { emis, server } = fakeServer();
+    diffuseur.attach(server);
+    const fermee = frozenQuestionOf(1, { openedAt: new Date(T0 - 30_000), closedAt: new Date(T0 - 10_000) });
+    const ouverte = frozenQuestionOf(2, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) });
+    sessions.add(sessionOf({ status: 'en-cours', questions: [fermee, ouverte] }));
+    const ana = await sessions.ajouterParticipant({
+      sessionId: 'session-1', participantIndex: 1, guestId: 'g-1', displayName: 'Ana',
+    });
+    const juste = (sessionQuestionId: string, points: number) => sessions.enregistrerReponse({
+      sessionQuestionId, participantId: ana.id, authorGuestId: 'g-1',
+      optionId: 'o', value: null, isCorrect: true, elapsedMs: 900, points,
+    });
+    await juste(fermee.id, 500);
+    sessions.enVol = () => juste(ouverte.id, 1200);
+
+    await diffuseur.sessionChanged('session-1');
+
+    expect(emis[0]?.payload).toMatchObject({ participants: [{ score: 500 }] });
+  });
+});
+
+describe('QuizBroadcaster, une diffusion qui echoue', () => {
+  // La commande est déjà persistée : une diffusion ratée se journalise, elle
+  // ne remonte jamais jusqu'à la route ou au message qui l'a déclenchée.
+  it('ne leve pas quand l emission casse', async () => {
+    const sessions = new FakeSessionRepository();
+    sessions.add(sessionOf({ status: 'en-cours' }));
+    const diffuseur = new QuizBroadcaster(
+      new ManageSessionUseCase(sessions, new FakeQuestionBankRepository()),
+      new SessionReportUseCase(sessions));
+    diffuseur.attach(fakeServer({ casse: () => true }).server);
+
+    await expect(diffuseur.questionOpened('session-1', frozenQuestionOf(1))).resolves.toBeUndefined();
+    await expect(diffuseur.sessionChanged('session-1')).resolves.toBeUndefined();
+    await expect(diffuseur.questionClosed('session-1', { sessionQuestionId: 'sq', answerCount: 0, correctCount: 0 }))
+      .resolves.toBeUndefined();
+    await expect(diffuseur.sessionFinished('session-1')).resolves.toBeUndefined();
+    expect(() => diffuseur.answerAcknowledged('session-1', 'p-1', { isCorrect: true, points: 1, dansLaGrace: false }))
+      .not.toThrow();
+    expect(() => diffuseur.answerRefused('session-1', 'p-1', 'X')).not.toThrow();
+  });
+
+  it('ne leve pas quand la relecture de la seance echoue', async () => {
+    const { diffuseur } = monter();
+
+    await expect(diffuseur.sessionChanged('introuvable')).resolves.toBeUndefined();
+    await expect(diffuseur.sessionFinished('introuvable')).resolves.toBeUndefined();
   });
 });
 
