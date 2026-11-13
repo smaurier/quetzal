@@ -15,7 +15,7 @@ import { JoinSessionUseCase } from '../application/join-session.use-case.js';
 import { ManageSessionUseCase } from '../application/manage-session.use-case.js';
 import { RunQuestionUseCase } from '../application/run-question.use-case.js';
 import { answerMessageSchema, guestDisplayNameSchema } from './dto/quiz.dto.js';
-import { participantsPourLaSalle, QuizBroadcaster, questionPourLaSalle } from './quiz.broadcaster.js';
+import { QuizBroadcaster, questionPourLaSalle } from './quiz.broadcaster.js';
 
 interface SocketData {
   role?: string;
@@ -96,7 +96,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
           status: session.status,
           mode: session.mode,
           questionCount: session.questions.length,
-          participants: participantsPourLaSalle(session.participants),
+          participants: await this.broadcaster.participantsVisibles(session),
         },
         participantId: data.participantId ?? null,
         question: courante === null ? null : questionPourLaSalle(courante),

@@ -23,6 +23,12 @@ export interface FermetureResultat {
   correctCount: number;
 }
 
+export interface OuvertureResultat {
+  ouverte: FrozenQuestion;
+  /** La question que cette ouverture a fermée au passage, `null` si rien n'était ouvert. */
+  fermeturePrecedente: FermetureResultat | null;
+}
+
 export function comptesDeFermeture(
   sessionQuestionId: string,
   reponses: readonly AnswerRow[]): FermetureResultat {
@@ -45,7 +51,7 @@ export class RunQuestionUseCase {
     return this.ouverteDe(session);
   }
 
-  async openNext(input: { sessionId: string }): Promise<FrozenQuestion> {
+  async openNext(input: { sessionId: string }): Promise<OuvertureResultat> {
     const session = await this.require(input.sessionId);
     if (session.status !== 'en-cours') {
       throw new InvalidSessionTransitionError(session.status, 'en-cours');
@@ -60,7 +66,7 @@ export class RunQuestionUseCase {
     // entre les deux laisse N fermée et rien d'ouvert, état que ce même appel
     // relancé répare sans rien écraser.
     const precedente = this.ouverteDe(session);
-    if (precedente !== null) await this.fermer(session, precedente);
+    const fermeturePrecedente = precedente === null ? null : await this.fermer(session, precedente);
 
     const openedAt = new Date(this.maintenant());
     const deadlineAt =
@@ -83,7 +89,7 @@ export class RunQuestionUseCase {
       });
     }
 
-    return { ...suivante, openedAt, deadlineAt };
+    return { ouverte: { ...suivante, openedAt, deadlineAt }, fermeturePrecedente };
   }
 
   async close(input: { sessionId: string }): Promise<FermetureResultat> {

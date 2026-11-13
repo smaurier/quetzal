@@ -4,7 +4,7 @@ import type { Server } from 'socket.io';
 import { ManageSessionUseCase } from '../application/manage-session.use-case.js';
 import type { FermetureResultat } from '../application/run-question.use-case.js';
 import { SessionReportUseCase } from '../application/session-report.use-case.js';
-import type { FrozenQuestion, Participant } from '../domain/ports/session.repository.js';
+import type { FrozenQuestion, Participant, Session } from '../domain/ports/session.repository.js';
 
 /**
  * ⛔ LA CHARGE LA PLUS DANGEREUSE DU MODULE. Elle part vers les téléphones des
@@ -33,12 +33,21 @@ export function questionPourLaSalle(question: FrozenQuestion) {
   };
 }
 
-export function participantsPourLaSalle(participants: readonly Participant[]) {
+/**
+ * ⛔ Tant qu'une question est ouverte, la salle lit le score d'AVANT elle : un
+ * score qui bouge dit qui a déjà répondu juste, donc sur qui copier. Les
+ * points de la question ouverte sont ceux de ses réponses, retirés ici.
+ */
+export function participantsPourLaSalle(
+  participants: readonly Participant[],
+  reponsesDeLaQuestionOuverte: readonly { participantId: string; points: number }[]) {
   return participants.map((p) => ({
     id: p.id,
     participantIndex: p.participantIndex,
     name: p.name,
-    score: p.score,
+    score: p.score - reponsesDeLaQuestionOuverte
+      .filter((r) => r.participantId === p.id)
+      .reduce((total, r) => total + r.points, 0),
     memberNames: p.memberNames,
   }));
 }
@@ -81,6 +90,15 @@ export class QuizBroadcaster {
     return rooms.subgroup('quiz', sessionId, participantId);
   }
 
+  /** Les participants tels que la salle et un invité peuvent les lire. */
+  async participantsVisibles(session: Session) {
+    const ouverte = session.questions.find((q) => q.openedAt !== null && q.closedAt === null);
+    if (ouverte === undefined) return participantsPourLaSalle(session.participants, []);
+    const rapport = await this.report.execute({ sessionId: session.id });
+    const reponses = rapport.questions.find((q) => q.sessionQuestionId === ouverte.id)?.answers ?? [];
+    return participantsPourLaSalle(session.participants, reponses);
+  }
+
   async sessionChanged(sessionId: string): Promise<void> {
     const session = await this.sessions.findOne({ sessionId });
     this.emit(this.room(sessionId), 'session-changed', {
@@ -89,7 +107,7 @@ export class QuizBroadcaster {
       mode: session.mode,
       joinCode: session.joinCode,
       questionCount: session.questions.length,
-      participants: participantsPourLaSalle(session.participants),
+      participants: await this.participantsVisibles(session),
     });
   }
 

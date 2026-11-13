@@ -89,7 +89,9 @@ export class SessionController {
 
   @Post(':id/questions/next')
   async next(@Param('id') id: string) {
-    const ouverte = await this.questions.openNext({ sessionId: id });
+    const { ouverte, fermeturePrecedente } = await this.questions.openNext({ sessionId: id });
+    // La correction de N part avant N+1, sinon les téléphones ne la voient jamais.
+    if (fermeturePrecedente !== null) await this.broadcaster.questionClosed(id, fermeturePrecedente);
     // APRÈS l'écriture : un élève qui recevrait la question avant qu'elle soit
     // ouverte en base verrait sa réponse refusée.
     await this.broadcaster.questionOpened(id, ouverte);
