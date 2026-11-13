@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import {
+  ParticipantIndexTakenError,
   SessionClosedToJoinError,
   SessionFullError,
   SessionNotFoundError,
 } from '../domain/errors.js';
 import { peutRejoindre } from '../domain/session-status.js';
 import type { SessionRepository } from '../domain/ports/session.repository.js';
+
+const ESSAIS_D_ENTREE = 10;
 
 export interface PlaceAttribuee {
   participantId: string;
@@ -19,6 +22,23 @@ export class JoinSessionUseCase {
   constructor(private readonly sessions: SessionRepository) {}
 
   async execute(input: {
+    sessionId: string;
+    guestId: string;
+    displayName: string;
+  }): Promise<PlaceAttribuee> {
+    // Tout est relu à chaque essai : une entrée concurrente au même index peut
+    // venir du MÊME invité (deux reconnexions simultanées), et retenter à
+    // l'aveugle lui donnerait un second participant.
+    for (let essai = 1; ; essai += 1) {
+      try {
+        return await this.entrer(input);
+      } catch (erreur) {
+        if (!(erreur instanceof ParticipantIndexTakenError) || essai === ESSAIS_D_ENTREE) throw erreur;
+      }
+    }
+  }
+
+  private async entrer(input: {
     sessionId: string;
     guestId: string;
     displayName: string;
