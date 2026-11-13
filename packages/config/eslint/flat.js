@@ -224,4 +224,26 @@ module.exports = tseslint.config(
       ],
     },
   },
+  {
+    // « DOMAIN NE DÉPEND DE RIEN » (§4), pour les paquets externes. Issue #104.
+    // Seul `@quetzal/core` est permis : §8 impose d'hériter de son DomainError.
+    // Les specs sont exclues : elles importent leur outil de test.
+    files: ['packages/module-*/src/domain/**/*.ts'],
+    ignores: ['packages/module-*/src/domain/**/*.spec.ts'],
+    plugins: { boundaries },
+    rules: {
+      'boundaries/external': [
+        'error',
+        {
+          default: 'allow',
+          rules: [
+            // `**` et non `*` : `*` ne traverse pas le `/` d'un paquet a portee,
+            // et laissait passer @nestjs/common et @prisma/client (mesure, #104).
+            { from: 'domain', disallow: ['**'] },
+            { from: 'domain', allow: ['@quetzal/core'] },
+          ],
+        },
+      ],
+    },
+  },
 );
