@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { DomainError } from '@quetzal/core';
-import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError, ParticipantNotFoundError } from '../../domain/errors.js';
+import {
+  JoinCodeAlreadyUsedError,
+  ParticipantIndexTakenError,
+  ParticipantNotFoundError,
+  SessionNotFoundError,
+} from '../../domain/errors.js';
 import { FakeSessionRepository, frozenQuestionOf, sessionOf } from './fake-repositories.js';
 
 const reponse = (sessionQuestionId: string, participantId: string) => ({
@@ -99,14 +104,58 @@ describe('FakeSessionRepository', () => {
       expect(session?.questions.map((q) => q.rank)).toEqual([1, 2, 3]);
     });
 
-    it('trie aussi apres freezeQuestions', async () => {
+    it('trie aussi apres demarrer', async () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1', questions: [] }));
       const { id: _a, ...deux } = frozenQuestionOf(2);
       const { id: _b, ...un } = frozenQuestionOf(1);
-      await repo.freezeQuestions('s-1', [deux, un]);
+      await repo.demarrer('s-1', [deux, un]);
       const session = await repo.findById('s-1');
       expect(session?.questions.map((q) => q.rank)).toEqual([1, 2]);
+    });
+  });
+
+  /**
+   * `demarrer` fige les questions ET passe la seance en cours, en une ecriture.
+   * La base refuse un rang deja fige dans la seance (@@unique([sessionId, rank,
+   * tenantId])) et annule alors tout : la doublure fait pareil, au lieu de
+   * remplacer les questions comme le faisait freezeQuestions.
+   */
+  describe('demarrer', () => {
+    const sans = (rank: number, prompt = `Q${String(rank)}`) => {
+      const { id: _id, ...question } = frozenQuestionOf(rank, { prompt });
+      return question;
+    };
+
+    it('fige les questions et passe la seance en cours', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({ id: 's-1', status: 'ouverte', questions: [] }));
+      await repo.demarrer('s-1', [sans(1), sans(2)]);
+      const session = await repo.findById('s-1');
+      expect(session?.status).toBe('en-cours');
+      expect(session?.questions.map((q) => q.rank)).toEqual([1, 2]);
+    });
+
+    it('un rang en double dans le lot ne fige rien et ne change pas le statut', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({ id: 's-1', status: 'ouverte', questions: [] }));
+      await expect(repo.demarrer('s-1', [sans(1), sans(1)])).rejects.toThrow();
+      const session = await repo.findById('s-1');
+      expect(session?.status).toBe('ouverte');
+      expect(session?.questions).toEqual([]);
+    });
+
+    it('un second demarrage est refuse et laisse le premier figement intact', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({ id: 's-1', status: 'ouverte', questions: [] }));
+      await repo.demarrer('s-1', [sans(1, 'avant')]);
+      await expect(repo.demarrer('s-1', [sans(1, 'apres')])).rejects.toThrow();
+      expect((await repo.findById('s-1'))?.questions.map((q) => q.prompt)).toEqual(['avant']);
+    });
+
+    it('refuse une seance inconnue par SessionNotFoundError', async () => {
+      const repo = new FakeSessionRepository();
+      await expect(repo.demarrer('fantome', [sans(1)])).rejects.toBeInstanceOf(SessionNotFoundError);
     });
   });
 

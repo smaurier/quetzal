@@ -5,7 +5,12 @@ import { newId } from '@quetzal/db';
 import { PrismaSessionRepository } from './prisma-session.repository.js';
 import type { FrozenQuestion } from '../domain/ports/session.repository.js';
 import type { SessionStatus } from '../domain/session-status.js';
-import { JoinCodeAlreadyUsedError, ParticipantIndexTakenError, ParticipantNotFoundError } from '../domain/errors.js';
+import {
+  JoinCodeAlreadyUsedError,
+  ParticipantIndexTakenError,
+  ParticipantNotFoundError,
+  SessionNotFoundError,
+} from '../domain/errors.js';
 
 function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -90,7 +95,7 @@ describe('PrismaSessionRepository (intégration)', () => {
         guestLocale: null, joinCode: 'FIGE0001', createdBy: ownerId,
       }));
 
-    await inTenant(tenantId, ownerId, () => repo.freezeQuestions(session.id, [FIGEE]));
+    await inTenant(tenantId, ownerId, () => repo.demarrer(session.id, [FIGEE]));
     const relue = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
 
     expect(relue?.questions).toHaveLength(1);
@@ -110,7 +115,7 @@ describe('PrismaSessionRepository (intégration)', () => {
 
     // Inserees a l'envers, exprès : un ORDER BY absent rendrait cet ordre.
     await inTenant(tenantId, ownerId, () =>
-      repo.freezeQuestions(session.id, [
+      repo.demarrer(session.id, [
         { ...FIGEE, rank: 3, prompt: 'troisieme' },
         { ...FIGEE, rank: 1, prompt: 'premiere' },
         { ...FIGEE, rank: 2, prompt: 'deuxieme' },
@@ -137,7 +142,7 @@ describe('PrismaSessionRepository (intégration)', () => {
         deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
         guestLocale: null, joinCode: 'UNIQ0001', createdBy: ownerId,
       }));
-    await inTenant(tenantId, ownerId, () => repo.freezeQuestions(session.id, [FIGEE]));
+    await inTenant(tenantId, ownerId, () => repo.demarrer(session.id, [FIGEE]));
     const avecQuestions = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
     const sqId = avecQuestions!.questions[0]!.id;
     const participant = await inTenant(tenantId, ownerId, () =>
@@ -264,15 +269,15 @@ describe('PrismaSessionRepository (intégration)', () => {
       const { repo, session, dans, nouvelle } = await uneSeance('RANG0001');
       const autre = await nouvelle('RANG0002');
       const alEnvers = (prefixe: string) => [3, 1, 2].map((rank) => ({ ...FIGEE, rank, prompt: `${prefixe}${rank}` }));
-      await dans(() => repo.freezeQuestions(autre.id, alEnvers('B')));
-      await dans(() => repo.freezeQuestions(session.id, alEnvers('A')));
+      await dans(() => repo.demarrer(autre.id, alEnvers('B')));
+      await dans(() => repo.demarrer(session.id, alEnvers('A')));
       const relue = await dans(() => repo.findById(session.id));
       expect(relue?.questions.map((q) => q.prompt)).toEqual(['A1', 'A2', 'A3']);
     });
 
     it('rend une reponse sous la forme exacte du port, sans colonne de la base', async () => {
       const { repo, session, dans, place } = await uneSeance('FORME001');
-      await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
+      await dans(() => repo.demarrer(session.id, [FIGEE]));
       const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
       const participant = await place(session.id, 1);
       const reponse = {
@@ -305,7 +310,7 @@ describe('PrismaSessionRepository (intégration)', () => {
 
     it('rend les reponses d une question dans leur ordre d arrivee', async () => {
       const { session, dans, place, repo } = await uneSeance('ARRI0002');
-      await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
+      await dans(() => repo.demarrer(session.id, [FIGEE]));
       const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
       const premier = await place(session.id, 1);
       const second = await place(session.id, 2);
@@ -350,7 +355,7 @@ describe('PrismaSessionRepository (intégration)', () => {
         deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
         guestLocale: null, joinCode: code, createdBy: ownerId,
       }));
-      await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
+      await dans(() => repo.demarrer(session.id, [FIGEE]));
       const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
       const participant = await dans(() =>
         repo.ajouterParticipant({ sessionId: session.id, participantIndex: 1, guestId: 'g-1', displayName: 'Ana' }));
@@ -388,6 +393,47 @@ describe('PrismaSessionRepository (intégration)', () => {
       await expect(dans(() => repo.enregistrerReponse({ ...reponse, participantId: 'participant-fantome' })))
         .rejects.toBeInstanceOf(ParticipantNotFoundError);
       expect(await dans(() => repo.answersFor(sqId))).toEqual([]);
+    });
+
+    it('demarrer fige les questions et passe la seance en cours, en une ecriture', async () => {
+      const { repo, dans, session } = await uneQuestionEtUnParticipant('DEMA0001');
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.status).toBe('en-cours');
+      expect(relue?.questions.map((q) => q.rank)).toEqual([1]);
+    });
+
+    it('un rang refuse par la base ne fige rien et laisse le statut', async () => {
+      const { tenantId, ownerId } = await seedTenant();
+      const deckId = await unJeu(tenantId, ownerId);
+      const repo = new PrismaSessionRepository();
+      const dans = <T>(fn: () => Promise<T>) => inTenant(tenantId, ownerId, fn);
+      const session = await dans(() => repo.create({
+        deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
+        guestLocale: null, joinCode: 'DEMA0002', createdBy: ownerId,
+      }));
+      await dans(() => repo.setStatus(session.id, 'ouverte'));
+
+      await expect(dans(() => repo.demarrer(session.id, [FIGEE, { ...FIGEE, prompt: 'doublon' }])))
+        .rejects.toThrow(/Unique constraint/);
+
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.status, 'le statut ne doit pas passer sans ses questions').toBe('ouverte');
+      expect(relue?.questions).toEqual([]);
+    });
+
+    it('un second demarrage est refuse et laisse le premier figement intact', async () => {
+      const { repo, dans, session } = await uneQuestionEtUnParticipant('DEMA0003');
+      await expect(dans(() => repo.demarrer(session.id, [{ ...FIGEE, prompt: 'apres' }])))
+        .rejects.toThrow(/Unique constraint/);
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.questions.map((q) => q.prompt)).toEqual([FIGEE.prompt]);
+    });
+
+    it('traduit une seance inconnue ou d un autre locataire en SessionNotFoundError', async () => {
+      const { repo, session } = await uneQuestionEtUnParticipant('DEMA0004');
+      const voisin = await seedTenant();
+      await expect(inTenant(voisin.tenantId, voisin.ownerId, () => repo.demarrer(session.id, [FIGEE])))
+        .rejects.toBeInstanceOf(SessionNotFoundError);
     });
 
     it('cree le participant avec son premier membre', async () => {
