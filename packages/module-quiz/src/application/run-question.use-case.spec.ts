@@ -395,3 +395,30 @@ describe('RunQuestionUseCase, question courante', () => {
     expect(await useCase.current({ sessionId: 'session-1' })).toBeNull();
   });
 });
+
+/**
+ * L'ecran qui (re)joint en pleine question doit savoir quand elle finit, sans
+ * comparer `deadlineAt` (horloge du SERVEUR) a l'horloge de son navigateur :
+ * une horloge en avance de vingt secondes fermerait la question vingt secondes
+ * trop tot pour toute la classe. Le serveur donne donc une DUREE, mesuree a
+ * sa propre horloge.
+ */
+describe('RunQuestionUseCase, temps restant', () => {
+  it('rend la duree jusqu a l echeance, mesuree a l horloge du serveur', () => {
+    const { useCase } = build(T0 + 2_000);
+
+    expect(useCase.restantMs(frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) }))).toBe(18_000);
+  });
+
+  it('rend zero quand l echeance est passee', () => {
+    const { useCase } = build(T0 + 30_000);
+
+    expect(useCase.restantMs(frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) }))).toBe(0);
+  });
+
+  it('rend null en mode controle, sans echeance', () => {
+    const { useCase } = build(T0);
+
+    expect(useCase.restantMs(frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: null }))).toBeNull();
+  });
+});
