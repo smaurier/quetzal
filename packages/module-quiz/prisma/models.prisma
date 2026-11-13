@@ -91,7 +91,7 @@ model Quiz_AcceptedAnswer {
 model Quiz_Session {
   id              String
   tenantId        String
-  deckId          String
+  deckId          String?
   mode            String   @db.VarChar(10)
   status          String   @db.VarChar(12) @default("brouillon")
   maxParticipants Int
@@ -108,7 +108,13 @@ model Quiz_Session {
   finishedAt      DateTime?
   updatedAt       DateTime @updatedAt
 
-  deck         Quiz_Deck             @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  // ⚠️ La base fait `ON DELETE SET NULL ("deckId")`, sur la seule colonne
+  // deckId (migration 20261113150000, SQL ecrit a la main) : supprimer une
+  // banque garde l'historique de ses seances. Prisma ne sait pas ecrire cette
+  // liste de colonnes ; SetNull est l'action la plus proche, et son
+  // avertissement « referenced field is required » vise tenantId, que la base
+  // ne touche justement pas.
+  deck         Quiz_Deck?            @relation(fields: [deckId, tenantId], references: [id, tenantId], onDelete: SetNull)
   questions    Quiz_SessionQuestion[]
   participants Quiz_Participant[]
 

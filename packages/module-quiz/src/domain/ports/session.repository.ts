@@ -33,7 +33,8 @@ export interface Participant {
 
 export interface Session {
   id: string;
-  deckId: string;
+  /** `null` : la banque a ete supprimee, la seance reste lisible (tache 6b). */
+  deckId: string | null;
   mode: SessionMode;
   status: SessionStatus;
   maxParticipants: number;

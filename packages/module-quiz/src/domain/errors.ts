@@ -93,6 +93,13 @@ export class ParticipantNotFoundError extends DomainError {
   }
 }
 
+/** Distincte de `BankNotFoundError` : la seance existe, c'est sa banque qui n'existe plus. */
+export class SessionBankDeletedError extends DomainError {
+  constructor(sessionId: string) {
+    super(`La banque de la seance ${sessionId} a ete supprimee : plus rien a figer`);
+  }
+}
+
 export class EmptyBankError extends DomainError {
   constructor(bankId: string) {
     super(`La banque ${bankId} ne contient aucune question`);

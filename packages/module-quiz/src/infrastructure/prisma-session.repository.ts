@@ -87,7 +87,7 @@ interface LigneQuestion {
   openedAt: Date | null; deadlineAt: Date | null; closedAt: Date | null;
 }
 export interface LigneSession {
-  id: string; deckId: string; mode: string; status: string;
+  id: string; deckId: string | null; mode: string; status: string;
   maxParticipants: number; joinCode: string;
   defaultTimeLimit: number | null; guestLocale: string | null;
   questions: LigneQuestion[]; participants: LigneParticipant[];

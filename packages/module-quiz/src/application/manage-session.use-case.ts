@@ -4,6 +4,7 @@ import { emitQuiz } from '@quetzal/core/events/quiz';
 import {
   BankNotFoundError,
   EmptyBankError,
+  SessionBankDeletedError,
   InvalidSessionTransitionError,
   JoinCodeAlreadyUsedError,
   SessionNotFoundError,
@@ -95,8 +96,10 @@ export class ManageSessionUseCase {
       throw new InvalidSessionTransitionError(session.status, 'en-cours');
     }
 
-    const banque = await this.banks.findById(session.deckId);
-    if (banque === null) throw new BankNotFoundError(session.deckId);
+    const deckId = session.deckId;
+    if (deckId === null) throw new SessionBankDeletedError(session.id);
+    const banque = await this.banks.findById(deckId);
+    if (banque === null) throw new BankNotFoundError(deckId);
     if (banque.questions.length === 0) {
       throw new EmptyBankError(banque.id);
     }
@@ -133,7 +136,7 @@ export class ManageSessionUseCase {
     if (this.eventBus !== undefined) {
       await emitQuiz(this.eventBus, 'quiz.session.started', {
         sessionId: session.id,
-        deckId: session.deckId,
+        deckId,
         mode: session.mode,
         questionCount: figees.length,
         participantCount: session.participants.length,
