@@ -35,12 +35,19 @@ describe('FakeSessionRepository', () => {
     await expect(repo.create(entree)).rejects.toBeInstanceOf(JoinCodeAlreadyUsedError);
   });
 
+  const place = (sessionId: string, participantIndex: number, guestId = `g-${String(participantIndex)}`) => ({
+    sessionId,
+    participantIndex,
+    guestId,
+    displayName: 'Léa',
+  });
+
   describe('participants', () => {
     it('refuse un participantIndex deja pris dans la seance, erreur de domaine', async () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
-      await repo.addParticipant({ sessionId: 's-1', participantIndex: 1 });
-      const echec = repo.addParticipant({ sessionId: 's-1', participantIndex: 1 });
+      await repo.ajouterParticipant(place('s-1', 1));
+      const echec = repo.ajouterParticipant(place('s-1', 1));
       await expect(echec).rejects.toBeInstanceOf(ParticipantIndexTakenError);
       await expect(echec).rejects.toBeInstanceOf(DomainError);
     });
@@ -49,43 +56,37 @@ describe('FakeSessionRepository', () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
       repo.add(sessionOf({ id: 's-2', joinCode: 'ZZZZ9999' }));
-      await repo.addParticipant({ sessionId: 's-1', participantIndex: 1 });
-      await expect(repo.addParticipant({ sessionId: 's-2', participantIndex: 1 })).resolves.toBeDefined();
+      await repo.ajouterParticipant(place('s-1', 1));
+      await expect(repo.ajouterParticipant(place('s-2', 1))).resolves.toBeDefined();
     });
 
     it('rend les participants tries par participantIndex', async () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
-      await repo.addParticipant({ sessionId: 's-1', participantIndex: 3 });
-      await repo.addParticipant({ sessionId: 's-1', participantIndex: 1 });
-      await repo.addParticipant({ sessionId: 's-1', participantIndex: 2 });
+      await repo.ajouterParticipant(place('s-1', 3));
+      await repo.ajouterParticipant(place('s-1', 1));
+      await repo.ajouterParticipant(place('s-1', 2));
       const session = await repo.findById('s-1');
       expect(session?.participants.map((p) => p.participantIndex)).toEqual([1, 2, 3]);
     });
-  });
 
-  describe('membres', () => {
-    async function avecUnParticipant() {
+    it('cree le participant avec son premier membre, que l invite retrouve', async () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
-      const participant = await repo.addParticipant({ sessionId: 's-1', participantIndex: 1 });
-      return { repo, participant };
-    }
-
-    it('garde deux invites distincts de meme nom', async () => {
-      const { repo, participant } = await avecUnParticipant();
-      await repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa' });
-      await repo.addMember({ participantId: participant.id, guestId: 'g-2', displayName: 'Léa' });
-      const session = await repo.findById('s-1');
-      expect(session?.participants[0]?.memberNames).toEqual(['Léa', 'Léa']);
+      const cree = await repo.ajouterParticipant(place('s-1', 1, 'g-7'));
+      expect(cree.memberNames).toEqual(['Léa']);
+      const retrouve = await repo.findParticipantByGuest({ sessionId: 's-1', guestId: 'g-7' });
+      expect(retrouve?.id).toBe(cree.id);
+      expect(retrouve?.memberNames).toEqual(['Léa']);
     });
 
-    it('est idempotent par guestId et garde le premier nom', async () => {
-      const { repo, participant } = await avecUnParticipant();
-      await repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa' });
-      await repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa bis' });
-      const session = await repo.findById('s-1');
-      expect(session?.participants[0]?.memberNames).toEqual(['Léa']);
+    it('un index refuse ne laisse ni participant ni membre', async () => {
+      const repo = new FakeSessionRepository();
+      repo.add(sessionOf({ id: 's-1' }));
+      await repo.ajouterParticipant(place('s-1', 1, 'g-1'));
+      await expect(repo.ajouterParticipant(place('s-1', 1, 'g-2'))).rejects.toBeInstanceOf(ParticipantIndexTakenError);
+      expect(await repo.findParticipantByGuest({ sessionId: 's-1', guestId: 'g-2' })).toBeNull();
+      expect((await repo.findById('s-1'))?.participants).toHaveLength(1);
     });
   });
 
@@ -159,7 +160,7 @@ describe('FakeSessionRepository', () => {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
       const sqId = (await repo.findById('s-1'))?.questions[0]?.id ?? '';
-      const ligne = await repo.recordAnswer(reponse(sqId, 'p-1'));
+      const ligne = await repo.enregistrerReponse(reponse(sqId, 'p-1'));
       if (ligne === null) throw new Error('reponse refusee');
       ligne.points = 0;
       ((await repo.answersFor(sqId))[0] as unknown as Mutable).points = -1;
@@ -169,12 +170,32 @@ describe('FakeSessionRepository', () => {
   });
 
   describe('reponses', () => {
-    it('refuse une seconde reponse du meme participant a la meme question', async () => {
+    async function avecUnParticipant() {
       const repo = new FakeSessionRepository();
       repo.add(sessionOf({ id: 's-1' }));
+      const participant = await repo.ajouterParticipant(place('s-1', 1));
       const sqId = (await repo.findById('s-1'))?.questions[0]?.id ?? '';
-      expect(await repo.recordAnswer(reponse(sqId, 'p-1'))).not.toBeNull();
-      expect(await repo.recordAnswer(reponse(sqId, 'p-1'))).toBeNull();
+      const score = async () => (await repo.findById('s-1'))?.participants[0]?.score;
+      return { repo, participant, sqId, score };
+    }
+
+    it('refuse une seconde reponse du meme participant a la meme question', async () => {
+      const { repo, participant, sqId } = await avecUnParticipant();
+      expect(await repo.enregistrerReponse(reponse(sqId, participant.id))).not.toBeNull();
+      expect(await repo.enregistrerReponse(reponse(sqId, participant.id))).toBeNull();
+    });
+
+    it('ajoute les points d une reponse acceptee au score du participant', async () => {
+      const { repo, participant, sqId, score } = await avecUnParticipant();
+      await repo.enregistrerReponse(reponse(sqId, participant.id));
+      expect(await score()).toBe(1000);
+    });
+
+    it('une reponse en double ne touche pas au score', async () => {
+      const { repo, participant, sqId, score } = await avecUnParticipant();
+      await repo.enregistrerReponse(reponse(sqId, participant.id));
+      await repo.enregistrerReponse(reponse(sqId, participant.id));
+      expect(await score()).toBe(1000);
     });
   });
 });

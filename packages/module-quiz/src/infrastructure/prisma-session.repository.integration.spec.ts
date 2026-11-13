@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 import { ensureTestPostgres, resetTestDatabase, seedTenant } from '@quetzal/core/testing/index';
-import { tenantStore } from '@quetzal/core';
+import { getTenantScopedPrisma, tenantStore } from '@quetzal/core';
+import { newId } from '@quetzal/db';
 import { PrismaSessionRepository } from './prisma-session.repository.js';
 import type { FrozenQuestion } from '../domain/ports/session.repository.js';
 import type { SessionStatus } from '../domain/session-status.js';
@@ -10,6 +11,14 @@ function inTenant<T>(tenantId: string, userId: string, fn: () => Promise<T>): Pr
   return new Promise<T>((resolve, reject) => {
     tenantStore.run({ tenantId, userId, requestId: 'test' }, () => fn().then(resolve, reject));
   });
+}
+
+/** Le client cloisonne, pour poser en test ce que le port ne sait pas ecrire : des horodatages imposes. */
+function brut() {
+  return getTenantScopedPrisma() as unknown as {
+    quiz_Member: { createMany(args: unknown): Promise<unknown> };
+    quiz_Answer: { createMany(args: unknown): Promise<unknown> };
+  };
 }
 
 const FIGEE: Omit<FrozenQuestion, 'id'> = {
@@ -132,7 +141,7 @@ describe('PrismaSessionRepository (intégration)', () => {
     const avecQuestions = await inTenant(tenantId, ownerId, () => repo.findById(session.id));
     const sqId = avecQuestions!.questions[0]!.id;
     const participant = await inTenant(tenantId, ownerId, () =>
-      repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
+      repo.ajouterParticipant({ sessionId: session.id, participantIndex: 1, guestId: 'g-1', displayName: 'Ana' }));
 
     const base = {
       sessionQuestionId: sqId,
@@ -145,8 +154,8 @@ describe('PrismaSessionRepository (intégration)', () => {
       points: 1200,
     };
 
-    const premiere = await inTenant(tenantId, ownerId, () => repo.recordAnswer(base));
-    const seconde = await inTenant(tenantId, ownerId, () => repo.recordAnswer(base));
+    const premiere = await inTenant(tenantId, ownerId, () => repo.enregistrerReponse(base));
+    const seconde = await inTenant(tenantId, ownerId, () => repo.enregistrerReponse(base));
 
     expect(premiere).not.toBeNull();
     expect(seconde, 'la seconde est refusee, pas une exception').toBeNull();
@@ -163,18 +172,12 @@ describe('PrismaSessionRepository (intégration)', () => {
         guestLocale: null, joinCode: 'RECO0001', createdBy: ownerId,
       }));
     const participant = await inTenant(tenantId, ownerId, () =>
-      repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
-
-    await inTenant(tenantId, ownerId, () =>
-      repo.addMember({ participantId: participant.id, guestId: 'g-7', displayName: 'Ana' }));
-    // Deux fois : une reconnexion ne doit pas creer un second membre.
-    await inTenant(tenantId, ownerId, () =>
-      repo.addMember({ participantId: participant.id, guestId: 'g-7', displayName: 'Ana' }));
+      repo.ajouterParticipant({ sessionId: session.id, participantIndex: 1, guestId: 'g-7', displayName: 'Ana' }));
 
     const retrouve = await inTenant(tenantId, ownerId, () =>
       repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-7' }));
     expect(retrouve?.id).toBe(participant.id);
-    expect(retrouve?.memberNames, 'un seul membre, pas deux').toEqual(['Ana']);
+    expect(retrouve?.memberNames).toEqual(['Ana']);
   });
 
   it('cloisonne les seances entre locataires', async () => {
@@ -213,7 +216,9 @@ describe('PrismaSessionRepository (intégration)', () => {
           guestLocale: null, joinCode, createdBy: ownerId,
         }));
       const session = await nouvelle(code);
-      return { repo, session, dans, nouvelle, tenantId, ownerId, deckId };
+      const place = (sessionId: string, participantIndex: number, guestId = `g-${String(participantIndex)}`) =>
+        dans(() => repo.ajouterParticipant({ sessionId, participantIndex, guestId, displayName: 'Léa' }));
+      return { repo, session, dans, nouvelle, place, tenantId, ownerId, deckId };
     }
 
     it('traduit un code d entree deja pris dans le locataire en JoinCodeAlreadyUsedError', async () => {
@@ -228,29 +233,27 @@ describe('PrismaSessionRepository (intégration)', () => {
     });
 
     it('traduit un participantIndex deja pris en ParticipantIndexTakenError', async () => {
-      const { repo, session, dans } = await uneSeance('INDEX001');
-      await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
-      await expect(dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 })))
-        .rejects.toBeInstanceOf(ParticipantIndexTakenError);
+      const { session, place } = await uneSeance('INDEX001');
+      await place(session.id, 1);
+      await expect(place(session.id, 1, 'g-autre')).rejects.toBeInstanceOf(ParticipantIndexTakenError);
     });
 
     it('accepte le meme participantIndex dans une autre seance', async () => {
-      const { repo, session, dans, nouvelle } = await uneSeance('INDEX002');
+      const { session, nouvelle, place } = await uneSeance('INDEX002');
       const autre = await nouvelle('INDEX003');
-      await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
-      await expect(dans(() => repo.addParticipant({ sessionId: autre.id, participantIndex: 1 })))
-        .resolves.toMatchObject({ participantIndex: 1 });
+      await place(session.id, 1);
+      await expect(place(autre.id, 1)).resolves.toMatchObject({ participantIndex: 1 });
     });
 
     it('rend les participants tries par participantIndex', async () => {
-      const { repo, session, dans, nouvelle } = await uneSeance('PART0001');
+      const { repo, session, dans, nouvelle, place } = await uneSeance('PART0001');
       const autre = await nouvelle('PART0002');
       // Deux seances, et des index inseres a l'envers dans chacune : avec une
       // seule seance, Postgres peut servir la lecture par l'index unique
       // (sessionId, participantIndex, tenantId) et rendre l'ordre gratuitement.
       for (const id of [autre.id, session.id]) {
         for (const participantIndex of [3, 1, 2]) {
-          await dans(() => repo.addParticipant({ sessionId: id, participantIndex }));
+          await place(id, participantIndex);
         }
       }
       const relue = await dans(() => repo.findById(session.id));
@@ -267,33 +270,55 @@ describe('PrismaSessionRepository (intégration)', () => {
       expect(relue?.questions.map((q) => q.prompt)).toEqual(['A1', 'A2', 'A3']);
     });
 
-    it('ignore un membre en double et garde le premier nom', async () => {
-      const { repo, session, dans } = await uneSeance('MEMB0001');
-      const participant = await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
-      await dans(() => repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa' }));
-      await dans(() => repo.addMember({ participantId: participant.id, guestId: 'g-1', displayName: 'Léa bis' }));
-      await dans(() => repo.addMember({ participantId: participant.id, guestId: 'g-2', displayName: 'Léa' }));
-      const relue = await dans(() => repo.findById(session.id));
-      expect([...(relue?.participants[0]?.memberNames ?? [])].sort()).toEqual(['Léa', 'Léa']);
-    });
-
     it('rend une reponse sous la forme exacte du port, sans colonne de la base', async () => {
-      const { repo, session, dans } = await uneSeance('FORME001');
+      const { repo, session, dans, place } = await uneSeance('FORME001');
       await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
       const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
-      const participant = await dans(() => repo.addParticipant({ sessionId: session.id, participantIndex: 1 }));
+      const participant = await place(session.id, 1);
       const reponse = {
         sessionQuestionId: sqId, participantId: participant.id, authorGuestId: 'g-1',
         optionId: 'o-1', value: null, isCorrect: true, elapsedMs: 1200, points: 1200,
       };
 
-      const ecrite = await dans(() => repo.recordAnswer(reponse));
+      const ecrite = await dans(() => repo.enregistrerReponse(reponse));
 
       expect(ecrite).toEqual({ ...reponse, id: ecrite?.id });
       expect(await dans(() => repo.answersFor(sqId))).toEqual([ecrite]);
       expect(await dans(() => repo.allAnswers(session.id))).toEqual([ecrite]);
     });
 
+    it('rend les membres dans leur ordre d arrivee', async () => {
+      const { session, dans, place, repo } = await uneSeance('ARRI0001');
+      const participant = await place(session.id, 1, 'g-1');
+      // Inseres a rebours de leur horodatage : sans ORDER BY, Postgres rendrait
+      // l'ordre physique d'insertion.
+      await dans(() => brut().quiz_Member.createMany({
+        data: [
+          { id: newId(), participantId: participant.id, guestId: 'g-3', displayName: 'Cal', createdAt: new Date('2030-01-01T00:00:02Z') },
+          { id: newId(), participantId: participant.id, guestId: 'g-2', displayName: 'Bea', createdAt: new Date('2030-01-01T00:00:01Z') },
+        ],
+      }));
+      expect((await dans(() => repo.findById(session.id)))?.participants[0]?.memberNames).toEqual(['Léa', 'Bea', 'Cal']);
+      expect((await dans(() => repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-3' })))?.memberNames)
+        .toEqual(['Léa', 'Bea', 'Cal']);
+    });
+
+    it('rend les reponses d une question dans leur ordre d arrivee', async () => {
+      const { session, dans, place, repo } = await uneSeance('ARRI0002');
+      await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
+      const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
+      const premier = await place(session.id, 1);
+      const second = await place(session.id, 2);
+      const ligne = (participantId: string, createdAt: string) => ({
+        id: newId(), sessionQuestionId: sqId, participantId, authorGuestId: 'g', optionId: 'o-1',
+        value: null, isCorrect: true, elapsedMs: 1, points: 1, createdAt: new Date(createdAt),
+      });
+      await dans(() => brut().quiz_Answer.createMany({
+        data: [ligne(second.id, '2030-01-01T00:00:02Z'), ligne(premier.id, '2030-01-01T00:00:01Z')],
+      }));
+      const ordre = (await dans(() => repo.answersFor(sqId))).map((r) => r.participantId);
+      expect(ordre).toEqual([premier.id, second.id]);
+    });
     /**
      * Le garde `isSessionStatus` de la lecture ne peut pas etre atteint depuis
      * une vraie base : la CHECK le precede. Ce test prouve ce premier rempart ;
@@ -303,6 +328,95 @@ describe('PrismaSessionRepository (intégration)', () => {
       const { repo, session, dans } = await uneSeance('STAT0001');
       const inconnu = 'archivee' as unknown as SessionStatus;
       await expect(dans(() => repo.setStatus(session.id, inconnu))).rejects.toThrow(/Quiz_Session_status_check/);
+    });
+  });
+
+  /**
+   * Chaque ecriture qui touche deux tables le fait en UNE operation : un arret
+   * entre deux appels laisserait une reponse sans ses points (jamais
+   * rattrapee, le rejeu rend `null`), ou un participant sans membre qui occupe
+   * son index sans qu'aucun invite ne le retrouve.
+   */
+  describe('ecritures atomiques', () => {
+    async function uneQuestionEtUnParticipant(code: string) {
+      const { tenantId, ownerId } = await seedTenant();
+      const deckId = await unJeu(tenantId, ownerId);
+      const repo = new PrismaSessionRepository();
+      const dans = <T>(fn: () => Promise<T>) => inTenant(tenantId, ownerId, fn);
+      const session = await dans(() => repo.create({
+        deckId, mode: 'defi', maxParticipants: 6, defaultTimeLimit: 20,
+        guestLocale: null, joinCode: code, createdBy: ownerId,
+      }));
+      await dans(() => repo.freezeQuestions(session.id, [FIGEE]));
+      const sqId = (await dans(() => repo.findById(session.id)))?.questions[0]?.id ?? '';
+      const participant = await dans(() =>
+        repo.ajouterParticipant({ sessionId: session.id, participantIndex: 1, guestId: 'g-1', displayName: 'Ana' }));
+      const reponse = {
+        sessionQuestionId: sqId, participantId: participant.id, authorGuestId: 'g-1',
+        optionId: 'o-1', value: null, isCorrect: true, elapsedMs: 1200, points: 1200,
+      };
+      const score = async () => (await dans(() => repo.findById(session.id)))?.participants[0]?.score;
+      return { repo, dans, session, sqId, participant, reponse, score };
+    }
+
+    it('une reponse acceptee incremente le score de ses points', async () => {
+      const { repo, dans, reponse, score } = await uneQuestionEtUnParticipant('ATOM0001');
+      expect(await dans(() => repo.enregistrerReponse(reponse))).not.toBeNull();
+      expect(await score()).toBe(1200);
+    });
+
+    it('une reponse en double rend null et ne touche pas au score', async () => {
+      const { repo, dans, reponse, score } = await uneQuestionEtUnParticipant('ATOM0002');
+      await dans(() => repo.enregistrerReponse(reponse));
+      expect(await dans(() => repo.enregistrerReponse({ ...reponse, points: 999 }))).toBeNull();
+      expect(await score()).toBe(1200);
+    });
+
+    it('une reponse refusee par la base ne laisse aucun point', async () => {
+      const { repo, dans, reponse, score, session } = await uneQuestionEtUnParticipant('ATOM0003');
+      await expect(dans(() => repo.enregistrerReponse({ ...reponse, sessionQuestionId: 'question-fantome' })))
+        .rejects.toThrow(/foreign key|Foreign key/);
+      expect(await score()).toBe(0);
+      expect(await dans(() => repo.allAnswers(session.id))).toEqual([]);
+    });
+
+    it('cree le participant avec son premier membre', async () => {
+      const { repo, dans, session, participant } = await uneQuestionEtUnParticipant('ATOM0004');
+      expect(participant.memberNames).toEqual(['Ana']);
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.participants.map((p) => [p.id, p.memberNames])).toEqual([[participant.id, ['Ana']]]);
+    });
+
+    it('un membre refuse par la base ne laisse aucun participant', async () => {
+      const { repo, dans, session } = await uneQuestionEtUnParticipant('ATOM0005');
+      await expect(dans(() => repo.ajouterParticipant({
+        sessionId: session.id, participantIndex: 2, guestId: 'g-2', displayName: 'x'.repeat(33),
+      }))).rejects.toThrow(/too long/);
+      const relue = await dans(() => repo.findById(session.id));
+      expect(relue?.participants.map((p) => p.participantIndex)).toEqual([1]);
+    });
+
+    it('un autre locataire ne voit ni les reponses ni les membres, et ne marque rien', async () => {
+      const { repo, dans, reponse, sqId, session, score } = await uneQuestionEtUnParticipant('VOIS0001');
+      await dans(() => repo.enregistrerReponse(reponse));
+      const voisin = await seedTenant();
+      const chezLeVoisin = <T>(fn: () => Promise<T>) => inTenant(voisin.tenantId, voisin.ownerId, fn);
+
+      expect(await dans(() => repo.answersFor(sqId)), 'temoin : le proprietaire les voit').toHaveLength(1);
+      expect(await dans(() => repo.allAnswers(session.id)), 'temoin').toHaveLength(1);
+      expect(await chezLeVoisin(() => repo.answersFor(sqId))).toEqual([]);
+      expect(await chezLeVoisin(() => repo.allAnswers(session.id))).toEqual([]);
+      expect(await dans(() => repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-1' })),
+        'temoin : le proprietaire retrouve son invite').not.toBeNull();
+      expect(await chezLeVoisin(() => repo.findParticipantByGuest({ sessionId: session.id, guestId: 'g-1' })))
+        .toBeNull();
+
+      await expect(chezLeVoisin(() => repo.enregistrerReponse({ ...reponse, points: 50 }))).rejects.toThrow();
+      await expect(chezLeVoisin(() => repo.ajouterParticipant({
+        sessionId: session.id, participantIndex: 2, guestId: 'g-9', displayName: 'Intrus',
+      }))).rejects.toThrow();
+      expect(await score()).toBe(1200);
+      expect((await dans(() => repo.findById(session.id)))?.participants).toHaveLength(1);
     });
   });
 });
