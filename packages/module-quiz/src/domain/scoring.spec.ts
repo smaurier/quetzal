@@ -92,6 +92,14 @@ describe('pointsPour, mode defi', () => {
     expect(pointsPour(defi, { isCorrect: true, arriveeMs: 999_999 })).toBe(BASE);
   });
 
+  it('plafonne le bonus a BONUS_MAX pour une arrivee avant l ouverture, decalage d horloge', () => {
+    expect(pointsPour(defi, { isCorrect: true, arriveeMs: -5_000 })).toBe(BASE + BONUS_MAX);
+  });
+
+  it('arrondit le bonus a l entier le plus proche : 237,5 donne 238', () => {
+    expect(pointsPour(defi, { isCorrect: true, arriveeMs: 1_000 })).toBe(BASE + 238);
+  });
+
   /**
    * Un delai nul ou une echeance egale a l'ouverture ferait une division par
    * zero. Le reste vaut alors zero, donc BASE sans bonus : refuser serait pire,
