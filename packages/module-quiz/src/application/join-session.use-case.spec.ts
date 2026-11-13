@@ -217,6 +217,16 @@ describe('JoinSessionUseCase', () => {
       expect(sessions.appels).toBe(1);
     });
 
+    it('revérifie le plafond quand le rival a pris la derniere place', async () => {
+      const { useCase, sessions } = build(new SessionsOuUnRivalPasseDevant());
+      sessions.add(sessionOf({ status: 'ouverte', maxParticipants: 1, participants: [] }));
+
+      await expect(
+        useCase.execute({ sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana' })).rejects.toThrow(SessionFullError);
+      expect(sessions.indexTentes).toEqual([1]);
+      expect((await sessions.findById('session-1'))?.participants).toHaveLength(1);
+    });
+
     it('abandonne apres dix essais en relancant le dernier refus', async () => {
       const { useCase, sessions } = build(new SessionsAuxIndexToujoursPris());
       sessions.add(sessionOf({ status: 'ouverte', maxParticipants: 6, participants: [] }));
