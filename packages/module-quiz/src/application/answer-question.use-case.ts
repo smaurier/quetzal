@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { EventBus } from '@quetzal/core';
 import { emitQuiz } from '@quetzal/core/events/quiz';
-import { estJuste, type QuestionJouable, type ReponseRecue } from '../domain/answer-check.js';
+import { estJuste, type QuestionJouable } from '../domain/answer-check.js';
 import { accueilDeLaReponse } from '../domain/deadline.js';
 import { pointsPour } from '../domain/scoring.js';
 import {
@@ -31,10 +31,6 @@ export interface ReponseEnregistree {
    */
   fermetureMiseAJour: FermetureResultat | null;
 }
-
-type ReponseRecevable =
-  | { readonly optionId: string; readonly value: null }
-  | { readonly optionId: null; readonly value: string };
 
 @Injectable()
 export class AnswerQuestionUseCase {
@@ -72,8 +68,11 @@ export class AnswerQuestionUseCase {
     if (accueil.kind === 'trop-tard') throw new AnswerTooLateError(accueil.raison);
     const dansLaGrace = accueil.kind === 'dans-la-grace';
 
-    const recue = recevable(question, input);
-    const isCorrect = estJuste(jouable(question), commeRecue(recue));
+    const ecrite = ecritureDe(input);
+    const isCorrect = estJuste(jouable(question), {
+      ...(input.optionId === undefined ? {} : { optionId: input.optionId }),
+      ...(input.value === undefined ? {} : { texte: input.value }),
+    });
 
     // Une arrivée de grâce est ramenée à l'échéance : le reste y vaut zéro, donc
     // BASE sans bonus (D7 propriété 3), même après une fermeture manuelle
@@ -87,8 +86,8 @@ export class AnswerQuestionUseCase {
       sessionQuestionId: question.id,
       participantId: input.participantId,
       authorGuestId: input.guestId,
-      optionId: recue.optionId,
-      value: recue.value,
+      optionId: ecrite.optionId,
+      value: ecrite.value,
       isCorrect,
       elapsedMs,
       points,
@@ -130,28 +129,18 @@ export class AnswerQuestionUseCase {
 }
 
 /**
- * ⛔ Une réponse qui ne désigne rien sur la question FIGÉE est refusée, pas
- * comptée fausse : elle consommerait l'unique réponse de l'élève (une réponse
- * destinée à la question précédente, par exemple).
+ * D5 : une forme fausse (proposition inconnue, saisie vide, forme de l'autre
+ * mode) est comptée FAUSSE par `estJuste`, jamais refusée. Seule l'absence des
+ * deux champs l'est : la ligne violerait `Quiz_Answer_option_ou_valeur_check`.
  */
-function recevable(
-  question: FrozenQuestion,
-  input: { optionId?: string; value?: string }): ReponseRecevable {
-  if (question.answerMode === 'choix') {
-    const optionId = input.optionId;
-    if (optionId === undefined || !question.options.some((o) => o.id === optionId)) {
-      throw new InvalidAnswerError('proposition étrangère à la question');
-    }
-    return { optionId, value: null };
+function ecritureDe(input: { optionId?: string; value?: string }): {
+  optionId: string | null;
+  value: string | null;
+} {
+  if (input.optionId === undefined && input.value === undefined) {
+    throw new InvalidAnswerError('ni proposition ni saisie');
   }
-  if (input.value === undefined || input.value.trim() === '') {
-    throw new InvalidAnswerError('saisie vide');
-  }
-  return { optionId: null, value: input.value };
-}
-
-function commeRecue(recue: ReponseRecevable): ReponseRecue {
-  return recue.optionId === null ? { texte: recue.value } : { optionId: recue.optionId };
+  return { optionId: input.optionId ?? null, value: input.value ?? null };
 }
 
 function jouable(question: FrozenQuestion): QuestionJouable {
