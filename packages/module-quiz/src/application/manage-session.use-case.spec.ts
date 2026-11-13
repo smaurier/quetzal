@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   BankNotFoundError,
+  EmptyBankError,
   InvalidSessionTransitionError,
   JoinCodeAlreadyUsedError,
   SessionNotFoundError,
@@ -29,6 +30,16 @@ class SessionsQuiPerdentLaCourse extends FakeSessionRepository {
     this.codesTentes.push(input.joinCode);
     if (this.codesTentes.length === 1) throw new JoinCodeAlreadyUsedError(input.joinCode);
     return super.create(input);
+  }
+}
+
+class SessionsToujoursPrises extends FakeSessionRepository {
+  readonly refus: JoinCodeAlreadyUsedError[] = [];
+
+  override async create(input: NouvelleSeance): Promise<never> {
+    const refus = new JoinCodeAlreadyUsedError(input.joinCode);
+    this.refus.push(refus);
+    throw refus;
   }
 }
 
@@ -122,6 +133,20 @@ describe('ManageSessionUseCase, collision du code d entree', () => {
 
     await expect(useCase.create(CREATION)).rejects.toBe(sessions.panne);
     expect(sessions.appels).toBe(1);
+  });
+
+  /** Une seance « introuvable » se traduirait en 404 : c'est le refus de la base qui dit vrai. */
+  it('abandonne apres dix refus en relancant le dernier refus de la base', async () => {
+    const banks = new FakeQuestionBankRepository();
+    banks.add(bankOf(1));
+    const sessions = new SessionsToujoursPrises();
+    const useCase = new ManageSessionUseCase(sessions, banks);
+
+    const echec = useCase.create(CREATION);
+
+    await expect(echec).rejects.toBeInstanceOf(JoinCodeAlreadyUsedError);
+    expect(sessions.refus).toHaveLength(10);
+    await expect(echec).rejects.toBe(sessions.refus[9]);
   });
 });
 
@@ -252,7 +277,8 @@ describe('ManageSessionUseCase, demarrage et figement', () => {
     banks.add(bankOf(0, { questions: [] }));
     sessions.add(sessionOf({ status: 'ouverte', questions: [] }));
 
-    await expect(useCase.start({ sessionId: 'session-1' })).rejects.toThrow();
+    await expect(useCase.start({ sessionId: 'session-1' })).rejects.toBeInstanceOf(EmptyBankError);
+    expect((await sessions.findById('session-1'))?.status).toBe('ouverte');
   });
 
   it('refuse de demarrer depuis un brouillon, sans passer par ouverte', async () => {
@@ -262,5 +288,29 @@ describe('ManageSessionUseCase, demarrage et figement', () => {
 
     await expect(useCase.start({ sessionId: 'session-1' })).rejects.toThrow(
       InvalidSessionTransitionError);
+  });
+});
+
+describe('ManageSessionUseCase, renommage', () => {
+  async function renommer(name: string | null) {
+    const { sessions, useCase } = build();
+    sessions.add(sessionOf({ status: 'en-cours' }));
+    const participant = await sessions.ajouterParticipant({
+      sessionId: 'session-1', participantIndex: 1, guestId: 'g-1', displayName: 'Ana',
+    });
+    await useCase.rename({ participantId: participant.id, name });
+    return (await sessions.findById('session-1'))?.participants[0]?.name;
+  }
+
+  it('renomme un participant avec un nom nettoye de ses blancs', async () => {
+    expect(await renommer('  Les Lynx  ')).toBe('Les Lynx');
+  });
+
+  it('annule le renommage sur un nom vide ou blanc', async () => {
+    expect(await renommer('   ')).toBeNull();
+  });
+
+  it('annule le renommage sur null', async () => {
+    expect(await renommer(null)).toBeNull();
   });
 });
