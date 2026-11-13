@@ -47,3 +47,11 @@ function finEffective({ deadlineAt, closedAt }: FenetreOuverte): FinEffective | 
   if (deadlineAt !== null) return { instant: deadlineAt, raison: 'echeance-depassee' };
   return null;
 }
+
+/**
+ * La fermeture ne peut pas dépasser l'échéance : fermer après coup ne doit pas
+ * prolonger la fenêtre de réponse, ni sa grâce (`accueilDeLaReponse`).
+ */
+export function instantDeFermeture(deadlineAt: number | null, maintenant: number): number {
+  return deadlineAt === null ? maintenant : Math.min(maintenant, deadlineAt);
+}

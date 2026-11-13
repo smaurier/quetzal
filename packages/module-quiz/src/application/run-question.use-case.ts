@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { EventBus } from '@quetzal/core';
 import { emitQuiz } from '@quetzal/core/events/quiz';
+import { instantDeFermeture } from '../domain/deadline.js';
 import {
   InvalidSessionTransitionError,
   NoQuestionLeftError,
@@ -96,8 +97,7 @@ export class RunQuestionUseCase {
     const maintenant = this.maintenant();
     // La grace s'ajoute a la fin effective dans `accueilDeLaReponse` : la
     // compter ici aussi l'accorderait deux fois.
-    const fin = ouverte.deadlineAt === null ? maintenant : ouverte.deadlineAt.getTime();
-    const closedAt = new Date(Math.min(maintenant, fin));
+    const closedAt = new Date(instantDeFermeture(ouverte.deadlineAt?.getTime() ?? null, maintenant));
     await this.sessions.closeQuestion({ sessionQuestionId: ouverte.id, closedAt });
 
     const resultat = comptesDeFermeture(ouverte.id, await this.sessions.answersFor(ouverte.id));
