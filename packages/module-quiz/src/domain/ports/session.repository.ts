@@ -1,0 +1,110 @@
+import type { AnswerMode } from '../answer-mode.js';
+import type { SessionMode } from '../session-mode.js';
+import type { SessionStatus } from '../session-status.js';
+import type { ReglesDeSaisie } from '../normalisation.js';
+import type { QuestionOption } from './question-bank.repository.js';
+
+/** La question figée. `Omit<QuestionOption, 'id'>` serait faux : l'écran élève a besoin d'identifiants stables pour désigner son choix. */
+export interface FrozenQuestion {
+  id: string;
+  rank: number;
+  questionId: string;
+  prompt: string;
+  imageId: string | null;
+  imageAlt: string | null;
+  answerMode: AnswerMode;
+  /** Le délai qui FAIT FOI (D10). `null` en mode contrôle. */
+  timeLimitResolved: number | null;
+  regles: ReglesDeSaisie;
+  options: readonly QuestionOption[];
+  acceptedAnswers: readonly string[];
+  openedAt: Date | null;
+  deadlineAt: Date | null;
+  closedAt: Date | null;
+}
+
+export interface Participant {
+  id: string;
+  participantIndex: number;
+  name: string | null;
+  score: number;
+  memberNames: readonly string[];
+}
+
+export interface Session {
+  id: string;
+  deckId: string;
+  mode: SessionMode;
+  status: SessionStatus;
+  maxParticipants: number;
+  joinCode: string;
+  defaultTimeLimit: number | null;
+  guestLocale: string | null;
+  questions: readonly FrozenQuestion[];
+  participants: readonly Participant[];
+}
+
+export interface NewAnswer {
+  sessionQuestionId: string;
+  participantId: string;
+  authorGuestId: string;
+  optionId: string | null;
+  value: string | null;
+  isCorrect: boolean;
+  elapsedMs: number;
+  points: number;
+}
+
+export interface AnswerRow extends NewAnswer {
+  id: string;
+}
+
+export interface SessionRepository {
+  create(input: {
+    deckId: string;
+    mode: SessionMode;
+    maxParticipants: number;
+    defaultTimeLimit: number | null;
+    guestLocale: string | null;
+    joinCode: string;
+    createdBy: string;
+  }): Promise<Session>;
+
+  findById(sessionId: string): Promise<Session | null>;
+  findByJoinCode(joinCode: string): Promise<Session | null>;
+  list(): Promise<readonly Session[]>;
+
+  setStatus(sessionId: string, status: SessionStatus): Promise<void>;
+
+  /** Écrit les questions figées, en une fois : un figement partiel serait une séance à moitié jouable. */
+  freezeQuestions(sessionId: string, questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void>;
+
+  openQuestion(input: {
+    sessionQuestionId: string;
+    openedAt: Date;
+    deadlineAt: Date | null;
+  }): Promise<void>;
+  closeQuestion(input: { sessionQuestionId: string; closedAt: Date }): Promise<void>;
+
+  addParticipant(input: {
+    sessionId: string;
+    participantIndex: number;
+  }): Promise<Participant>;
+  /** Idempotent : une reconnexion ne doit pas créer un second membre. */
+  addMember(input: {
+    participantId: string;
+    guestId: string;
+    displayName: string;
+  }): Promise<void>;
+  findParticipantByGuest(input: {
+    sessionId: string;
+    guestId: string;
+  }): Promise<Participant | null>;
+  renameParticipant(input: { participantId: string; name: string | null }): Promise<void>;
+
+  /** Rend `null` quand le participant a déjà répondu : l'unicité vit en base. */
+  recordAnswer(answer: NewAnswer): Promise<AnswerRow | null>;
+  addToScore(input: { participantId: string; points: number }): Promise<void>;
+  answersFor(sessionQuestionId: string): Promise<readonly AnswerRow[]>;
+  allAnswers(sessionId: string): Promise<readonly AnswerRow[]>;
+}

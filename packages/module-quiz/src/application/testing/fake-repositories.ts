@@ -1,4 +1,14 @@
 import type {
+  AnswerRow,
+  FrozenQuestion,
+  NewAnswer,
+  Participant,
+  Session,
+  SessionRepository,
+} from '../../domain/ports/session.repository.js';
+import type { SessionStatus } from '../../domain/session-status.js';
+import { JoinCodeAlreadyUsedError } from '../../domain/errors.js';
+import type {
   Bank,
   BankSummary,
   NewQuestion,
@@ -135,5 +145,261 @@ export class FakeQuestionBankRepository implements QuestionBankRepository {
       this.banks.set(bankId, { ...bank, questions, questionCount: questions.length });
       return;
     }
+  }
+}
+
+export function frozenQuestionOf(
+  rank: number,
+  overrides: Partial<FrozenQuestion> = {}): FrozenQuestion {
+  return {
+    id: nextId('sq'),
+    rank,
+    questionId: nextId('q'),
+    prompt: `Question ${rank}`,
+    imageId: null,
+    imageAlt: null,
+    answerMode: 'choix',
+    timeLimitResolved: 20,
+    regles: { accentsSensibles: true, casseSensible: false },
+    options: [
+      { id: `o-juste-${rank}`, rank: 1, label: 'Juste', imageId: null, imageAlt: null, isCorrect: true },
+      { id: `o-faux-${rank}`, rank: 2, label: 'Faux', imageId: null, imageAlt: null, isCorrect: false },
+    ],
+    acceptedAnswers: [],
+    openedAt: null,
+    deadlineAt: null,
+    closedAt: null,
+    ...overrides,
+  };
+}
+
+export function sessionOf(overrides: Partial<Session> = {}): Session {
+  return {
+    id: 'session-1',
+    deckId: 'bank-1',
+    mode: 'defi',
+    status: 'ouverte',
+    maxParticipants: 6,
+    joinCode: 'ABCD1234',
+    defaultTimeLimit: 20,
+    guestLocale: null,
+    questions: [frozenQuestionOf(1), frozenQuestionOf(2)],
+    participants: [],
+    ...overrides,
+  };
+}
+
+/**
+ * Doublure écrite à la main (CLAUDE.md §11 interdit `vi.mock`). Elle porte une
+ * décision qui compte : `recordAnswer` applique vraiment l'unicité par
+ * `(question, participant)`, comme la contrainte en base. Sans ça, les tests de
+ * cas d'usage passeraient sur une doublure plus permissive que la production.
+ */
+export class FakeSessionRepository implements SessionRepository {
+  private readonly sessions = new Map<string, Session>();
+  readonly answers: AnswerRow[] = [];
+
+  add(session: Session): void {
+    this.sessions.set(session.id, session);
+  }
+
+  private muter(sessionId: string, patch: (session: Session) => Session): void {
+    const session = this.sessions.get(sessionId);
+    if (session !== undefined) this.sessions.set(sessionId, patch(session));
+  }
+
+  private questionById(sessionQuestionId: string): { session: Session; question: FrozenQuestion } | null {
+    for (const session of this.sessions.values()) {
+      const question = session.questions.find((candidate) => candidate.id === sessionQuestionId);
+      if (question !== undefined) return { session, question };
+    }
+    return null;
+  }
+
+  async create(input: {
+    deckId: string;
+    mode: Session['mode'];
+    maxParticipants: number;
+    defaultTimeLimit: number | null;
+    guestLocale: string | null;
+    joinCode: string;
+    createdBy: string;
+  }): Promise<Session> {
+    // La base refuse un joinCode en double dans un locataire (@@unique([joinCode, tenantId])).
+    if ([...this.sessions.values()].some((s) => s.joinCode === input.joinCode)) {
+      throw new JoinCodeAlreadyUsedError(input.joinCode);
+    }
+    const session = sessionOf({
+      id: nextId('session'),
+      deckId: input.deckId,
+      mode: input.mode,
+      status: 'brouillon',
+      maxParticipants: input.maxParticipants,
+      defaultTimeLimit: input.defaultTimeLimit,
+      guestLocale: input.guestLocale,
+      joinCode: input.joinCode,
+      questions: [],
+      participants: [],
+    });
+    this.sessions.set(session.id, session);
+    return session;
+  }
+
+  async findById(sessionId: string): Promise<Session | null> {
+    return this.sessions.get(sessionId) ?? null;
+  }
+
+  async findByJoinCode(joinCode: string): Promise<Session | null> {
+    return [...this.sessions.values()].find((s) => s.joinCode === joinCode) ?? null;
+  }
+
+  async list(): Promise<readonly Session[]> {
+    return [...this.sessions.values()];
+  }
+
+  async setStatus(sessionId: string, status: SessionStatus): Promise<void> {
+    this.muter(sessionId, (session) => ({ ...session, status }));
+  }
+
+  async freezeQuestions(
+    sessionId: string,
+    questions: readonly Omit<FrozenQuestion, 'id'>[]): Promise<void> {
+    this.muter(sessionId, (session) => ({
+      ...session,
+      questions: questions.map((q) => ({ ...q, id: nextId('sq') })),
+    }));
+  }
+
+  async openQuestion(input: {
+    sessionQuestionId: string;
+    openedAt: Date;
+    deadlineAt: Date | null;
+  }): Promise<void> {
+    const trouve = this.questionById(input.sessionQuestionId);
+    if (trouve === null) return;
+    this.muter(trouve.session.id, (session) => ({
+      ...session,
+      questions: session.questions.map((q) =>
+        q.id === input.sessionQuestionId
+          ? { ...q, openedAt: input.openedAt, deadlineAt: input.deadlineAt }
+          : q),
+    }));
+  }
+
+  async closeQuestion(input: { sessionQuestionId: string; closedAt: Date }): Promise<void> {
+    const trouve = this.questionById(input.sessionQuestionId);
+    if (trouve === null) return;
+    this.muter(trouve.session.id, (session) => ({
+      ...session,
+      questions: session.questions.map((q) =>
+        q.id === input.sessionQuestionId ? { ...q, closedAt: input.closedAt } : q),
+    }));
+  }
+
+  async addParticipant(input: { sessionId: string; participantIndex: number }): Promise<Participant> {
+    const participant: Participant = {
+      id: nextId('participant'),
+      participantIndex: input.participantIndex,
+      name: null,
+      score: 0,
+      memberNames: [],
+    };
+    this.muter(input.sessionId, (session) => ({
+      ...session,
+      participants: [...session.participants, participant],
+    }));
+    return participant;
+  }
+
+  private readonly membres = new Map<string, Set<string>>();
+
+  async addMember(input: {
+    participantId: string;
+    guestId: string;
+    displayName: string;
+  }): Promise<void> {
+    const deja = this.membres.get(input.participantId) ?? new Set<string>();
+    // Idempotent : une reconnexion ne doit pas creer un second membre.
+    deja.add(input.guestId);
+    this.membres.set(input.participantId, deja);
+
+    for (const session of this.sessions.values()) {
+      if (!session.participants.some((p) => p.id === input.participantId)) continue;
+      this.muter(session.id, (courante) => ({
+        ...courante,
+        participants: courante.participants.map((p) =>
+          p.id === input.participantId
+            ? {
+                ...p,
+                memberNames: p.memberNames.includes(input.displayName)
+                  ? p.memberNames
+                  : [...p.memberNames, input.displayName],
+              }
+            : p),
+      }));
+      return;
+    }
+  }
+
+  async findParticipantByGuest(input: {
+    sessionId: string;
+    guestId: string;
+  }): Promise<Participant | null> {
+    const session = this.sessions.get(input.sessionId);
+    if (session === undefined) return null;
+    for (const participant of session.participants) {
+      if (this.membres.get(participant.id)?.has(input.guestId) === true) return participant;
+    }
+    return null;
+  }
+
+  async renameParticipant(input: { participantId: string; name: string | null }): Promise<void> {
+    for (const session of this.sessions.values()) {
+      if (!session.participants.some((p) => p.id === input.participantId)) continue;
+      this.muter(session.id, (courante) => ({
+        ...courante,
+        participants: courante.participants.map((p) =>
+          p.id === input.participantId ? { ...p, name: input.name } : p),
+      }));
+      return;
+    }
+  }
+
+  async recordAnswer(answer: NewAnswer): Promise<AnswerRow | null> {
+    // ⛔ L'unicite est appliquee ICI aussi, parce que la base l'applique. Une
+    // doublure plus permissive que la production ferait passer des tests de cas
+    // d'usage qui echoueraient en vrai.
+    const deja = this.answers.some(
+      (a) =>
+        a.sessionQuestionId === answer.sessionQuestionId &&
+        a.participantId === answer.participantId);
+    if (deja) return null;
+
+    const ligne: AnswerRow = { ...answer, id: nextId('answer') };
+    this.answers.push(ligne);
+    return ligne;
+  }
+
+  async addToScore(input: { participantId: string; points: number }): Promise<void> {
+    for (const session of this.sessions.values()) {
+      if (!session.participants.some((p) => p.id === input.participantId)) continue;
+      this.muter(session.id, (courante) => ({
+        ...courante,
+        participants: courante.participants.map((p) =>
+          p.id === input.participantId ? { ...p, score: p.score + input.points } : p),
+      }));
+      return;
+    }
+  }
+
+  async answersFor(sessionQuestionId: string): Promise<readonly AnswerRow[]> {
+    return this.answers.filter((a) => a.sessionQuestionId === sessionQuestionId);
+  }
+
+  async allAnswers(sessionId: string): Promise<readonly AnswerRow[]> {
+    const session = this.sessions.get(sessionId);
+    if (session === undefined) return [];
+    const ids = new Set(session.questions.map((q) => q.id));
+    return this.answers.filter((a) => ids.has(a.sessionQuestionId));
   }
 }

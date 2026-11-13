@@ -68,3 +68,9 @@ export class TimeLimitUnresolvableError extends DomainError {
     super(`Délai impossible à résoudre pour la question ${String(rank)} : ${raison}`);
   }
 }
+
+export class JoinCodeAlreadyUsedError extends DomainError {
+  constructor(joinCode: string) {
+    super(`Le code de séance ${joinCode} est déjà utilisé`);
+  }
+}
