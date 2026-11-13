@@ -53,6 +53,20 @@ describe('resoudreLeDelai, mode defi', () => {
    * seulement a l'ecriture laisserait passer une valeur ecrite en base avant
    * que la borne existe, ou par une ecriture directe.
    */
+  it('refuse un delai de question a zero au lieu de retomber sur le defaut de session', () => {
+    expect(
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: 0, sessionDefault: 20 })).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
+  });
+
+  /**
+   * On choisit d'abord, on valide ensuite : un delai de question hors bornes
+   * est refuse, il ne se rabat pas sur un defaut de session valide.
+   */
+  it('refuse un delai de question hors bornes meme avec un defaut de session valide', () => {
+    expect(
+      resoudreLeDelai({ mode: 'defi', questionTimeLimit: 500, sessionDefault: 20 })).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
+  });
+
   it('refuse un defaut de session hors bornes', () => {
     expect(
       resoudreLeDelai({ mode: 'defi', questionTimeLimit: null, sessionDefault: 500 })).toEqual({ kind: 'refuse', raison: 'hors-bornes' });
