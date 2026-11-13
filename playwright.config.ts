@@ -43,10 +43,16 @@ export default defineConfig({
     },
   ],
 
-  webServer: process.env['CI'] ? undefined : {
-    command: 'pnpm dev',
-    port: 3000,
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  // La clé est OMISE en CI, et non mise à `undefined` : exactOptionalPropertyTypes
+  // refuse une clé présente qui vaut `undefined`.
+  ...(process.env['CI']
+    ? {}
+    : {
+        webServer: {
+          command: 'pnpm dev',
+          port: 3000,
+          reuseExistingServer: true,
+          timeout: 120_000,
+        },
+      }),
 });
