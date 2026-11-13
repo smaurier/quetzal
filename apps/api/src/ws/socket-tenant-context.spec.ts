@@ -44,3 +44,15 @@ describe('buildSocketTenantContext', () => {
     expect(ctx?.requestId).toBe('same-request-id');
   });
 });
+
+describe('buildSocketTenantContext, nom de l utilisateur (#91)', () => {
+  it('pose le nom de l utilisateur dans le contexte', () => {
+    const ctx = buildSocketTenantContext({ ...user, userName: 'Elda' }, 'req-5');
+    expect(ctx?.userName).toBe('Elda');
+  });
+
+  it('ne donne aucun nom a un invite, qui n est pas un utilisateur', () => {
+    const ctx = buildSocketTenantContext(guest, 'req-6');
+    expect(ctx && 'userName' in ctx).toBe(false);
+  });
+});

@@ -26,6 +26,7 @@ export interface UserTokenClaims {
   tenantId: string | null;
   role?: string | undefined;
   locale?: string | undefined;
+  name?: string | undefined;
 }
 
 export interface HandshakeVerifiers {
@@ -35,7 +36,7 @@ export interface HandshakeVerifiers {
 
 export type SocketIdentity =
   | { role: 'guest'; guestId: string; displayName: string; tenantId: string; sessionId: string; moduleSlug: string }
-  | { role: QuetzalRole; userId: string; tenantId: string | null; locale: string };
+  | { role: QuetzalRole; userId: string; tenantId: string | null; locale: string; userName?: string };
 
 /**
  * Identify the party opening a module namespace, once, at handshake time.
@@ -58,6 +59,7 @@ export async function resolveSocketIdentity(
       userId: claims.userId,
       tenantId: claims.tenantId,
       locale: claims.locale ?? 'fr',
+      ...(claims.name ? { userName: claims.name } : {}),
     };
   }
 

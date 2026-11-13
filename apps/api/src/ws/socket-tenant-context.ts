@@ -28,5 +28,6 @@ export function buildSocketTenantContext(
     role: identity.role,
     requestId,
     ...(isLocale(identity.locale) ? { locale: identity.locale } : {}),
+    ...(identity.userName !== undefined ? { userName: identity.userName } : {}),
   };
 }

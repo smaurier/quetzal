@@ -22,6 +22,8 @@ export interface AuthContext {
   tenantId: string | null;
   role: string | null;
   locale: string;
+  /** Absent d'un jeton émis avant #91. */
+  name?: string;
 }
 
 @Injectable()

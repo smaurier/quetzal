@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { resolveSocketIdentity, WsUnauthenticatedError, canEmitWsEvent } from './handshake';
 
-const user = { userId: 'u1', tenantId: 't1', role: 'owner', locale: 'fr' };
+const user = { userId: 'u1', tenantId: 't1', role: 'owner', locale: 'fr', name: 'Elda' };
 const guest = { tenantId: 't1', sessionId: 's1', guestId: 'g1', displayName: 'Ana', moduleSlug: 'hello', iat: 0, exp: 0 };
 
 function verifiers(over: Partial<Parameters<typeof resolveSocketIdentity>[2]> = {}) {
@@ -18,7 +18,7 @@ const closedPolicy = { moduleSlug: 'hello', allowGuests: false };
 describe('resolveSocketIdentity', () => {
   it('identifies a signed-in user from auth.token', async () => {
     const id = await resolveSocketIdentity({ token: 'jwt' }, openPolicy, verifiers());
-    expect(id).toEqual({ role: 'owner', userId: 'u1', tenantId: 't1', locale: 'fr' });
+    expect(id).toEqual({ role: 'owner', userId: 'u1', tenantId: 't1', locale: 'fr', userName: 'Elda' });
   });
 
   it('identifies a guest from auth.guestToken when the module allows guests', async () => {
@@ -72,5 +72,19 @@ describe('canEmitWsEvent', () => {
 
   it('never grants through an http entry', () => {
     expect(canEmitWsEvent(permissions, 'GET /x', 'owner')).toBe(false);
+  });
+});
+
+describe('resolveSocketIdentity, nom de l utilisateur (#91)', () => {
+  it('reporte le nom porte par le jeton', async () => {
+    const identity = await resolveSocketIdentity({ token: 'jwt' }, openPolicy, verifiers());
+    expect(identity).toMatchObject({ userId: 'u1', userName: 'Elda' });
+  });
+
+  /** Un jeton emis avant #91 n a pas de nom : l identite l omet, sans inventer. */
+  it('omet le nom quand le jeton n en porte pas', async () => {
+    const v = verifiers({ verifyUserToken: vi.fn(async () => ({ userId: 'u1', tenantId: 't1' })) });
+    const identity = await resolveSocketIdentity({ token: 'jwt' }, openPolicy, v);
+    expect('userName' in identity).toBe(false);
   });
 });
