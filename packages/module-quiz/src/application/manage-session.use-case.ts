@@ -3,6 +3,7 @@ import type { EventBus } from '@quetzal/core';
 import { emitQuiz } from '@quetzal/core/events/quiz';
 import {
   BankNotFoundError,
+  EmptyBankError,
   InvalidSessionTransitionError,
   JoinCodeAlreadyUsedError,
   SessionNotFoundError,
@@ -15,6 +16,7 @@ import type { SessionStatus } from '../domain/session-status.js';
 import type { QuestionBankRepository } from '../domain/ports/question-bank.repository.js';
 import type { FrozenQuestion, Session, SessionRepository } from '../domain/ports/session.repository.js';
 
+const ESSAIS_DE_CODE = 10;
 const ALPHABET_CODE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 /**
@@ -51,10 +53,12 @@ export class ManageSessionUseCase {
     // Boucle de réessai plutôt qu'un seul tirage : deux séances qui
     // partageraient un code enverraient deux classes voisines dans la même
     // partie. La collision est improbable, pas impossible.
-    for (let essai = 0; essai < 10; essai += 1) {
+    for (let essai = 1; ; essai += 1) {
       const joinCode = frapperUnCode();
-      if ((await this.sessions.findByJoinCode(joinCode)) !== null) continue;
       try {
+        if ((await this.sessions.findByJoinCode(joinCode)) !== null) {
+          throw new JoinCodeAlreadyUsedError(joinCode);
+        }
         return await this.sessions.create({
           deckId: input.deckId,
           mode: input.mode,
@@ -67,10 +71,9 @@ export class ManageSessionUseCase {
       } catch (erreur) {
         // La lecture ci-dessus ne protège pas d'une séance créée entre-temps :
         // seule l'unicité en base tranche.
-        if (!(erreur instanceof JoinCodeAlreadyUsedError)) throw erreur;
+        if (!(erreur instanceof JoinCodeAlreadyUsedError) || essai === ESSAIS_DE_CODE) throw erreur;
       }
     }
-    throw new SessionNotFoundError('aucun code d entrée libre après dix essais');
   }
 
   async open(input: { sessionId: string }): Promise<void> {
@@ -95,7 +98,7 @@ export class ManageSessionUseCase {
     const banque = await this.banks.findById(session.deckId);
     if (banque === null) throw new BankNotFoundError(session.deckId);
     if (banque.questions.length === 0) {
-      throw new TimeLimitUnresolvableError(0, 'la banque ne contient aucune question');
+      throw new EmptyBankError(banque.id);
     }
 
     const figees: Omit<FrozenQuestion, 'id'>[] = [];
