@@ -119,6 +119,17 @@ describe('SessionController, par HTTP', () => {
     expect((await appel('PATCH', '/session-1/participants/p-1', { name: 'a'.repeat(41) })).status).toBe(400);
   });
 
+  it('repond 404 au renommage d un participant d une autre seance', async () => {
+    sessions.add(sessionOf({ id: 'session-1', joinCode: 'AAAA2222' }));
+    sessions.add(sessionOf({ id: 'session-2', joinCode: 'BBBB3333' }));
+    const ailleurs = await sessions.ajouterParticipant({
+      sessionId: 'session-2', participantIndex: 1, guestId: 'g-2', displayName: 'Bea',
+    });
+    const r = await appel('PATCH', `/session-1/participants/${ailleurs.id}`, { name: 'Intrus' });
+    expect(r.status).toBe(404);
+    expect(r.body.error).toBe('participant_not_found_error');
+  });
+
   it('repond 400 a un defi cree sans delai par defaut', async () => {
     const r = await appel('POST', '', {
       deckId: 'bank-1', mode: 'defi', maxParticipants: 30, defaultTimeLimit: null,

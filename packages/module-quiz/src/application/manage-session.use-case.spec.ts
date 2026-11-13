@@ -4,6 +4,7 @@ import {
   EmptyBankError,
   InvalidSessionTransitionError,
   JoinCodeAlreadyUsedError,
+  ParticipantNotFoundError,
   SessionBankDeletedError,
   SessionNotFoundError,
   TimeLimitUnresolvableError,
@@ -370,7 +371,7 @@ describe('ManageSessionUseCase, renommage', () => {
     const participant = await sessions.ajouterParticipant({
       sessionId: 'session-1', participantIndex: 1, guestId: 'g-1', displayName: 'Ana',
     });
-    await useCase.rename({ participantId: participant.id, name });
+    await useCase.rename({ sessionId: 'session-1', participantId: participant.id, name });
     return (await sessions.findById('session-1'))?.participants[0]?.name;
   }
 
@@ -384,5 +385,47 @@ describe('ManageSessionUseCase, renommage', () => {
 
   it('annule le renommage sur null', async () => {
     expect(await renommer(null)).toBeNull();
+  });
+});
+
+/**
+ * Même garde que `RenameTeamUseCase` du loto (#29) : le cloisonnement Prisma
+ * borne au LOCATAIRE, pas à la séance. Sans elle, un identifiant suffirait à
+ * renommer le participant d'une autre séance, donc d'une autre classe.
+ */
+describe('ManageSessionUseCase, renommage borne a la seance', () => {
+  async function deuxSeances() {
+    const { sessions, useCase } = build();
+    sessions.add(sessionOf({ id: 'session-1', joinCode: 'AAAA2222', status: 'en-cours' }));
+    sessions.add(sessionOf({ id: 'session-2', joinCode: 'BBBB3333', status: 'en-cours' }));
+    const ailleurs = await sessions.ajouterParticipant({
+      sessionId: 'session-2', participantIndex: 1, guestId: 'g-2', displayName: 'Bea',
+    });
+    return { sessions, useCase, ailleurs };
+  }
+
+  it('refuse le participant d une autre seance, sans le renommer', async () => {
+    const { sessions, useCase, ailleurs } = await deuxSeances();
+
+    await expect(
+      useCase.rename({ sessionId: 'session-1', participantId: ailleurs.id, name: 'Intrus' }),
+    ).rejects.toBeInstanceOf(ParticipantNotFoundError);
+    expect((await sessions.findById('session-2'))?.participants[0]?.name).toBeNull();
+  });
+
+  it('refuse un participant inconnu au lieu de ne rien faire en silence', async () => {
+    const { useCase } = await deuxSeances();
+
+    await expect(
+      useCase.rename({ sessionId: 'session-1', participantId: 'inconnu', name: 'X' }),
+    ).rejects.toBeInstanceOf(ParticipantNotFoundError);
+  });
+
+  it('refuse une seance inconnue', async () => {
+    const { useCase, ailleurs } = await deuxSeances();
+
+    await expect(
+      useCase.rename({ sessionId: 'inconnue', participantId: ailleurs.id, name: 'X' }),
+    ).rejects.toBeInstanceOf(SessionNotFoundError);
   });
 });
