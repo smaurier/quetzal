@@ -7,7 +7,6 @@ import {
   SessionNotFoundError,
 } from '../domain/errors.js';
 import { accueilDeLaReponse } from '../domain/deadline.js';
-import { GRACE_MS } from '../domain/scoring.js';
 import type { NewAnswer } from '../domain/ports/session.repository.js';
 import type { SessionStatus } from '../domain/session-status.js';
 import { RunQuestionUseCase } from './run-question.use-case.js';
@@ -176,7 +175,7 @@ describe('RunQuestionUseCase, ouverture', () => {
     avancerDe(60_000);
     await useCase.openNext({ sessionId: 'session-1' });
 
-    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 20_000 + GRACE_MS);
+    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 20_000);
   });
 
   it('annonce la fermeture de la precedente avec le compte de ses seules reponses', async () => {
@@ -265,7 +264,7 @@ describe('RunQuestionUseCase, fermeture', () => {
     }]);
   });
 
-  it('ferme au bout de la grace, pas au clic, quand l echeance est depassee depuis longtemps', async () => {
+  it('ferme a l echeance, pas au clic, quand l echeance est depassee depuis longtemps', async () => {
     const { sessions, useCase, avancerDe } = build();
     sessions.add(sessionOf({
       status: 'en-cours',
@@ -275,25 +274,28 @@ describe('RunQuestionUseCase, fermeture', () => {
     avancerDe(60_000);
     await useCase.close({ sessionId: 'session-1' });
 
-    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 20_000 + GRACE_MS);
+    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 20_000);
   });
 
-  it('ferme a l instant du clic dans la grace, sans antidater une reponse acceptee dans la grace', async () => {
+  /**
+   * ⛔ La grace s'ajoute une seule fois, par la regle du domaine. Un `closedAt`
+   * pose a `deadlineAt + GRACE_MS` la compterait deux fois.
+   */
+  it('ferme a l echeance un clic tombe dans la grace, qui ne s accorde qu une fois', async () => {
     const { sessions, useCase, avancerDe } = build();
     sessions.add(sessionOf({
       status: 'en-cours',
       questions: [frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) })],
     }));
-    const arriveeDansLaGrace = T0 + 20_100;
-    const fenetreALArrivee = { deadlineAt: T0 + 20_000, closedAt: null };
 
     avancerDe(20_200);
     await useCase.close({ sessionId: 'session-1' });
 
-    const closedAt = (await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime();
-    expect(accueilDeLaReponse(fenetreALArrivee, arriveeDansLaGrace).kind).toBe('dans-la-grace');
-    expect(closedAt).toBe(T0 + 20_200);
-    expect(closedAt).toBeGreaterThanOrEqual(arriveeDansLaGrace);
+    const fermee = (await sessions.findById('session-1'))?.questions[0];
+    expect(fermee?.closedAt?.getTime()).toBe(T0 + 20_000);
+    const fenetre = { deadlineAt: T0 + 20_000, closedAt: fermee?.closedAt?.getTime() ?? null };
+    expect(accueilDeLaReponse(fenetre, T0 + 20_100).kind).toBe('dans-la-grace');
+    expect(accueilDeLaReponse(fenetre, T0 + 20_600).kind).toBe('trop-tard');
   });
 
   it('ferme a l instant du clic en mode controle, sans echeance', async () => {

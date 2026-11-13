@@ -57,24 +57,61 @@ describe('accueilDeLaReponse, mode defi', () => {
   });
 
   /**
-   * ⛔ Une question FERMEE A LA MAIN par l'animatrice refuse, meme si son
-   * echeance n'est pas atteinte. Sinon son geste « on passe a la suite »
-   * n'aurait aucun effet, et des reponses continueraient d'arriver sur une
-   * question que la classe a quittee.
+   * ⛔ Une question FERMEE A LA MAIN par l'animatrice avant son echeance
+   * refuse au-dela de la grace, meme si l'echeance n'est pas atteinte. Sinon
+   * son geste « on passe a la suite » n'aurait aucun effet.
    */
-  it('refuse quand l animatrice a ferme la question avant son echeance', () => {
+  it('refuse au-dela de la grace quand l animatrice a ferme avant l echeance', () => {
     expect(accueilDeLaReponse({ deadlineAt: 20_000, closedAt: 8_000 }, 9_000)).toEqual({
       kind: 'trop-tard',
       raison: 'question-fermee',
     });
   });
 
-  it('refuse meme une reponse anterieure a la fermeture manuelle', () => {
-    // L'horodatage d'arrivee est mesure a la reception, donc une reponse
-    // « anterieure » signale une horloge qui recule ou un rejeu. On refuse.
+  it('accorde la grace, sans bonus, juste apres une fermeture anticipee', () => {
+    expect(accueilDeLaReponse({ deadlineAt: 20_000, closedAt: 8_000 }, 8_300)).toEqual({
+      kind: 'dans-la-grace',
+    });
+  });
+
+  /**
+   * Une reponse recue avant le clic peut etre evaluee apres lui (course entre
+   * la reception et l'ecriture de la fermeture) : elle etait a temps.
+   */
+  it('accepte a temps une reponse arrivee avant la fermeture manuelle', () => {
     expect(accueilDeLaReponse({ deadlineAt: 20_000, closedAt: 8_000 }, 7_000)).toEqual({
+      kind: 'a-temps',
+    });
+  });
+
+  /**
+   * ⛔ D8 : le chemin NORMAL est la fermeture appelee a zero par le navigateur
+   * de l'animatrice. La grace de §8 (frappe deja engagee) doit survivre a ce
+   * clic, sinon elle ne s'applique jamais.
+   */
+  it('accorde la grace a une reponse evaluee apres la fermeture a l echeance', () => {
+    expect(accueilDeLaReponse({ deadlineAt: 20_000, closedAt: 20_000 }, 20_100)).toEqual({
+      kind: 'dans-la-grace',
+    });
+  });
+
+  it('refuse apres la grace d une fermeture a l echeance', () => {
+    expect(accueilDeLaReponse({ deadlineAt: 20_000, closedAt: 20_000 }, 20_000 + GRACE_MS + 1)).toEqual({
       kind: 'trop-tard',
       raison: 'question-fermee',
+    });
+  });
+
+  /**
+   * ⛔ Une fermeture tardive ne prolonge rien : la fin est la plus tot des
+   * deux bornes, et la grace part de l'echeance.
+   */
+  it('mesure la grace depuis l echeance quand la fermeture est plus tardive', () => {
+    const fenetre = { deadlineAt: 20_000, closedAt: 25_000 };
+    expect(accueilDeLaReponse(fenetre, 20_300)).toEqual({ kind: 'dans-la-grace' });
+    expect(accueilDeLaReponse(fenetre, 20_000 + GRACE_MS + 1)).toEqual({
+      kind: 'trop-tard',
+      raison: 'echeance-depassee',
     });
   });
 });
@@ -90,20 +127,21 @@ describe('accueilDeLaReponse, mode controle', () => {
     });
   });
 
-  it('refuse apres la fermeture manuelle, meme sans echeance', () => {
+  /**
+   * §8 parle de « la fermeture », pas de l'echeance : la grace motrice vaut
+   * aussi apres le clic en mode controle. Le bareme du controle ne donnant
+   * qu'un point fixe, elle n'y cree aucun bonus.
+   */
+  it('accorde la grace juste apres la fermeture manuelle, meme sans echeance', () => {
     expect(accueilDeLaReponse({ deadlineAt: null, closedAt: 1_000 }, 1_200)).toEqual({
-      kind: 'trop-tard',
-      raison: 'question-fermee',
+      kind: 'dans-la-grace',
     });
   });
 
-  /**
-   * ⛔ La grace ne doit PAS s'appliquer en mode controle : il n'y a rien dont
-   * elle serait la marge. L'accorder ferait croire a un bonus absent, et
-   * surtout rendrait `dans-la-grace` la ou le bareme attend `a-temps`.
-   */
-  it('ne rend jamais dans-la-grace quand il n y a aucune echeance', () => {
-    const accueil = accueilDeLaReponse({ deadlineAt: null, closedAt: null }, 50_000);
-    expect(accueil.kind).not.toBe('dans-la-grace');
+  it('refuse apres la grace de la fermeture manuelle', () => {
+    expect(accueilDeLaReponse({ deadlineAt: null, closedAt: 1_000 }, 1_000 + GRACE_MS + 1)).toEqual({
+      kind: 'trop-tard',
+      raison: 'question-fermee',
+    });
   });
 });
