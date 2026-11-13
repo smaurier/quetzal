@@ -12,6 +12,7 @@ import {
   AnswerTooLateError,
   AlreadyAnsweredError,
   TimeLimitUnresolvableError,
+  JoinCodeAlreadyUsedError,
 } from './errors';
 
 /**
@@ -33,6 +34,7 @@ describe('erreurs du domaine quiz', () => {
     new AnswerTooLateError('delai depasse'),
     new AlreadyAnsweredError('p-1'),
     new TimeLimitUnresolvableError(2, 'aucun delai'),
+    new JoinCodeAlreadyUsedError('ABCD1234'),
   ];
 
   it('heritent toutes de DomainError', () => {
