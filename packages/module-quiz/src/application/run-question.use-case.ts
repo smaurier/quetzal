@@ -51,6 +51,15 @@ export class RunQuestionUseCase {
     return this.ouverteDe(session);
   }
 
+  /**
+   * Une DUREE et jamais l'echeance : l'ecran qui la recoit n'a pas a comparer
+   * l'horloge du serveur a la sienne. `null` en mode controle.
+   */
+  restantMs(question: FrozenQuestion): number | null {
+    if (question.deadlineAt === null) return null;
+    return Math.max(0, question.deadlineAt.getTime() - this.maintenant());
+  }
+
   async openNext(input: { sessionId: string }): Promise<OuvertureResultat> {
     const session = await this.require(input.sessionId);
     if (session.status !== 'en-cours') {

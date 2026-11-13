@@ -100,6 +100,7 @@ export class QuizGateway implements OnGatewayInit, OnGatewayConnection {
         session: etatPourLaSalle(vue),
         participantId: data.participantId ?? null,
         question: courante === null ? null : questionPourLaSalle(courante),
+        restantMs: courante === null ? null : this.questions.restantMs(courante),
       });
 
       if (data.participantId !== undefined) await this.broadcaster.sessionChanged(sessionId);
