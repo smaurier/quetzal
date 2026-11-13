@@ -102,12 +102,12 @@ export class SessionController {
 
   @Patch(':id/participants/:participantId')
   async renameParticipant(
-    @Param('id') _id: string,
+    @Param('id') id: string,
     @Param('participantId') participantId: string,
     @Body() body: unknown) {
     const parsed = renameParticipantSchema.safeParse(body);
     if (!parsed.success) throw new BadRequestException(parsed.error.flatten());
-    await this.sessions.rename({ participantId, name: parsed.data.name });
+    await this.sessions.rename({ sessionId: id, participantId, name: parsed.data.name });
     return { ok: true };
   }
 

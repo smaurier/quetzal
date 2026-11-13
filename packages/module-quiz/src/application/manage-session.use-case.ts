@@ -7,6 +7,7 @@ import {
   SessionBankDeletedError,
   InvalidSessionTransitionError,
   JoinCodeAlreadyUsedError,
+  ParticipantNotFoundError,
   SessionNotFoundError,
   TimeLimitUnresolvableError,
 } from '../domain/errors.js';
@@ -144,7 +145,15 @@ export class ManageSessionUseCase {
     }
   }
 
-  async rename(input: { participantId: string; name: string | null }): Promise<void> {
+  async rename(input: { sessionId: string; participantId: string; name: string | null }): Promise<void> {
+    // ⛔ L'appartenance, comme `RenameTeamUseCase` du loto (#29) : le
+    // cloisonnement Prisma borne au locataire, pas à la séance, et l'écriture
+    // (`updateMany`) ne dit rien quand elle ne touche personne.
+    const session = await this.require(input.sessionId);
+    if (!session.participants.some((p) => p.id === input.participantId)) {
+      throw new ParticipantNotFoundError(input.participantId);
+    }
+
     // `null` est une valeur VOULUE et non une absence : c'est ainsi que
     // l'animatrice annule un renommage. Même décision que l'issue #29.
     const nettoye = input.name === null ? null : input.name.trim();
