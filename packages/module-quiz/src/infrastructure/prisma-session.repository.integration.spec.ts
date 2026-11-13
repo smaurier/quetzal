@@ -313,11 +313,14 @@ describe('PrismaSessionRepository (intégration)', () => {
         id: newId(), sessionQuestionId: sqId, participantId, authorGuestId: 'g', optionId: 'o-1',
         value: null, isCorrect: true, elapsedMs: 1, points: 1, createdAt: new Date(createdAt),
       });
+      // L'ordre attendu contredit à la fois l'ordre physique, celui des
+      // identifiants de réponse et celui de l'index unique (participantId) :
+      // seul un ORDER BY sur l'horodatage peut le rendre.
       await dans(() => brut().quiz_Answer.createMany({
-        data: [ligne(second.id, '2030-01-01T00:00:02Z'), ligne(premier.id, '2030-01-01T00:00:01Z')],
+        data: [ligne(premier.id, '2030-01-01T00:00:02Z'), ligne(second.id, '2030-01-01T00:00:01Z')],
       }));
       const ordre = (await dans(() => repo.answersFor(sqId))).map((r) => r.participantId);
-      expect(ordre).toEqual([premier.id, second.id]);
+      expect(ordre).toEqual([second.id, premier.id]);
     });
     /**
      * Le garde `isSessionStatus` de la lecture ne peut pas etre atteint depuis
