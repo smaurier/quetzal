@@ -6,6 +6,8 @@ import {
   NoQuestionOpenError,
   SessionNotFoundError,
 } from '../domain/errors.js';
+import { accueilDeLaReponse } from '../domain/deadline.js';
+import { GRACE_MS } from '../domain/scoring.js';
 import type { NewAnswer } from '../domain/ports/session.repository.js';
 import type { SessionStatus } from '../domain/session-status.js';
 import { RunQuestionUseCase } from './run-question.use-case.js';
@@ -174,7 +176,7 @@ describe('RunQuestionUseCase, ouverture', () => {
     avancerDe(60_000);
     await useCase.openNext({ sessionId: 'session-1' });
 
-    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 60_000);
+    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 20_000 + GRACE_MS);
   });
 
   it('annonce la fermeture de la precedente avec le compte de ses seules reponses', async () => {
@@ -261,6 +263,51 @@ describe('RunQuestionUseCase, fermeture', () => {
       name: 'quiz.question.closed',
       payload: { sessionId: 'session-1', sessionQuestionId: question.id, answerCount: 2, correctCount: 1 },
     }]);
+  });
+
+  it('ferme au bout de la grace, pas au clic, quand l echeance est depassee depuis longtemps', async () => {
+    const { sessions, useCase, avancerDe } = build();
+    sessions.add(sessionOf({
+      status: 'en-cours',
+      questions: [frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) })],
+    }));
+
+    avancerDe(60_000);
+    await useCase.close({ sessionId: 'session-1' });
+
+    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 20_000 + GRACE_MS);
+  });
+
+  it('ferme a l instant du clic dans la grace, sans antidater une reponse acceptee dans la grace', async () => {
+    const { sessions, useCase, avancerDe } = build();
+    sessions.add(sessionOf({
+      status: 'en-cours',
+      questions: [frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) })],
+    }));
+    const arriveeDansLaGrace = T0 + 20_100;
+    const fenetreALArrivee = { deadlineAt: T0 + 20_000, closedAt: null };
+
+    avancerDe(20_200);
+    await useCase.close({ sessionId: 'session-1' });
+
+    const closedAt = (await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime();
+    expect(accueilDeLaReponse(fenetreALArrivee, arriveeDansLaGrace).kind).toBe('dans-la-grace');
+    expect(closedAt).toBe(T0 + 20_200);
+    expect(closedAt).toBeGreaterThanOrEqual(arriveeDansLaGrace);
+  });
+
+  it('ferme a l instant du clic en mode controle, sans echeance', async () => {
+    const { sessions, useCase, avancerDe } = build();
+    sessions.add(sessionOf({
+      status: 'en-cours',
+      mode: 'controle',
+      questions: [frozenQuestionOf(1, { openedAt: new Date(T0), deadlineAt: null, timeLimitResolved: null })],
+    }));
+
+    avancerDe(90_000);
+    await useCase.close({ sessionId: 'session-1' });
+
+    expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 90_000);
   });
 
   it('refuse de fermer quand aucune question n est ouverte', async () => {
