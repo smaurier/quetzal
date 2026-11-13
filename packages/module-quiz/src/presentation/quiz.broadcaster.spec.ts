@@ -95,6 +95,48 @@ describe('QuizBroadcaster, session-changed', () => {
   });
 });
 
+describe('QuizBroadcaster, scores pendant une question ouverte', () => {
+  /**
+   * ⛔ Un score qui bouge pendant la question dit QUI a déjà répondu juste, et
+   * en classe, c'est sur qui copier. Tant qu'elle est ouverte, la salle lit le
+   * score d'avant elle ; les points d'une question déjà fermée restent.
+   */
+  async function anaAJusteAuxDeux() {
+    const { sessions, diffuseur, emis } = monter();
+    const fermee = frozenQuestionOf(1, { openedAt: new Date(T0 - 30_000), closedAt: new Date(T0 - 10_000) });
+    const ouverte = frozenQuestionOf(2, { openedAt: new Date(T0), deadlineAt: new Date(T0 + 20_000) });
+    sessions.add(sessionOf({ status: 'en-cours', questions: [fermee, ouverte] }));
+    const ana = await sessions.ajouterParticipant({
+      sessionId: 'session-1', participantIndex: 1, guestId: 'g-1', displayName: 'Ana',
+    });
+    const juste = (sessionQuestionId: string, points: number) => ({
+      sessionQuestionId, participantId: ana.id, authorGuestId: 'g-1',
+      optionId: 'o', value: null, isCorrect: true, elapsedMs: 900, points,
+    });
+    await sessions.enregistrerReponse(juste(fermee.id, 500));
+    await sessions.enregistrerReponse(juste(ouverte.id, 1200));
+    return { sessions, diffuseur, emis, ouverte };
+  }
+
+  it('diffuse le score d avant la question ouverte', async () => {
+    const { sessions, diffuseur, emis } = await anaAJusteAuxDeux();
+    expect((await sessions.findById('session-1'))?.participants[0]?.score).toBe(1700);
+
+    await diffuseur.sessionChanged('session-1');
+
+    expect(emis[0]?.payload).toMatchObject({ participants: [{ score: 500 }] });
+  });
+
+  it('diffuse le vrai score une fois la question fermee', async () => {
+    const { sessions, diffuseur, emis, ouverte } = await anaAJusteAuxDeux();
+    await sessions.closeQuestion({ sessionQuestionId: ouverte.id, closedAt: new Date(T0 + 5_000) });
+
+    await diffuseur.questionClosed('session-1', { sessionQuestionId: ouverte.id, answerCount: 1, correctCount: 1 });
+
+    expect(emis[1]?.payload).toMatchObject({ participants: [{ score: 1700 }] });
+  });
+});
+
 describe('QuizBroadcaster, question-closed', () => {
   it('annonce les comptes puis remet la salle a jour', async () => {
     const { sessions, diffuseur, emis } = monter();

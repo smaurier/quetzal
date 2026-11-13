@@ -104,7 +104,7 @@ describe('QuizGateway (intégration)', () => {
     const questionVueParBeto = new Promise<unknown>((resolve) => beto.once('question-opened', resolve));
     const questionVueParAna = new Promise<{ sessionQuestionId: string }>((resolve) =>
       ana.once('question-opened', resolve));
-    const ouverte = await app.get(RunQuestionUseCase).openNext({ sessionId: 'session-1' });
+    const { ouverte } = await app.get(RunQuestionUseCase).openNext({ sessionId: 'session-1' });
     await app.get(QuizBroadcaster).questionOpened('session-1', ouverte);
 
     const charge = await questionVueParBeto;

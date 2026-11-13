@@ -179,6 +179,21 @@ describe('SessionController, par HTTP', () => {
       expect(ouverte?.openedAt).not.toBeNull();
     });
 
+    // « Suivante » sur une question encore ouverte la ferme : la salle doit
+    // lire la correction de N AVANT de recevoir N+1.
+    it('diffuse la fermeture de la question ouverte avant la suivante', async () => {
+      const premiere = frozenQuestionOf(1, { openedAt: new Date(T0 - 1_000), deadlineAt: new Date(T0 + 19_000) });
+      sessions.add(sessionOf({ status: 'en-cours', questions: [premiere, frozenQuestionOf(2)] }));
+      await appel('POST', '/session-1/questions/next');
+      expect(evenements()).toEqual([
+        [salle, 'question-closed'],
+        [salle, 'session-changed'],
+        [salle, 'question-opened'],
+      ]);
+      expect(emis[0]?.payload).toMatchObject({ sessionQuestionId: premiere.id });
+      expect(emis[2]?.payload).toMatchObject({ rank: 2 });
+    });
+
     it('diffuse la fermeture puis les scores', async () => {
       sessions.add(sessionOf({
         status: 'en-cours',

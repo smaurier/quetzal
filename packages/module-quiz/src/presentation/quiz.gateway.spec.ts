@@ -258,6 +258,27 @@ describe('QuizGateway, connexion', () => {
     expect(salles).toContain(rooms.subgroup('quiz', 'session-1', participantId));
   });
 
+  // ⛔ La reconnexion en pleine question est le cas courant sur le wifi d'un
+  // établissement : l'état et la diffusion qu'elle déclenche ne doivent pas
+  // dire qui a déjà répondu juste.
+  it('montre a qui rejoint en pleine question les scores d avant cette question', async () => {
+    const { sessions, passerelle, emis } = monter();
+    const { question, ana } = await seanceEnCours(sessions);
+    await passerelle.handleAnswer({ sessionQuestionId: question.id, optionId: 'o-juste-1' }, socketDe(ana.id, 'g-ana').socket);
+    const scoreEnBase = (await sessions.findById('session-1'))?.participants.find((p) => p.id === ana.id)?.score;
+    expect(scoreEnBase).toBeGreaterThan(0);
+    const carla = fauxSocket({ role: 'guest', guestId: 'g-carla', displayName: 'Carla', sessionId: 'session-1' });
+
+    await passerelle.handleConnection(carla.socket);
+
+    const scoreDAna = (charge: unknown) =>
+      (charge as { participants: { id: string; score: number }[] }).participants.find((p) => p.id === ana.id)?.score;
+    const state = carla.emis.find((e) => e.event === 'state')?.payload as { session: unknown };
+    expect(scoreDAna(state.session)).toBe(0);
+    const diffusion = emis.find((e) => e.room === salle && e.event === 'session-changed');
+    expect(scoreDAna(diffusion?.payload)).toBe(0);
+  });
+
   it('coupe une connexion d animatrice sans identifiant de seance', async () => {
     const { passerelle } = monter();
     const { socket, etat } = fauxSocket({ role: 'owner', userId: 'u-1' });

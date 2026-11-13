@@ -30,7 +30,7 @@ describe('QuizModule, horloge', () => {
     sessions.add(sessionOf({ status: 'en-cours' }));
 
     const avant = Date.now();
-    const ouverte = await moduleRef.get(RunQuestionUseCase).openNext({ sessionId: 'session-1' });
+    const { ouverte } = await moduleRef.get(RunQuestionUseCase).openNext({ sessionId: 'session-1' });
     const apres = Date.now();
 
     expect(ouverte.openedAt?.getTime()).toBeGreaterThanOrEqual(avant);
@@ -54,7 +54,7 @@ describe('QuizModule, horloge', () => {
   it('fournit l heure courante a AnswerQuestionUseCase', async () => {
     const { sessions, moduleRef } = await compiler();
     sessions.add(sessionOf({ status: 'en-cours' }));
-    const ouverte = await moduleRef.get(RunQuestionUseCase).openNext({ sessionId: 'session-1' });
+    const { ouverte } = await moduleRef.get(RunQuestionUseCase).openNext({ sessionId: 'session-1' });
     const ana = await moduleRef.get(JoinSessionUseCase).execute({
       sessionId: 'session-1', guestId: 'g-1', displayName: 'Ana',
     });

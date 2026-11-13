@@ -58,7 +58,7 @@ describe('RunQuestionUseCase, ouverture', () => {
       questions: [frozenQuestionOf(1, { timeLimitResolved: 20 })],
     }));
 
-    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+    const { ouverte } = await useCase.openNext({ sessionId: 'session-1' });
 
     expect(ouverte.rank).toBe(1);
     expect(ouverte.deadlineAt?.getTime()).toBe(T0 + 20_000);
@@ -87,7 +87,7 @@ describe('RunQuestionUseCase, ouverture', () => {
       questions: [frozenQuestionOf(1, { timeLimitResolved: null })],
     }));
 
-    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+    const { ouverte } = await useCase.openNext({ sessionId: 'session-1' });
 
     expect(ouverte.deadlineAt).toBeNull();
     expect(ouverte.openedAt?.getTime()).toBe(T0);
@@ -105,7 +105,7 @@ describe('RunQuestionUseCase, ouverture', () => {
     }));
 
     avancerDe(1_000);
-    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+    const { ouverte } = await useCase.openNext({ sessionId: 'session-1' });
 
     expect(ouverte.rank).toBe(2);
     expect((await sessions.findById('session-1'))?.questions[0]?.closedAt?.getTime()).toBe(T0 + 5);
@@ -122,7 +122,7 @@ describe('RunQuestionUseCase, ouverture', () => {
       ],
     }));
 
-    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+    const { ouverte } = await useCase.openNext({ sessionId: 'session-1' });
 
     const lue = await sessions.findById('session-1');
     expect(ouverte.rank).toBe(2);
@@ -142,7 +142,7 @@ describe('RunQuestionUseCase, ouverture', () => {
     }));
 
     avancerDe(10_000);
-    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+    const { ouverte } = await useCase.openNext({ sessionId: 'session-1' });
 
     expect(ouverte.deadlineAt?.getTime()).toBe(T0 + 10_000 + 30_000);
   });
@@ -153,7 +153,7 @@ describe('RunQuestionUseCase, ouverture', () => {
     sessions.add(sessionOf({ status: 'en-cours', questions: [premiere, frozenQuestionOf(2)] }));
 
     avancerDe(4_000);
-    const ouverte = await useCase.openNext({ sessionId: 'session-1' });
+    const { ouverte } = await useCase.openNext({ sessionId: 'session-1' });
 
     const lue = await sessions.findById('session-1');
     expect(ouverte.rank).toBe(2);
@@ -202,6 +202,30 @@ describe('RunQuestionUseCase, ouverture', () => {
       rank: 2,
       timeLimitResolved: 20,
     });
+  });
+
+  // La présentation diffuse la correction de N avant d'ouvrir N+1 : sans ce
+  // résultat, les téléphones ne verraient jamais la fermeture de N.
+  it('rend le resultat de fermeture de la precedente', async () => {
+    const { sessions, useCase } = build();
+    const premiere = frozenQuestionOf(1, { openedAt: new Date(T0) });
+    sessions.add(sessionOf({ status: 'en-cours', questions: [premiere, frozenQuestionOf(2)] }));
+    sessions.poserReponse(reponse(premiere.id, 'p-1', true));
+    sessions.poserReponse(reponse(premiere.id, 'p-2', false));
+
+    const { ouverte, fermeturePrecedente } = await useCase.openNext({ sessionId: 'session-1' });
+
+    expect(ouverte.rank).toBe(2);
+    expect(fermeturePrecedente).toEqual({ sessionQuestionId: premiere.id, answerCount: 2, correctCount: 1 });
+  });
+
+  it('ne rend aucune fermeture quand rien n etait ouvert', async () => {
+    const { sessions, useCase } = build();
+    sessions.add(sessionOf({ status: 'en-cours' }));
+
+    const { fermeturePrecedente } = await useCase.openNext({ sessionId: 'session-1' });
+
+    expect(fermeturePrecedente).toBeNull();
   });
 
   it('refuse sans rien fermer quand la question ouverte est la derniere', async () => {
