@@ -98,3 +98,10 @@ export class EmptyBankError extends DomainError {
     super(`La banque ${bankId} ne contient aucune question`);
   }
 }
+
+/** Une réponse qui ne désigne rien sur la question visée : refusée, jamais comptée fausse. */
+export class InvalidAnswerError extends DomainError {
+  constructor(raison: string) {
+    super(`Réponse irrecevable : ${raison}`);
+  }
+}
