@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { newId, Prisma } from '@quetzal/db';
-import { getTenantScopedPrisma } from '@quetzal/core';
+import { getCurrentTenant, getTenantScopedPrisma } from '@quetzal/core';
 import { isAnswerMode } from '../domain/answer-mode.js';
 import { isSessionMode } from '../domain/session-mode.js';
 import { isSessionStatus } from '../domain/session-status.js';
@@ -36,6 +36,9 @@ export function violeLUnicite(err: unknown, ...champs: readonly string[]): boole
   if (!Array.isArray(cible)) return false;
   return champs.every((champ) => cible.includes(champ));
 }
+
+/** L'ordre d'arrivée, celui de la doublure ; l'id (UUID v7) départage deux lignes de la même microseconde. */
+const PAR_ARRIVEE = [{ createdAt: 'asc' as const }, { id: 'asc' as const }];
 
 const COLONNES_REPONSE = {
   id: true,
@@ -185,14 +188,11 @@ export class PrismaSessionRepository implements SessionRepository {
       };
       quiz_Participant: {
         findFirst(args: unknown): Promise<LigneParticipant | null>;
-        createMany(args: unknown): Promise<unknown>;
+        create(args: unknown): Promise<LigneParticipant>;
+        update(args: unknown): Promise<{ answers: AnswerRow[] }>;
         updateMany(args: unknown): Promise<unknown>;
       };
-      quiz_Member: { createMany(args: unknown): Promise<unknown> };
-      quiz_Answer: {
-        create(args: unknown): Promise<AnswerRow>;
-        findMany(args: unknown): Promise<AnswerRow[]>;
-      };
+      quiz_Answer: { findMany(args: unknown): Promise<AnswerRow[]> };
     };
   }
 
@@ -201,7 +201,7 @@ export class PrismaSessionRepository implements SessionRepository {
       questions: { orderBy: { rank: 'asc' as const } },
       participants: {
         orderBy: { participantIndex: 'asc' as const },
-        include: { members: true },
+        include: { members: { orderBy: PAR_ARRIVEE } },
       },
     };
   }
@@ -323,48 +323,34 @@ export class PrismaSessionRepository implements SessionRepository {
     });
   }
 
-  async addParticipant(input: {
+  /**
+   * Écriture imbriquée : Prisma la rend transactionnelle, et le membre hérite
+   * le `tenantId` du participant par la clé étrangère composite (l'extension
+   * de cloisonnement ne touche que le premier niveau).
+   */
+  async ajouterParticipant(input: {
     sessionId: string;
     participantIndex: number;
+    guestId: string;
+    displayName: string;
   }): Promise<Participant> {
-    const id = newId();
     try {
-      await this.prisma.quiz_Participant.createMany({
-        data: [{ id, sessionId: input.sessionId, participantIndex: input.participantIndex }],
+      const ligne = await this.prisma.quiz_Participant.create({
+        data: {
+          id: newId(),
+          sessionId: input.sessionId,
+          participantIndex: input.participantIndex,
+          members: {
+            create: { id: newId(), guestId: input.guestId, displayName: input.displayName },
+          },
+        },
+        include: { members: { orderBy: PAR_ARRIVEE } },
       });
+      return lireParticipant(ligne);
     } catch (err) {
       if (violeLUnicite(err, 'sessionId', 'participantIndex')) {
         throw new ParticipantIndexTakenError(input.participantIndex);
       }
-      throw err;
-    }
-    return {
-      id,
-      participantIndex: input.participantIndex,
-      name: null,
-      score: 0,
-      memberNames: [],
-    };
-  }
-
-  async addMember(input: {
-    participantId: string;
-    guestId: string;
-    displayName: string;
-  }): Promise<void> {
-    try {
-      await this.prisma.quiz_Member.createMany({
-        data: [{
-          id: newId(),
-          participantId: input.participantId,
-          guestId: input.guestId,
-          displayName: input.displayName,
-        }],
-      });
-    } catch (err) {
-      // Une reconnexion n'est pas une erreur, et le premier nom reste : la
-      // ligne existante n'est jamais réécrite.
-      if (violeLUnicite(err, 'participantId', 'guestId')) return;
       throw err;
     }
   }
@@ -375,7 +361,7 @@ export class PrismaSessionRepository implements SessionRepository {
   }): Promise<Participant | null> {
     const ligne = await this.prisma.quiz_Participant.findFirst({
       where: { sessionId: input.sessionId, members: { some: { guestId: input.guestId } } },
-      include: { members: true },
+      include: { members: { orderBy: PAR_ARRIVEE } },
     });
     return ligne === null ? null : lireParticipant(ligne);
   }
@@ -387,12 +373,27 @@ export class PrismaSessionRepository implements SessionRepository {
     });
   }
 
-  async recordAnswer(answer: NewAnswer): Promise<AnswerRow | null> {
+  /**
+   * Une seule écriture imbriquée depuis le participant : la réponse et
+   * l'incrément réussissent ou échouent ensemble. `update` exige le sélecteur
+   * composite `id_tenantId`, que l'extension ne sait pas poser : il est
+   * fourni ici, et l'extension ajoute de toute façon son `tenantId` à plat.
+   */
+  async enregistrerReponse(answer: NewAnswer): Promise<AnswerRow | null> {
+    const { participantId, ...reponse } = answer;
+    const id = newId();
     try {
-      return await this.prisma.quiz_Answer.create({
-        data: { id: newId(), ...answer },
-        select: COLONNES_REPONSE,
+      const ligne = await this.prisma.quiz_Participant.update({
+        where: { id_tenantId: { id: participantId, tenantId: getCurrentTenant().tenantId } },
+        data: {
+          score: { increment: answer.points },
+          answers: { create: { id, ...reponse } },
+        },
+        select: { answers: { where: { id }, select: COLONNES_REPONSE } },
       });
+      const ecrite = ligne.answers[0];
+      if (ecrite === undefined) throw new SessionNotFoundError(`réponse ${id} introuvable après écriture`);
+      return ecrite;
     } catch (err) {
       // ⛔ Rendu `null` et NON laissé remonter : deux doigts sur un téléphone
       // d'élève suffisent à déclencher deux émissions, et un 500 sur un
@@ -402,15 +403,12 @@ export class PrismaSessionRepository implements SessionRepository {
     }
   }
 
-  async addToScore(input: { participantId: string; points: number }): Promise<void> {
-    await this.prisma.quiz_Participant.updateMany({
-      where: { id: input.participantId },
-      data: { score: { increment: input.points } },
-    });
-  }
-
   async answersFor(sessionQuestionId: string): Promise<readonly AnswerRow[]> {
-    return this.prisma.quiz_Answer.findMany({ where: { sessionQuestionId }, select: COLONNES_REPONSE });
+    return this.prisma.quiz_Answer.findMany({
+      where: { sessionQuestionId },
+      orderBy: PAR_ARRIVEE,
+      select: COLONNES_REPONSE,
+    });
   }
 
   async allAnswers(sessionId: string): Promise<readonly AnswerRow[]> {

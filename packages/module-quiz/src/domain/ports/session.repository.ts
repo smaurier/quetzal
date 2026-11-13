@@ -86,25 +86,30 @@ export interface SessionRepository {
   }): Promise<void>;
   closeQuestion(input: { sessionQuestionId: string; closedAt: Date }): Promise<void>;
 
-  addParticipant(input: {
+  /**
+   * Le participant naît avec son premier membre, en une seule écriture : un
+   * participant sans membre occuperait son index sans qu'aucune reconnexion
+   * ne le retrouve.
+   */
+  ajouterParticipant(input: {
     sessionId: string;
     participantIndex: number;
-  }): Promise<Participant>;
-  /** Idempotent : une reconnexion ne doit pas créer un second membre. */
-  addMember(input: {
-    participantId: string;
     guestId: string;
     displayName: string;
-  }): Promise<void>;
+  }): Promise<Participant>;
   findParticipantByGuest(input: {
     sessionId: string;
     guestId: string;
   }): Promise<Participant | null>;
   renameParticipant(input: { participantId: string; name: string | null }): Promise<void>;
 
-  /** Rend `null` quand le participant a déjà répondu : l'unicité vit en base. */
-  recordAnswer(answer: NewAnswer): Promise<AnswerRow | null>;
-  addToScore(input: { participantId: string; points: number }): Promise<void>;
+  /**
+   * Écrit la réponse ET ajoute `answer.points` au score, en une seule écriture.
+   * Rend `null` quand le participant a déjà répondu (l'unicité vit en base),
+   * score inchangé : un rejeu ne doit jamais compter deux fois, ni une
+   * réponse écrite rester sans ses points.
+   */
+  enregistrerReponse(answer: NewAnswer): Promise<AnswerRow | null>;
   answersFor(sessionQuestionId: string): Promise<readonly AnswerRow[]>;
   allAnswers(sessionId: string): Promise<readonly AnswerRow[]>;
 }

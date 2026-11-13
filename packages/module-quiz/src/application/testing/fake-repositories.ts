@@ -191,7 +191,7 @@ export function sessionOf(overrides: Partial<Session> = {}): Session {
 
 /**
  * Doublure écrite à la main (CLAUDE.md §11 interdit `vi.mock`). Elle porte une
- * décision qui compte : `recordAnswer` applique vraiment l'unicité par
+ * décision qui compte : `enregistrerReponse` applique vraiment l'unicité par
  * `(question, participant)`, comme la contrainte en base. Sans ça, les tests de
  * cas d'usage passeraient sur une doublure plus permissive que la production.
  */
@@ -317,7 +317,12 @@ export class FakeSessionRepository implements SessionRepository {
     }));
   }
 
-  async addParticipant(input: { sessionId: string; participantIndex: number }): Promise<Participant> {
+  async ajouterParticipant(input: {
+    sessionId: string;
+    participantIndex: number;
+    guestId: string;
+    displayName: string;
+  }): Promise<Participant> {
     const existante = this.sessions.get(input.sessionId);
     if (existante?.participants.some((p) => p.participantIndex === input.participantIndex) === true) {
       throw new ParticipantIndexTakenError(input.participantIndex);
@@ -333,17 +338,8 @@ export class FakeSessionRepository implements SessionRepository {
       ...session,
       participants: [...session.participants, participant],
     }));
+    this.membres.set(participant.id, new Map([[input.guestId, input.displayName]]));
     return this.participantRendu(participant);
-  }
-
-  async addMember(input: {
-    participantId: string;
-    guestId: string;
-    displayName: string;
-  }): Promise<void> {
-    const membres = this.membres.get(input.participantId) ?? new Map<string, string>();
-    if (!membres.has(input.guestId)) membres.set(input.guestId, input.displayName);
-    this.membres.set(input.participantId, membres);
   }
 
   async findParticipantByGuest(input: {
@@ -372,7 +368,7 @@ export class FakeSessionRepository implements SessionRepository {
     }
   }
 
-  async recordAnswer(answer: NewAnswer): Promise<AnswerRow | null> {
+  async enregistrerReponse(answer: NewAnswer): Promise<AnswerRow | null> {
     // ⛔ L'unicite est appliquee ICI aussi, parce que la base l'applique. Une
     // doublure plus permissive que la production ferait passer des tests de cas
     // d'usage qui echoueraient en vrai.
@@ -384,16 +380,17 @@ export class FakeSessionRepository implements SessionRepository {
 
     const ligne: AnswerRow = { ...answer, id: nextId('answer') };
     this.answers.push(ligne);
+    this.ajouterAuScore(answer.participantId, answer.points);
     return { ...ligne };
   }
 
-  async addToScore(input: { participantId: string; points: number }): Promise<void> {
+  private ajouterAuScore(participantId: string, points: number): void {
     for (const session of this.sessions.values()) {
-      if (!session.participants.some((p) => p.id === input.participantId)) continue;
+      if (!session.participants.some((p) => p.id === participantId)) continue;
       this.muter(session.id, (courante) => ({
         ...courante,
         participants: courante.participants.map((p) =>
-          p.id === input.participantId ? { ...p, score: p.score + input.points } : p),
+          p.id === participantId ? { ...p, score: p.score + points } : p),
       }));
       return;
     }
